@@ -1,0 +1,565 @@
+﻿using Newtonsoft.Json;
+using System;
+using System.IO;
+using System.IO.MemoryMappedFiles;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using Directory = Alphaleonis.Win32.Filesystem.Directory;
+using File = Alphaleonis.Win32.Filesystem.File;
+using Path = Alphaleonis.Win32.Filesystem.Path;
+
+namespace TextReplacementApp
+{
+    /// <summary>
+    /// Represents the main form of the TextReplacementApp application.
+    /// </summary>
+    /// <remarks>
+    /// The <see cref="T:TextReplacementApp.MainWindow" /> class provides the
+    /// user interface for the application, allowing users to specify the directory
+    /// where text replacement should occur and the text to search for and replace. It
+    /// also initiates the text replacement process and displays progress using a
+    /// progress dialog.
+    /// </remarks>
+    public partial class MainWindow : Form
+    {
+        /// <summary>
+        /// The application configuration settings.
+        /// </summary>
+        /// <remarks>
+        /// This field stores the application configuration settings,
+        /// including the directory path, search text, and replace text.
+        /// </remarks>
+        private readonly AppConfig appConfig;
+
+        /// <summary>
+        /// The fully-qualified pathname to the application configuration file.
+        /// </summary>
+        /// <remarks>
+        /// This field stores the location of the application configuration file
+        /// on the file system. The file is named <c>config.json</c> and is stored in the
+        /// <c>%LOCALAPPDATA%\xyLOGIX\File Text Replacer Tool</c> directory.
+        /// </remarks>
+        private readonly string configFilePath = Path.Combine(
+            Environment.GetFolderPath(
+                Environment.SpecialFolder.LocalApplicationData
+            ), "xyLOGIX, LLC", "File Text Replacer Tool", "config.json"
+        );
+
+        /// <summary>
+        /// Constructs a new instance of <see cref="T:TextReplacementApp.MainWindow" /> and
+        /// returns a reference to it.
+        /// </summary>
+        public MainWindow()
+        {
+            InitializeComponent();
+
+            // Initialize AppConfig and load settings
+            appConfig = LoadConfig();
+            UpdateTextBoxesFromConfig();
+        }
+
+        /// <summary>
+        /// Raises the <see cref="E:System.Windows.Forms.Form.FormClosing" />
+        /// event.
+        /// </summary>
+        /// <param name="e">
+        /// A <see cref="T:System.Windows.Forms.FormClosingEventArgs" />
+        /// that contains the event data.
+        /// </param>
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            base.OnFormClosing(e);
+
+            // Save config when the form is closing
+            SaveConfig();
+        }
+
+        /// <summary>
+        /// Loads the configuration settings from the specified JSON file.
+        /// </summary>
+        /// <returns>
+        /// An instance of <see cref="T:TextReplacementApp.AppConfig" />
+        /// containing the loaded configuration settings. If the file does not exist, a new
+        /// instance of <see cref="T:TextReplacementApp.AppConfig" /> is returned.
+        /// </returns>
+        /// <remarks>
+        /// This method reads the configuration settings from the specified JSON
+        /// file and deserializes them into an
+        /// <see cref="T:TextReplacementApp.AppConfig" />
+        /// instance. If the file does not exist, a new instance of
+        /// <see cref="T:TextReplacementApp.AppConfig" /> is returned with all properties
+        /// set to empty strings.
+        /// </remarks>
+        private AppConfig LoadConfig()
+        {
+            AppConfig result;
+
+            try
+            {
+                if (!File.Exists(configFilePath))
+
+                    // If config file doesn't exist, return a new instance
+                    return new AppConfig();
+
+                // Load config from JSON file
+                var json = File.ReadAllText(configFilePath);
+                result = JsonConvert.DeserializeObject<AppConfig>(json);
+            }
+            catch (Exception ex)
+            {
+                // display an alert with the exception text
+                MessageBox.Show(
+                    this, ex.Message, Application.ProductName,
+                    MessageBoxButtons.OK, MessageBoxIcon.Stop
+                );
+
+                result = default;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Event handler for the <see cref="E:System.Windows.Forms.Control.Click" /> event
+        /// event of the <b>Browse</b> button.
+        /// </summary>
+        /// <param name="sender">The object that triggered the event.</param>
+        /// <param name="e">The event arguments.</param>
+        /// <remarks>
+        /// This method is called when the user clicks the <b>Browse</b> button to
+        /// select a directory using the folder browser dialog. It updates the text of the
+        /// directory path textbox with the selected directory path.
+        /// </remarks>
+        private void OnClickBrowseButton(object sender, EventArgs e)
+        {
+            var result = folderBrowserDialog1.ShowDialog(this);
+            if (result == DialogResult.OK &&
+                !string.IsNullOrWhiteSpace(folderBrowserDialog1.SelectedPath))
+                txtDirectoryPath.Text = folderBrowserDialog1.SelectedPath;
+        }
+
+        /// <summary>
+        /// Event handler for the <see cref="E:System.Windows.Forms.Control.Click" /> event
+        /// of the <b>Do It</b> button.
+        /// </summary>
+        /// <param name="sender">The object that triggered the event.</param>
+        /// <param name="e">The event arguments.</param>
+        /// <remarks>
+        /// This method is called when the user clicks the <b>Do It</b> button
+        /// to initiate the text replacement process. It performs validation,
+        /// creates a progress dialog, starts a background task for text replacement,
+        /// and displays the progress dialog modally.
+        /// </remarks>
+        private void OnClickDoItButton(object sender, EventArgs e)
+        {
+            var directoryPath = txtDirectoryPath.Text.Trim();
+            var searchText = txtSearchText.Text.Trim();
+            var replaceText = txtReplaceText.Text.Trim();
+
+            // validation
+            if (string.IsNullOrEmpty(directoryPath) ||
+                !Directory.Exists(directoryPath))
+            {
+                MessageBox.Show(
+                    "Please select a valid directory.", Application.ProductName,
+                    MessageBoxButtons.OK, MessageBoxIcon.Error
+                );
+                return;
+            }
+
+            if (string.IsNullOrEmpty(searchText))
+            {
+                MessageBox.Show(
+                    "Please type in some text to find.",
+                    Application.ProductName, MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+                return;
+            }
+
+            if (string.IsNullOrEmpty(replaceText))
+            {
+                MessageBox.Show(
+                    "Please type in some text to replace the found text with.",
+                    Application.ProductName, MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+                return;
+            }
+
+            using (var progressDialog = new ProgressDialog())
+            {
+                // Use Progress<T> to report progress
+                var progressReporter = new Progress<ProgressReport>(
+                    report =>
+                    {
+                        progressDialog.UpdateProgress(
+                            report.CurrentFile, report.ProgressPercentage
+                        );
+                    }
+                );
+
+                // Start a new task for text replacement
+                Task.Run(
+                    () =>
+                    {
+                        ReplaceTextInFiles(
+                            directoryPath, searchText, replaceText,
+                            progressReporter
+                        );
+
+                        // close the progress dialog
+                        if (InvokeRequired)
+                            progressDialog.BeginInvoke(
+                                new MethodInvoker(progressDialog.Close)
+                            );
+                        else
+                            progressDialog.Close();
+
+                        // Show completion message
+                        MessageBox.Show(
+                            "Text replacement completed.", "Success",
+                            MessageBoxButtons.OK, MessageBoxIcon.Information
+                        );
+                    }
+                );
+
+                progressDialog.ShowDialog(this);
+            }
+        }
+
+        /// <summary>
+        /// Event handler for the
+        /// <see cref="E:System.Windows.Forms.Control.TextChanged" /> event of the
+        /// <b>Starting Folder</b> text box. Updates the
+        /// <see cref="P:TextReplacementApp.AppConfig.DirectoryPath" /> property with the
+        /// trimmed text from the directory path text box.
+        /// </summary>
+        /// <param name="sender">The object that raised the event.</param>
+        /// <param name="e">The event data.</param>
+        private void OnTextChangedDirectoryPath(object sender, EventArgs e)
+            => appConfig.DirectoryPath = txtDirectoryPath.Text.Trim();
+
+        /// <summary>
+        /// Event handler for the
+        /// <see cref="E:System.Windows.Forms.Control.TextChanged" /> event of the
+        /// <b>Replace With</b> text box. Updates the
+        /// <see cref="P:TextReplacementApp.AppConfig.ReplaceWith" /> property with the
+        /// trimmed text from the directory path text box.
+        /// </summary>
+        /// <param name="sender">The object that raised the event.</param>
+        /// <param name="e">The event data.</param>
+        private void OnTextChangedReplaceText(object sender, EventArgs e)
+            => appConfig.ReplaceWith = txtReplaceText.Text.Trim();
+
+        /// <summary>
+        /// Event handler for the
+        /// <see cref="E:System.Windows.Forms.Control.TextChanged" /> event of the
+        /// <b>Find What</b> text box. Updates the
+        /// <see cref="P:TextReplacementApp.AppConfig.FindWhat" /> property with the
+        /// trimmed text from the directory path text box.
+        /// </summary>
+        /// <param name="sender">The object that raised the event.</param>
+        /// <param name="e">The event data.</param>
+        private void OnTextChangedSearchText(object sender, EventArgs e)
+            => appConfig.FindWhat = txtSearchText.Text.Trim();
+
+        /// <summary>
+        /// Reads text from a memory-mapped file accessor.
+        /// </summary>
+        /// <param name="accessor">The memory-mapped file accessor.</param>
+        /// <param name="length">The length of the text to read.</param>
+        /// <returns>The text read from memory.</returns>
+        /// <remarks>
+        /// This method reads text from a memory-mapped file accessor and returns it as a
+        /// string.
+        /// It reads the specified length of bytes from the accessor and decodes them using
+        /// UTF-8 encoding.
+        /// </remarks>
+        private string ReadTextFromMemory(
+            UnmanagedMemoryAccessor accessor,
+            long length
+        )
+        {
+            // text contents of the file.
+            var result = string.Empty;
+
+            try
+            {
+                // check for conditions that would prohibit our success
+                if (accessor == null) return result;
+                if (!accessor.CanRead) return result;
+                if (length <= 0L) return result;
+
+                var bytes = new byte[length];
+                accessor.ReadArray(0, bytes, 0, (int)length);
+                result = Encoding.UTF8.GetString(bytes);
+            }
+            catch (Exception ex)
+            {
+                // display an alert with the exception text
+                MessageBox.Show(
+                    this, ex.Message, Application.ProductName,
+                    MessageBoxButtons.OK, MessageBoxIcon.Stop
+                );
+
+                result = string.Empty;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Replaces text in the specified file.
+        /// </summary>
+        /// <param name="filePath">The path of the file to perform text replacement on.</param>
+        /// <param name="searchText">The text to search for in the file.</param>
+        /// <param name="replaceText">The text to replace the search text with.</param>
+        /// <remarks>
+        /// This method performs text replacement in the specified file. It reads
+        /// the content of the file, replaces occurrences of the search text with the
+        /// replace text, and writes the modified content back to the file. If the file
+        /// path contains specific directories (such as <c>.git</c>, <c>.vs</c>, etc.), it
+        /// skips the replacement.
+        /// </remarks>
+        private void ReplaceTextInFile(
+            string filePath,
+            string searchText,
+            string replaceText
+        )
+        {
+            /*
+             * Account for this algorithm being run on a
+             * Visual Studio solution consisting only of
+             * C# projects, and in a local Git repo.
+             */
+
+            if (filePath.Contains(@"\.git\")) return;
+            if (filePath.Contains(@"\.vs\")) return;
+            if (filePath.Contains(@"\packages\")) return;
+            if (filePath.Contains(@"\bin\")) return;
+            if (filePath.Contains(@"\obj\")) return;
+            if (!Path.GetExtension(filePath)
+                     .IsAnyOf(
+                         ".txt", ".cs", ".resx", ".config", ".json", ".csproj",
+                         ".settings", ".md"
+                     ))
+                return;
+
+            using (var fileStream = File.Open(
+                       filePath, FileMode.Open, FileAccess.ReadWrite,
+                       FileShare.None
+                   ))
+            {
+                var originalLength = fileStream.Length;
+
+                // If the original file length is zero, return early
+                if (originalLength == 0) return;
+
+                using (var mmf = MemoryMappedFile.CreateFromFile(
+                           fileStream, null, originalLength,
+                           MemoryMappedFileAccess.ReadWrite,
+                           HandleInheritability.None, false
+                       ))
+                {
+                    using (var accessor = mmf.CreateViewAccessor(
+                               0, originalLength,
+                               MemoryMappedFileAccess.ReadWrite
+                           ))
+                    {
+                        // Read the content from memory
+                        var text = ReadTextFromMemory(accessor, originalLength);
+                        if (string.IsNullOrWhiteSpace(text))
+                            return;
+
+                        // Perform text replacement
+                        text = text.Replace(searchText, replaceText);
+
+                        // Calculate the length of the modified text
+                        long modifiedLength = Encoding.UTF8.GetByteCount(text);
+
+                        // If the modified text is larger, extend the file size
+                        if (modifiedLength > originalLength)
+                        {
+                            fileStream.SetLength(modifiedLength);
+
+                            // Re-open the file stream after extending the size
+                            fileStream.Seek(0, SeekOrigin.Begin);
+                            using (var newMmf = MemoryMappedFile.CreateFromFile(
+                                       fileStream, null, modifiedLength,
+                                       MemoryMappedFileAccess.ReadWrite,
+                                       HandleInheritability.None, false
+                                   ))
+                            {
+                                using (var newAccessor =
+                                       newMmf.CreateViewAccessor(
+                                           0, modifiedLength,
+                                           MemoryMappedFileAccess.ReadWrite
+                                       ))
+
+                                    // Write the modified content back to memory
+                                    WriteTextToMemory(newAccessor, text);
+                            }
+                        }
+                        else
+                        {
+                            // Write the modified content back to memory
+                            WriteTextToMemory(accessor, text);
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Replaces text in all files within the specified directory and its
+        /// subdirectories.
+        /// </summary>
+        /// <param name="directoryPath">The path of the directory to search for files.</param>
+        /// <param name="searchText">The text to search for in each file.</param>
+        /// <param name="replaceText">The text to replace the search text with.</param>
+        /// <param name="progressReporter">
+        /// An object for reporting progress during text
+        /// replacement.
+        /// </param>
+        /// <remarks>
+        /// This method recursively searches for files within the specified
+        /// directory and its subdirectories. For each file found, it calls
+        /// <see cref="ReplaceTextInFile" /> to perform text replacement. Progress is
+        /// reported using the specified <paramref name="progressReporter" />. Certain
+        /// directories (e.g., <c>.git</c>, <c>.vs</c>, etc.) are excluded from text
+        /// replacement.
+        /// </remarks>
+        private void ReplaceTextInFiles(
+            string directoryPath,
+            string searchText,
+            string replaceText,
+            IProgress<ProgressReport> progressReporter
+        )
+        {
+            var files = Directory.EnumerateFiles(
+                                     directoryPath, "*",
+                                     SearchOption.AllDirectories
+                                 )
+                                 .Where(
+                                     file => !file.Contains(@"\.git\") &&
+                                             !file.Contains(@"\.vs\") &&
+                                             !file.Contains(@"\packages\") &&
+                                             !file.Contains(@"\bin\") &&
+                                             !file.Contains(@"\obj\")
+                                 )
+                                 .ToList();
+
+            var totalFiles = files.Count;
+            var completedFiles = 0;
+
+            foreach (var file in files)
+            {
+                ReplaceTextInFile(file, searchText, replaceText);
+                Interlocked.Increment(ref completedFiles);
+
+                // Report progress
+                var progressPercentage =
+                    (int)((double)completedFiles / totalFiles * 100);
+                var progressReport = new ProgressReport(
+                    file, progressPercentage
+                );
+                progressReporter.Report(progressReport);
+            }
+        }
+
+        /// <summary>
+        /// Saves the current application configuration to a JSON file.
+        /// </summary>
+        /// <remarks>
+        /// The method first checks if the directory containing the configuration
+        /// file exists, and creates it if it does not. Then, it serializes the
+        /// <see cref="T:TextReplacementApp.AppConfig" /> object to JSON format using
+        /// <c>Newtonsoft.Json</c>, and writes the JSON string to the configuration file.
+        /// </remarks>
+        private void SaveConfig()
+        {
+            try
+            {
+                // check for any conditions that might prevent us from succeeding.
+                if (string.IsNullOrWhiteSpace(configFilePath)) return;
+
+                var directory = Path.GetDirectoryName(configFilePath);
+                if (!Directory.Exists(directory))
+                    Directory.CreateDirectory(directory);
+
+                var json = JsonConvert.SerializeObject(
+                    appConfig, Formatting.Indented
+                );
+                if (string.IsNullOrWhiteSpace(json)) return;
+
+                File.WriteAllText(configFilePath, json);
+            }
+            catch (Exception ex)
+            {
+                // display an alert with the exception text
+                MessageBox.Show(
+                    this, ex.Message, Application.ProductName,
+                    MessageBoxButtons.OK, MessageBoxIcon.Stop
+                );
+            }
+        }
+
+        /// <summary>
+        /// Updates the text boxes on the main form with the values stored in the
+        /// application configuration.
+        /// </summary>
+        /// <remarks>
+        /// This method retrieves the directory path, search text, and replace
+        /// text from the <see cref="T:TextReplacementApp.AppConfig" /> object and sets the
+        /// corresponding text properties of the text boxes on the main form to these
+        /// values.
+        /// </remarks>
+        private void UpdateTextBoxesFromConfig()
+        {
+            txtDirectoryPath.Text = appConfig.DirectoryPath;
+            txtSearchText.Text = appConfig.FindWhat;
+            txtReplaceText.Text = appConfig.ReplaceWith;
+        }
+
+        /// <summary>
+        /// Writes the specified text to a memory-mapped view accessor.
+        /// </summary>
+        /// <param name="accessor">The memory-mapped view accessor to write to.</param>
+        /// <param name="text">The text to write.</param>
+        /// <remarks>
+        /// This method writes the UTF-8 encoded bytes of the
+        /// <paramref name="text" /> to the memory-mapped view accessor starting at the
+        /// beginning (offset zero). It is the responsibility of the caller to ensure that
+        /// the
+        /// length of the text matches the length of the memory-mapped view accessor.
+        /// </remarks>
+        private void WriteTextToMemory(
+            UnmanagedMemoryAccessor accessor,
+            string text
+        )
+        {
+            try
+            {
+                // check for conditions that would prohibit our success
+                if (accessor == null) return;
+                if (!accessor.CanWrite) return;
+                if (string.IsNullOrWhiteSpace(text)) return;
+
+                var bytes = Encoding.UTF8.GetBytes(text);
+                accessor.WriteArray(0, bytes, 0, bytes.Length);
+            }
+            catch (Exception ex)
+            {
+                // display an alert with the exception text
+                MessageBox.Show(
+                    this, ex.Message, Application.ProductName,
+                    MessageBoxButtons.OK, MessageBoxIcon.Stop
+                );
+            }
+        }
+    }
+}
