@@ -137,6 +137,10 @@
     <None Include="Resources\SwitchUpDown_16x.png" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\xyLOGIX.Files.MemoryMapped.VS2022\xyLOGIX.Files.MemoryMapped.Interfaces\xyLOGIX.Files.MemoryMapped.Interfaces.csproj">
+      <Project>{c7cb816d-0fb7-4c62-a225-98711e5537a5}</Project>
+      <Name>xyLOGIX.Files.MemoryMapped.Interfaces</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\xyLOGIX.Files.MemoryMapped.VS2022\xyLOGIX.Files.MemoryMapped\xyLOGIX.Files.MemoryMapped.csproj">
       <Project>{2557ED07-457A-415C-9C36-25C5ED163907}</Project>
       <Name>xyLOGIX.Files.MemoryMapped</Name>
