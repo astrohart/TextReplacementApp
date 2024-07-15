@@ -29,25 +29,26 @@
         private void InitializeComponent()
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainWindow));
-            this.txtSearchText = new System.Windows.Forms.TextBox();
+            this.findWhatTextBox = new System.Windows.Forms.TextBox();
             this.labelOriginal = new System.Windows.Forms.Label();
             this.labelReplacement = new System.Windows.Forms.Label();
-            this.txtReplaceText = new System.Windows.Forms.TextBox();
+            this.replaceWithTextBox = new System.Windows.Forms.TextBox();
             this.btnDoIt = new System.Windows.Forms.Button();
             this.folderBrowserDialog1 = new System.Windows.Forms.FolderBrowserDialog();
             this.btnBrowse = new System.Windows.Forms.Button();
             this.txtDirectoryPath = new System.Windows.Forms.TextBox();
             this.labelDirectoryPath = new System.Windows.Forms.Label();
+            this.switchButton = new System.Windows.Forms.Button();
             this.SuspendLayout();
             // 
             // txtSearchText
             // 
-            this.txtSearchText.Location = new System.Drawing.Point(141, 53);
-            this.txtSearchText.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            this.txtSearchText.Name = "txtSearchText";
-            this.txtSearchText.Size = new System.Drawing.Size(380, 23);
-            this.txtSearchText.TabIndex = 4;
-            this.txtSearchText.TextChanged += new System.EventHandler(this.OnTextChangedSearchText);
+            this.findWhatTextBox.Location = new System.Drawing.Point(141, 56);
+            this.findWhatTextBox.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            this.findWhatTextBox.Name = "findWhatTextBox";
+            this.findWhatTextBox.Size = new System.Drawing.Size(380, 23);
+            this.findWhatTextBox.TabIndex = 4;
+            this.findWhatTextBox.TextChanged += new System.EventHandler(this.OnTextChangedSearchText);
             // 
             // labelOriginal
             // 
@@ -66,17 +67,17 @@
             this.labelReplacement.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.labelReplacement.Name = "labelReplacement";
             this.labelReplacement.Size = new System.Drawing.Size(79, 15);
-            this.labelReplacement.TabIndex = 5;
+            this.labelReplacement.TabIndex = 6;
             this.labelReplacement.Text = "&Replace With:";
             // 
             // txtReplaceText
             // 
-            this.txtReplaceText.Location = new System.Drawing.Point(141, 92);
-            this.txtReplaceText.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
-            this.txtReplaceText.Name = "txtReplaceText";
-            this.txtReplaceText.Size = new System.Drawing.Size(380, 23);
-            this.txtReplaceText.TabIndex = 6;
-            this.txtReplaceText.TextChanged += new System.EventHandler(this.OnTextChangedReplaceText);
+            this.replaceWithTextBox.Location = new System.Drawing.Point(141, 92);
+            this.replaceWithTextBox.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
+            this.replaceWithTextBox.Name = "replaceWithTextBox";
+            this.replaceWithTextBox.Size = new System.Drawing.Size(380, 23);
+            this.replaceWithTextBox.TabIndex = 7;
+            this.replaceWithTextBox.TextChanged += new System.EventHandler(this.OnTextChangedReplaceText);
             // 
             // btnDoIt
             // 
@@ -84,7 +85,7 @@
             this.btnDoIt.Margin = new System.Windows.Forms.Padding(4, 3, 4, 3);
             this.btnDoIt.Name = "btnDoIt";
             this.btnDoIt.Size = new System.Drawing.Size(88, 27);
-            this.btnDoIt.TabIndex = 7;
+            this.btnDoIt.TabIndex = 8;
             this.btnDoIt.Text = "&Do It!";
             this.btnDoIt.UseVisualStyleBackColor = true;
             this.btnDoIt.Click += new System.EventHandler(this.OnClickDoItButton);
@@ -125,20 +126,31 @@
             this.labelDirectoryPath.TabIndex = 0;
             this.labelDirectoryPath.Text = "&Starting Folder:";
             // 
+            // switchButton
+            // 
+            this.switchButton.Image = global::TextReplacementApp.Properties.Resources.SwitchUpDown_16x;
+            this.switchButton.Location = new System.Drawing.Point(538, 76);
+            this.switchButton.Name = "switchButton";
+            this.switchButton.Size = new System.Drawing.Size(23, 23);
+            this.switchButton.TabIndex = 5;
+            this.switchButton.UseVisualStyleBackColor = true;
+            this.switchButton.Click += new System.EventHandler(this.OnClickSwitchButton);
+            // 
             // MainWindow
             // 
             this.AcceptButton = this.btnDoIt;
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(646, 180);
+            this.Controls.Add(this.switchButton);
             this.Controls.Add(this.labelDirectoryPath);
             this.Controls.Add(this.txtDirectoryPath);
             this.Controls.Add(this.btnBrowse);
             this.Controls.Add(this.btnDoIt);
-            this.Controls.Add(this.txtReplaceText);
+            this.Controls.Add(this.replaceWithTextBox);
             this.Controls.Add(this.labelReplacement);
             this.Controls.Add(this.labelOriginal);
-            this.Controls.Add(this.txtSearchText);
+            this.Controls.Add(this.findWhatTextBox);
             this.Font = new System.Drawing.Font("Segoe UI", 9F);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
@@ -154,14 +166,15 @@
 
         #endregion
 
-        private System.Windows.Forms.TextBox txtSearchText;
+        private System.Windows.Forms.TextBox findWhatTextBox;
         private System.Windows.Forms.Label labelOriginal;
         private System.Windows.Forms.Label labelReplacement;
-        private System.Windows.Forms.TextBox txtReplaceText;
+        private System.Windows.Forms.TextBox replaceWithTextBox;
         private System.Windows.Forms.Button btnDoIt;
         private System.Windows.Forms.FolderBrowserDialog folderBrowserDialog1;
         private System.Windows.Forms.Button btnBrowse;
         private System.Windows.Forms.TextBox txtDirectoryPath;
         private System.Windows.Forms.Label labelDirectoryPath;
+        private System.Windows.Forms.Button switchButton;
     }
 }

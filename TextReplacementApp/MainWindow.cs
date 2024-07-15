@@ -1,7 +1,8 @@
 ﻿using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
-using System.IO.MemoryMappedFiles;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -59,6 +60,33 @@ namespace TextReplacementApp
             // Initialize AppConfig and load settings
             appConfig = LoadConfig();
             UpdateTextBoxesFromConfig();
+        }
+
+        /// <summary>
+        /// Gets a reference to an instance of a collection, each of whose elements are of
+        /// type <see cref="T:TextReplacementApp.FileFailureInfo" />, that individually,
+        /// describe the file(s) for which I/O operation(s) failed and the reason(s) for
+        /// those failures.
+        /// </summary>
+        private IList<FileFailureInfo> FileFailures { get; } =
+            new List<FileFailureInfo>();
+
+        /// <summary>
+        /// Gets or sets the value of the <b>Find What</b> text box.
+        /// </summary>
+        public string FindWhat
+        {
+            [DebuggerStepThrough] get => findWhatTextBox.Text;
+            [DebuggerStepThrough] set => findWhatTextBox.Text = value;
+        }
+
+        /// <summary>
+        /// Gets or sets the value of the <b>Replace With</b> text box.
+        /// </summary>
+        public string ReplaceWith
+        {
+            [DebuggerStepThrough] get => replaceWithTextBox.Text;
+            [DebuggerStepThrough] set => replaceWithTextBox.Text = value;
         }
 
         /// <summary>
@@ -156,8 +184,8 @@ namespace TextReplacementApp
         private void OnClickDoItButton(object sender, EventArgs e)
         {
             var directoryPath = txtDirectoryPath.Text.Trim();
-            var searchText = txtSearchText.Text.Trim();
-            var replaceText = txtReplaceText.Text.Trim();
+            var searchText = findWhatTextBox.Text.Trim();
+            var replaceText = replaceWithTextBox.Text.Trim();
 
             // validation
             if (string.IsNullOrEmpty(directoryPath) ||
@@ -219,16 +247,42 @@ namespace TextReplacementApp
                         else
                             progressDialog.Close();
 
-                        // Show completion message
-                        MessageBox.Show(
-                            "Text replacement completed.", "Success",
-                            MessageBoxButtons.OK, MessageBoxIcon.Information
-                        );
+                        // Show completion message - unless there are more than zero failures
+                        if (FileFailures.Count <= 0)
+                            MessageBox.Show(
+                                "Text replacement completed.", "Success",
+                                MessageBoxButtons.OK, MessageBoxIcon.Information
+                            );
                     }
                 );
 
                 progressDialog.ShowDialog(this);
             }
+        }
+
+        /// <summary>
+        /// Handles the <see cref="E:System.Windows.Forms.Control.Click" /> event raised by
+        /// the <b>Switch</b> button when it is clicked by the user.
+        /// </summary>
+        /// <param name="sender">
+        /// Reference to an instance of the object that raised the
+        /// event.
+        /// </param>
+        /// <param name="e">
+        /// A <see cref="T:System.EventArgs" /> that contains the event
+        /// data.
+        /// </param>
+        /// <remarks>
+        /// This method responds by juxtaposing the values of the <b>Find What</b>
+        /// and <b>Replace With</b> text boxes.
+        /// </remarks>
+        private void OnClickSwitchButton(object sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(FindWhat) &&
+                string.IsNullOrWhiteSpace(ReplaceWith))
+                return; // nothing to do
+
+            (ReplaceWith, FindWhat) = (FindWhat, ReplaceWith);
         }
 
         /// <summary>
@@ -253,7 +307,7 @@ namespace TextReplacementApp
         /// <param name="sender">The object that raised the event.</param>
         /// <param name="e">The event data.</param>
         private void OnTextChangedReplaceText(object sender, EventArgs e)
-            => appConfig.ReplaceWith = txtReplaceText.Text.Trim();
+            => appConfig.ReplaceWith = replaceWithTextBox.Text.Trim();
 
         /// <summary>
         /// Event handler for the
@@ -265,52 +319,7 @@ namespace TextReplacementApp
         /// <param name="sender">The object that raised the event.</param>
         /// <param name="e">The event data.</param>
         private void OnTextChangedSearchText(object sender, EventArgs e)
-            => appConfig.FindWhat = txtSearchText.Text.Trim();
-
-        /// <summary>
-        /// Reads text from a memory-mapped file accessor.
-        /// </summary>
-        /// <param name="accessor">The memory-mapped file accessor.</param>
-        /// <param name="length">The length of the text to read.</param>
-        /// <returns>The text read from memory.</returns>
-        /// <remarks>
-        /// This method reads text from a memory-mapped file accessor and returns it as a
-        /// string.
-        /// It reads the specified length of bytes from the accessor and decodes them using
-        /// UTF-8 encoding.
-        /// </remarks>
-        private string ReadTextFromMemory(
-            UnmanagedMemoryAccessor accessor,
-            long length
-        )
-        {
-            // text contents of the file.
-            var result = string.Empty;
-
-            try
-            {
-                // check for conditions that would prohibit our success
-                if (accessor == null) return result;
-                if (!accessor.CanRead) return result;
-                if (length <= 0L) return result;
-
-                var bytes = new byte[length];
-                accessor.ReadArray(0, bytes, 0, (int)length);
-                result = Encoding.UTF8.GetString(bytes);
-            }
-            catch (Exception ex)
-            {
-                // display an alert with the exception text
-                MessageBox.Show(
-                    this, ex.Message, Application.ProductName,
-                    MessageBoxButtons.OK, MessageBoxIcon.Stop
-                );
-
-                result = string.Empty;
-            }
-
-            return result;
-        }
+            => appConfig.FindWhat = findWhatTextBox.Text.Trim();
 
         /// <summary>
         /// Replaces text in the specified file.
@@ -331,86 +340,63 @@ namespace TextReplacementApp
             string replaceText
         )
         {
-            /*
-             * Account for this algorithm being run on a
-             * Visual Studio solution consisting only of
-             * C# projects, and in a local Git repo.
-             */
-
-            if (filePath.Contains(@"\.git\")) return;
-            if (filePath.Contains(@"\.vs\")) return;
-            if (filePath.Contains(@"\packages\")) return;
-            if (filePath.Contains(@"\bin\")) return;
-            if (filePath.Contains(@"\obj\")) return;
-            if (!Path.GetExtension(filePath)
-                     .IsAnyOf(
-                         ".txt", ".cs", ".resx", ".config", ".json", ".csproj",
-                         ".settings", ".md"
-                     ))
-                return;
-
-            using (var fileStream = File.Open(
-                       filePath, FileMode.Open, FileAccess.ReadWrite,
-                       FileShare.None
-                   ))
+            try
             {
-                var originalLength = fileStream.Length;
+                /*
+                 * Account for this algorithm being run on a
+                 * Visual Studio solution consisting only of
+                 * C# projects, and in a local Git repo.
+                 */
 
-                // If the original file length is zero, return early
-                if (originalLength == 0) return;
+                if (string.IsNullOrWhiteSpace(filePath)) return;
 
-                using (var mmf = MemoryMappedFile.CreateFromFile(
-                           fileStream, null, originalLength,
-                           MemoryMappedFileAccess.ReadWrite,
-                           HandleInheritability.None, false
-                       ))
+                if (filePath.Contains(@"\.git\")) return;
+                if (filePath.Contains(@"\.vs\")) return;
+                if (filePath.Contains(@"\packages\")) return;
+                if (filePath.Contains(@"\bin\")) return;
+                if (filePath.Contains(@"\obj\")) return;
+                if (!Path.GetExtension(filePath)
+                         .IsAnyOf(
+                             ".txt", ".cs", ".resx", ".config", ".json",
+                             ".csproj", ".settings", ".md"
+                         ))
+                    return;
+
+                if (!File.Exists(filePath)) return;
+
+                var text = string.Empty;
+                var originalLength = 0L;
+
+                using (var reader = new FileStreamReader(filePath))
                 {
-                    using (var accessor = mmf.CreateViewAccessor(
-                               0, originalLength,
-                               MemoryMappedFileAccess.ReadWrite
-                           ))
-                    {
-                        // Read the content from memory
-                        var text = ReadTextFromMemory(accessor, originalLength);
-                        if (string.IsNullOrWhiteSpace(text))
-                            return;
+                    originalLength = reader.Length;
 
-                        // Perform text replacement
-                        text = text.Replace(searchText, replaceText);
-
-                        // Calculate the length of the modified text
-                        long modifiedLength = Encoding.UTF8.GetByteCount(text);
-
-                        // If the modified text is larger, extend the file size
-                        if (modifiedLength > originalLength)
-                        {
-                            fileStream.SetLength(modifiedLength);
-
-                            // Re-open the file stream after extending the size
-                            fileStream.Seek(0, SeekOrigin.Begin);
-                            using (var newMmf = MemoryMappedFile.CreateFromFile(
-                                       fileStream, null, modifiedLength,
-                                       MemoryMappedFileAccess.ReadWrite,
-                                       HandleInheritability.None, false
-                                   ))
-                            {
-                                using (var newAccessor =
-                                       newMmf.CreateViewAccessor(
-                                           0, modifiedLength,
-                                           MemoryMappedFileAccess.ReadWrite
-                                       ))
-
-                                    // Write the modified content back to memory
-                                    WriteTextToMemory(newAccessor, text);
-                            }
-                        }
-                        else
-                        {
-                            // Write the modified content back to memory
-                            WriteTextToMemory(accessor, text);
-                        }
-                    }
+                    text = reader.ReadAllText();
                 }
+
+                if (!text.Contains(searchText)) return;
+
+                // Perform text replacement
+                var newText = text.Replace(searchText, replaceText).Trim();
+
+                // Calculate the length of the modified text
+                long modifiedLength = Encoding.UTF8.GetByteCount(newText);
+                
+                // No sense in writing out the replacement text if no replacement actually took place
+                if (newText.Equals(text) &&
+                    modifiedLength.Equals(originalLength)) return;
+
+                using (var writer = new FileStreamWriter(filePath))
+                {
+                    writer.SetLength(modifiedLength);
+
+                    writer.WriteAllText(newText);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (typeof(UnauthorizedAccessException) != ex.GetType())
+                    FileFailures.Add(new FileFailureInfo(filePath, ex));
             }
         }
 
@@ -521,45 +507,8 @@ namespace TextReplacementApp
         private void UpdateTextBoxesFromConfig()
         {
             txtDirectoryPath.Text = appConfig.DirectoryPath;
-            txtSearchText.Text = appConfig.FindWhat;
-            txtReplaceText.Text = appConfig.ReplaceWith;
-        }
-
-        /// <summary>
-        /// Writes the specified text to a memory-mapped view accessor.
-        /// </summary>
-        /// <param name="accessor">The memory-mapped view accessor to write to.</param>
-        /// <param name="text">The text to write.</param>
-        /// <remarks>
-        /// This method writes the UTF-8 encoded bytes of the
-        /// <paramref name="text" /> to the memory-mapped view accessor starting at the
-        /// beginning (offset zero). It is the responsibility of the caller to ensure that
-        /// the
-        /// length of the text matches the length of the memory-mapped view accessor.
-        /// </remarks>
-        private void WriteTextToMemory(
-            UnmanagedMemoryAccessor accessor,
-            string text
-        )
-        {
-            try
-            {
-                // check for conditions that would prohibit our success
-                if (accessor == null) return;
-                if (!accessor.CanWrite) return;
-                if (string.IsNullOrWhiteSpace(text)) return;
-
-                var bytes = Encoding.UTF8.GetBytes(text);
-                accessor.WriteArray(0, bytes, 0, bytes.Length);
-            }
-            catch (Exception ex)
-            {
-                // display an alert with the exception text
-                MessageBox.Show(
-                    this, ex.Message, Application.ProductName,
-                    MessageBoxButtons.OK, MessageBoxIcon.Stop
-                );
-            }
+            findWhatTextBox.Text = appConfig.FindWhat;
+            replaceWithTextBox.Text = appConfig.ReplaceWith;
         }
     }
 }

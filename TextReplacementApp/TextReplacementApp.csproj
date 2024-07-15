@@ -66,7 +66,7 @@
     <DocumentationFile>bin\x86\Release\tra.xml</DocumentationFile>
   </PropertyGroup>
   <PropertyGroup>
-    <ApplicationIcon>3D Text.ico</ApplicationIcon>
+    <ApplicationIcon>newxylogix.ICO</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="AlphaFS, Version=2.2.0.0, Culture=neutral, PublicKeyToken=4d31a58f7d7ad5c9, processorArchitecture=MSIL">
@@ -82,6 +82,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AppConfig.cs" />
+    <Compile Include="FileFailureInfo.cs" />
     <Compile Include="ListExtensions.cs" />
     <Compile Include="MainWindow.cs">
       <SubType>Form</SubType>
@@ -113,6 +114,7 @@
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>
+      <DesignTime>True</DesignTime>
     </Compile>
     <None Include="README.md" />
     <None Include="packages.config" />
@@ -131,6 +133,8 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="3D Text.ico" />
+    <Content Include="newxylogix.ICO" />
+    <None Include="Resources\SwitchUpDown_16x.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
