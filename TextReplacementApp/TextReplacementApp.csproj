@@ -136,6 +136,12 @@
     <Content Include="newxylogix.ICO" />
     <None Include="Resources\SwitchUpDown_16x.png" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\xyLOGIX.Files.MemoryMapped.VS2022\xyLOGIX.Files.MemoryMapped\xyLOGIX.Files.MemoryMapped.csproj">
+      <Project>{2557ED07-457A-415C-9C36-25C5ED163907}</Project>
+      <Name>xyLOGIX.Files.MemoryMapped</Name>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PreBuildEvent>
