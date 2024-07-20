@@ -1,4 +1,4 @@
-﻿namespace TextReplacementApp
+namespace TextReplacementApp
 {
     /// <summary>
     /// Represents a progress report containing information about the current file

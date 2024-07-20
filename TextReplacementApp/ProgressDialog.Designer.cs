@@ -1,4 +1,4 @@
-﻿namespace TextReplacementApp
+namespace TextReplacementApp
 {
     partial class ProgressDialog
     {
