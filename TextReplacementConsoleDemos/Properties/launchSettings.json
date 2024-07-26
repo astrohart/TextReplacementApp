@@ -1,0 +1,15 @@
+{
+  "profiles": {
+    "TextReplacementConsoleDemos": {
+      "commandName": "Project"
+    },
+    "TextReplacementConsoleDemos - clones": {
+      "commandName": "Project",
+      "commandLineArgs": "\\repos\\clones foofoofoo foofoofoo-1"
+    },
+    "TextReplacementConsoleDemos - fork": {
+      "commandName": "Project",
+      "commandLineArgs": "\\repos\\fork foofoofoo foofoofoo-1"
+    }
+  }
+}
