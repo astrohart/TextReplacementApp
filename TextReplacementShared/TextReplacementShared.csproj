@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="System.Buffers" />
+    <Using Include="System.Diagnostics" />
+    <Using Include="System.IO.Enumeration" />
+    <Using Include="System.IO.MemoryMappedFiles" />
+    <Using Include="System.Text" />
+  </ItemGroup>
+
+</Project>
