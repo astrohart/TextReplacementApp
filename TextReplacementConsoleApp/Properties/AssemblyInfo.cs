@@ -10,7 +10,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("xyLOGIX, LLC")]
 [assembly: AssemblyProduct("TextReplacementConsoleApp")]
-[assembly: AssemblyCopyright("Copyright © xyLOGIX, LLC 2024")]
+[assembly: AssemblyCopyright("Copyright © 2024 by xyLOGIX, LLC.  All rights reserved.")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
