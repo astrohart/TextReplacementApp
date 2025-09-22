@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using PostSharp.Patterns.Diagnostics;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -98,7 +99,7 @@ namespace TextReplacementApp
         /// A <see cref="T:System.Windows.Forms.FormClosingEventArgs" />
         /// that contains the event data.
         /// </param>
-        protected override void OnFormClosing(FormClosing[NotLogged] EventArgs e)
+        protected override void OnFormClosing([NotLogged] FormClosingEventArgs e)
         {
             base.OnFormClosing(e);
 
