@@ -54,7 +54,7 @@ namespace TextReplacementApp
         /// An <see cref="T:System.EventArgs" /> that contains the event
         /// data.
         /// </param>
-        protected override void OnLoad(EventArgs e)
+        protected override void OnLoad([NotLogged] EventArgs e)
         {
             base.OnLoad(e);
 
