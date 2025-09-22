@@ -22,12 +22,12 @@ namespace TextReplacementApp
         /// <summary>
         /// Gets the <see cref="T:System.Exception" /> that occurred.
         /// </summary>
-        public Exception Exception { get; set; }
+        public Exception Exception { [DebuggerStepThrough] get; [DebuggerStepThrough] set; }
 
         /// <summary>
         /// Gets a <see cref="T:System.String" /> containing the fully-qualified pathname
         /// of the file that experienced a failure.
         /// </summary>
-        public string FilePath { get; }
+        public string FilePath { [DebuggerStepThrough] get; }
     }
 }
