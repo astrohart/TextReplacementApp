@@ -69,7 +69,7 @@ namespace TextReplacementApp
         /// describe the file(s) for which I/O operation(s) failed and the reason(s) for
         /// those failures.
         /// </summary>
-        private IList<FileFailureInfo> FileFailures { get; } =
+        private IList<FileFailureInfo> FileFailures { [DebuggerStepThrough] get; } =
             new List<FileFailureInfo>();
 
         /// <summary>
@@ -98,7 +98,7 @@ namespace TextReplacementApp
         /// A <see cref="T:System.Windows.Forms.FormClosingEventArgs" />
         /// that contains the event data.
         /// </param>
-        protected override void OnFormClosing(FormClosingEventArgs e)
+        protected override void OnFormClosing(FormClosing[NotLogged] EventArgs e)
         {
             base.OnFormClosing(e);
 
@@ -162,7 +162,7 @@ namespace TextReplacementApp
         /// select a directory using the folder browser dialog. It updates the text of the
         /// directory path textbox with the selected directory path.
         /// </remarks>
-        private void OnClickBrowseButton(object sender, EventArgs e)
+        private void OnClickBrowseButton([NotLogged] object sender, [NotLogged] EventArgs e)
         {
             var result = folderBrowserDialog1.ShowDialog(this);
             if (result == DialogResult.OK &&
@@ -182,7 +182,7 @@ namespace TextReplacementApp
         /// creates a progress dialog, starts a background task for text replacement,
         /// and displays the progress dialog modally.
         /// </remarks>
-        private void OnClickDoItButton(object sender, EventArgs e)
+        private void OnClickDoItButton([NotLogged] object sender, [NotLogged] EventArgs e)
         {
             var directoryPath = txtDirectoryPath.Text.Trim();
             var searchText = findWhatTextBox.Text.Trim();
@@ -277,7 +277,7 @@ namespace TextReplacementApp
         /// This method responds by juxtaposing the values of the <b>Find What</b>
         /// and <b>Replace With</b> text boxes.
         /// </remarks>
-        private void OnClickSwitchButton(object sender, EventArgs e)
+        private void OnClickSwitchButton([NotLogged] object sender, [NotLogged] EventArgs e)
         {
             if (string.IsNullOrWhiteSpace(FindWhat) &&
                 string.IsNullOrWhiteSpace(ReplaceWith))
@@ -295,7 +295,7 @@ namespace TextReplacementApp
         /// </summary>
         /// <param name="sender">The object that raised the event.</param>
         /// <param name="e">The event data.</param>
-        private void OnTextChangedDirectoryPath(object sender, EventArgs e)
+        private void OnTextChangedDirectoryPath([NotLogged] object sender, [NotLogged] EventArgs e)
             => appConfig.DirectoryPath = txtDirectoryPath.Text.Trim();
 
         /// <summary>
@@ -307,7 +307,7 @@ namespace TextReplacementApp
         /// </summary>
         /// <param name="sender">The object that raised the event.</param>
         /// <param name="e">The event data.</param>
-        private void OnTextChangedReplaceText(object sender, EventArgs e)
+        private void OnTextChangedReplaceText([NotLogged] object sender, [NotLogged] EventArgs e)
             => appConfig.ReplaceWith = replaceWithTextBox.Text.Trim();
 
         /// <summary>
@@ -319,7 +319,7 @@ namespace TextReplacementApp
         /// </summary>
         /// <param name="sender">The object that raised the event.</param>
         /// <param name="e">The event data.</param>
-        private void OnTextChangedSearchText(object sender, EventArgs e)
+        private void OnTextChangedSearchText([NotLogged] object sender, [NotLogged] EventArgs e)
             => appConfig.FindWhat = findWhatTextBox.Text.Trim();
 
         /// <summary>
