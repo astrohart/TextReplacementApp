@@ -23,11 +23,11 @@
         /// <summary>
         /// Gets the path of the current file being processed.
         /// </summary>
-        public string CurrentFile { get; }
+        public string CurrentFile { [DebuggerStepThrough] get; }
 
         /// <summary>
         /// Gets the progress percentage of the operation.
         /// </summary>
-        public int ProgressPercentage { get; }
+        public int ProgressPercentage { [DebuggerStepThrough] get; }
     }
 }
