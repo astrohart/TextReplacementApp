@@ -1,4 +1,5 @@
-﻿namespace TextReplacementApp
+﻿using System.Diagnostics;
+namespace TextReplacementApp
 {
     /// <summary>
     /// Represents a progress report containing information about the current file
