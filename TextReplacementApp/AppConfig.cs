@@ -18,7 +18,7 @@ namespace TextReplacementApp
         /// A <see cref="T:System.String" /> representing the directory path.
         /// </value>
         [JsonProperty("directory_path")]
-        public string DirectoryPath { get; set; }
+        public string DirectoryPath { [DebuggerStepThrough] get; [DebuggerStepThrough] set; }
 
         /// <summary>
         /// Gets or sets the replace text stored in the configuration.
@@ -27,7 +27,7 @@ namespace TextReplacementApp
         /// A <see cref="T:System.String" /> representing the replace text.
         /// </value>
         [JsonProperty("replace_with")]
-        public string ReplaceWith { get; set; }
+        public string ReplaceWith { [DebuggerStepThrough] get; [DebuggerStepThrough] set; }
 
         /// <summary>
         /// Gets or sets the search text stored in the configuration.
@@ -36,6 +36,6 @@ namespace TextReplacementApp
         /// A <see cref="T:System.String" /> representing the search text.
         /// </value>
         [JsonProperty("find_what")]
-        public string FindWhat { get; set; }
+        public string FindWhat { [DebuggerStepThrough] get; [DebuggerStepThrough] set; }
     }
 }
