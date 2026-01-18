@@ -50,6 +50,46 @@ These instructions apply to all Copilot Chat responses and code changes in this 
 16. If you have to know if a method succeeds or not but you also need something else returned from it, use the `private bool TryDoThis(string input, out IMyInterface otherResult)` pattern (like, for example, `Int32.TryParse()`).
 16. Match the surrounding code: if nearby code is heavily commented and logs a lot, follow suit; if it is intentionally sparse, follow suit as well. Always mirror the layout, style, tone, format, and language features of the surrounding code.
 
+### 0.1) The kinds of application(s) and software system(s) I tend to develop
+
+1. Legacy Windows Forms 2.0 application(s)
+    - More often than not, such application(s) are meant to augment the software that is already on my computer.
+    - It is desired for this software to look and feel as much like Microsoft-produced software as possible.
+    - A key emphasis is placed on these tools' UI and UX being laid out in as strict an adherance to the book,
+      "The Windows User Interface Guidelines for Software Design" by Microsoft Press, published in 1995, and 
+      on Windows 95 style UI design patterns as much as possible.
+    - Lately, I've taken a keen interest in designing Windows Forms apps that can serve as standalone tools I can
+      launch and use to enhance my own experience as a user of Microsoft Visual Studio.
+    - The interest in in producing them as Dark-theme application(s) if I am using them as a developer or if they
+      are intended for use by sophisticated professionals, such as myself.
+        - Otherwise, they can be Light-themed (i.e., use the default Windows system colors).
+    - I also like creating Windows Forms tools that I can potentially then market as freeware and/or software tools for enterprises, developers, and/or the general public
+    
+2. Template Wizard DLLs
+     - I.e., that host implementations of the `Microsoft.VisualStudio.TemplateWizard.IWizard` interface
+     - These can be integrated with `.vstemplate`-based project template(s) to quickly design software systems and components that I can then integrate into new and/or existing software systems.
+     - Typically, I like to build the UI/UX of such tools in Windows Forms 2.0, but with a look that matches the look and feel of Visual Studio IDE features and functionality as much as possible, for a clean, consistent, and well-defined user experience that matches the user experience that already ships with Visual Studio, as much as is possible.
+     
+3. Autonomous/heuristic classic AI systems
+     - For instance, I might be interested in creating a Windows Service style software system that can look at data as it streams by, onto which I can then impress my own ways of approaching mission-critical problems and scenarios and/or my expertise in math, sciecne, and statistics that I have gained from both my education as a Ph.D. Physicist and my own experience in the world.
+     - Kind of a "Lt Cmdr Data" of software that androidally puts my own brain in the computer but for a specific data application such as performing management of investment portfolio(s) or such.
+     - Or I might wish to write a "always keep the various software application(s) and tool(s) installed on my computer updated with the latest version(s)" sort of background windows service that, say, would run on a schedule overnight to go out to the web and scrape websites and download the latest version of, e.g., Notepad++, Zoom for Windows client, and such.
+     
+4. LINQPad scripts
+     - For some of my more larger software systems, even a simple task such as managing NuGet packages might be time consuming.  Thus, it would be imperative to write, e.g., a script to iterate over my Solution(s) that are all in a certain directory and then generate a `.ps1` script, say, that can then be invoked using DTE automation in the Package Manager Console, once per Solution, in order to manage my NuGet packages for me while I, say, go pet my dog, eat dinner, sleep, go to the mall and etc.
+     
+5. Fully integrated environment applications that mimic the look and feel of the Visual Studio Development Environment
+    - My favorite framework(s) to utilize for this sort of application are .NET Framework 4.8, C# 7.3, and Windows Forms 2.0.  I like to also make use of the `WeifenLuo.DockPanelSuite` series of NuGet package(s) so I can basically create my own "IDEs" but for different functionality and productivity application(s), such as a replacement for BareTail or klogg but one whose look and feel strongly resembles that of Visual Stuio 2019 or 2022 or 2026 etc.
+    - Or perhaps a consulting client of mine might wish to emulate the look and feel of Microsoft Management Console or something because, for security reasons they cannot have a Web-based software application but they need something that runs on users' desktops in-house.  Perhaps they manage lots and lots of confidential customer data for use in a call center.
+    - Perhaps there might be an application like this that I would write to manage my own freelancing LLC business where I try to make use of 3rd-party vendors (with clients' permission) and employees to scale the business but still oversee everything as the chief technologist.  Some sort of integrated CRM + ERP thing but that is built around a consulting and professional services business as opposed to a products business.
+    
+6. Web-Based Applications such as using ASP.NET MVC and/or Blazor
+    - This is my least-developed software system type and also the one with which I have the least experience.  But I have been running, off and on, a field-service tutoring business of my own where I make appointments to visit folks in their homes and such to tutor their children in their homework one on one and there is of course, customer service that has to be handled surrounding such appointments.  It might be handy to write a website and mobile app that are intergrated together (I am not saying I've done this, only that I'd like to) so I can advertise online about my tutoring services, have clients sign up online and then, when I go tutor them either at their home or Starbucks, they can sign my phone and pay right there on my phone or tablet for the session and get an email receipt.  This is a future idea.
+    
+### 0.2) Special emphasis on helping "future me" and others
+
+1. The idea is that, whatever code I may write, I'd like to make the software system as easily maintainable and well-documented as I can, so that I do not end up having to try and remember what I wrote or why I wrote it down the road.   `README.md` and other `.md` files, XML documentation, using tools that create XML documentation and then translate it into other documentation formats, are key.  This way, if I have to pause working on a particular software system for months or years, I can come back to it and easily pick up where I left off.
+
 ## 1) Target stack, constraints, and tooling
 
 ### Hard constraints
