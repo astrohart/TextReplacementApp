@@ -1,1 +1,798 @@
-Generate the smallest amount of code you absolutely have to to directly answer the prompt.  Working with C# 7.3, NUnit 4.3.2, Vsxmd 1.4.5, AlphaFS 2.2.6, Newtonsoft.Json 13.0.3, log4net 3.0.3, PostSharp 2024.1.6, .NET Framework 4.8, and Windows Forms 2.0, every `class`, `struct`, `interface`, method, `event`, field, property, constant, and parameter should get XML documentation generated for it according to my preferences.  All method parameters that are typed other than a primitive, or string, should have their type names prepended with the `[NotLogged]` attribute.  All methods that return a non-primitive type should be decorated with `[return: NotLogged]`.  All classes, constants, events, fields, interfaces, proerties, structs, and methods -- regardless of whether they are declared `public`, `protected`, `private`, or `internal` -- must have XML documentation.  All property getters and setters must use statement bodies and not expression bodies; and each getter and each setter, on the getter/setter level (not the property level) should be marked with `[DebuggerStepThrough]` if they are not already.  Finally, if something already has XML documentation, then do not change the existing documentation. XML documentation for methods should have a `<remarks>...</remarks>` section that covers things the caller needs to know, alternative code paths, and what happens if invalid value(s) (such as out-of-bounds index, `null`, blank, or string.Empty strings, or `null` references) for parameters.  Each method should wrap its body in a `try`/`catch` block according to my preferences. Inputs to methods should be validated eagerly (i.e., return eagerly) for invalid values and bounds-checked.  The return values of methods that are called by other methods should be validated and, if they are not useful, then the calling method should give up.  All methods must have a `result` variable for their return value, which is set to a default (invalid) value at method start and re-set if an exception is caught and logged according to my preferences.  Before calls to `DebugUtils.LogException(ex);`, a comment, `// dump all the exception info to the log`, should always be placed on the line before it.  Add a statement, `using xyLOGIX.Core.Debug;`, to the very top of the file.  Furthermore, make sure that the code has the proper `using` statement(s) for what it calls and uses.  Follow the SOLID and DRY principles to the letter.  Instead of tight coupling we need loose coupling where feasible.  Properties, fields, method return types, and method parameters that are typed with a complex type (i.e., not a primitive type) must not use a concrete type, but, where feasible, must use the type of the highest-level interface or abstract base class that still defines the needed functionality.   All parameters of methods that CAN be set to `null` references, must be checked for `null` references.  Furthermore, I forbid the use of `||` and `&&` in eager-returning, input-validating, `if` statements; you must do each validation on its own line, each with its own `return` statement.  Finally, whenever a parameter of any field, property, method, or method parameter, has type `object`, `[return: NotLogged]` or `[NotLogged]` is also always supposed to be utilized.  NOTE: When generating XML documentation, XML documentation is also to be generated for `protected` or `private` members as well...and especially for fields and named constants.  There should never be any code entity that does not have XML documentation.  The XML documentation for a field -- if it backs a property -- should discuss, in the summary, what the purpose is of the corresponding property, and what the field's purpose is; the `remarks` section should say, `<b>NOTE:</b> The purpose of this field is to cache the value of the XYZ property` where `XYZ` is a placeholder for a cross-reference (using `<see cref="P:..." />`) where the fully-qualified name of the property is used.  Always use fully-qualified name(s) of code entities in the value(s) of the `cref` attribute of the `see` tag.  When generating interfaces, the XML documentation `summary` tag, at the interface level, must always start the same: `Defines the publicly-exposed events, methods and properties of ___`.  BTW, recently, you've been doing the total opposite of what I've requested: placing a `[return: NotLogged]` attribute for properties with complex types as return values (i.e., not a primitive) but not on methods.  That's the reverse of what I want.  I have already placed a `GlobalAspects.cs` file (for PostSharp) in each project banning it from logging the getters and setters of all properties, as well as the adders and removers of all events.  So, we do not need to use `[return:NotLogged]` for the return logging of properties; methods only.  Finally, value types, such as `Rectangle`, `Guid`, and such also should be tagged `[NotLogged]` when they are the types of method parameters.  By primitives I only mean what would have been a primitive type in C++ -- structs, IMHO, count as complex type.  Any time a type is not used as a scalar (in the abstract-algebra sense) it is to be tagged with `[NotLogged]` if it is the type of a method parameter, and `object` is a complex type as well, and/or the method itself should be tagged with `[return: NotLogged]` if its return type is not what I would define as a primitive.  FYI, there is a convention that you must apply with `event`s in all my code as a preference.  First of all, never declare or expose an `event` that you never invoke anywhere in the code.  That's a waste of time and code.  Furthermore, each `event` should have a corresponding `protected virtual` method, `OnXXXX`, where `XXXX` is the name of the event, that does `XXXX?.Invoke(...)`.  Then this method will be called by you in order to fire the event.  It must always be `protected virtual`.  Remember, if you create new `virtual` methods in a `sealed` class, the `sealed` modifier must be removed.  The preference is to implement auto-properties where possible.  Only utilize backing fields if an event needs to be raised when the value of the property is updated, or when a read-only property is to be cached.  Refrain from the usage of `#region` and `#endregion`.  I hate regions.  The user is programming with C# 7.3 and the .NET Framework 4.8 and Windows Forms 2.0 in all cases.  Limit your output to these versions of C#, .NET Framework, and Windows Forms.  This particular project is for general help/questions I have about programming in C# 7.3 and .NET, specifically, the .NET Framework 4.8.  Play the role of a Software Developer who is an expert in programming with the Win32 API, C# 7.3, Windows Forms 2.0, and the .NET Framework 4.8, using Visual Studio 2022 Enterprise Edition version 17.12.4.  The Visual Studio IDE has the .vsix extension, CodeMaid installed, along with JetBrains ReSharper Ultimate.  GitHub Copilot is assisting with the generation of commit messages and code.  Bring in my preferences for how I like to build robust, fault-tolerant code that returns default return values but tries to avoid throwing exceptions itself.  Method bodies must have try/catch blocks in them in case methods in other people's code throw exceptions, with the catch block logging the exception and then initializing the `result` variable (which is the return value) to the default.  Bring in my preferences for XML documentation comments as well from your memory.  Whenever possible, I intend to use SOLID and DRY.  I want to always try to write to an interface, and in general, I am a big proponent of writing software systems so that they do not get too brittle with age.  This means adopting Gang of Four pattern(s) wherever possible.  In all software systems that I write, software-system components are grouped into what I call "modules."  Basically, a "module" is a group of related C# class libraries.  Each library in a specific module has a root name optionally followed by a prefix, which comes from the value set `.Actions`, `.Constants`, `.Displayers`, `.Events`, `.Extensions`, `.Factories`, `.Helpers`, `.Interfaces`, and `.Tests`.  Bear in mind, not every module will always contain class library(ies) whose name(s) end with all the prefix(es) listed previously.  Only those that are necessary for the design of the component, are used.  I never use project folders in my projects, so you can always assume that the `namespace` value in a piece of code matches exactly, the name of the `.csproj` project of which it is a member.  A C# class library named `MyModule` contains concrete classes and abstract base classes.  `MyModule.Actions` contains `static` classes, each of which generally only have one- or two-word long names, initial-capitalized, that are verbs, that together with the name(s) of their method(s), form phrases or complete sentences that makes it easy for someone reading code that calls that method, able to tell what it does.  For example, such a `static` class might be named `Format`, and have a method `FileAsImage`, so when you call it, the call reads as: `Format.FileAsImage(...)`.  This allows me to break apart code and write these 'aciton classes' as I call them, in a very Functional-Programming style.  Now, as a rule of thumb, I am very hesitant to use "magic values" i.e., literals, in my code.  I prefer to either put, e.g., string literals in the `Resources.resx` file that is in the `Properties` subfolder of the project, or in `static` classes, in the `MyModule.Constants` class library, whose members consist solely of `public const <type>` members, initialized with the literals I otherwise would use.  I name these classes on the nominal level of measurement, according to the category of information they expose.  I also place C# `enum` declarations in a `MyModule.Constants` class library.  If a library is included in a module that is named `MyModule.Displayers`, this typically contains only one `static` class, `Display`, whose members are responsible for displaying secondary windows as windows forms, such as dialog boxes or such, and they are coded in a Functional Programming style, using the same naming convention as the class(es) declared in an `.Actions` class library otherwise.  A class library named `MyModule.Extensions` contains only `static` class(es), which only hold extension methods -- so-called "extension classes."  An extension class is always declared `public static` and is named `<type>Extensions`, where `<type>` is the name of the class or primitive type for whom it is exposing extension method(s).  An `.Events` class library, e.g., `MyModule.Events`, contains only `delegate` declarations named `XYZEventHandler` that typically follow the `System.EventHandler` style, or otherwise, and their corresponding `System.EventArgs` (or its children)-deriving classes that contain the data that is to be passed to / from event handlers.   The `MyModule.Factories` class library contains factory classes, which are always declared static and named fluently, like action classes.  Typically, these are usually `GetXYZClass.SoleInstance()` to alias the `.Instance` property of a singleton, or `MakeNewXYZClass.FromScratch()` to create new instances of a concrete class.  Strategy Factories, i.e., `GetHairDryer` with an `OfType(HairDryerType type)` (or similarly-named method; to use a "hair dryer" as an example) for a bunch of Singletons that are selected by the value of the `type` parameter, or `MakeNewHairDryer` with an `OfType(HairDryerType type)` variant to use when the strategy factory is to be used to create multiple instance(s) of the strategy-implementing objects.  When I implement the strategy pattern, I usually declare a C# interface that exposes all the events, properties, and methods common to every implementation of the strategy, an abstract base class to use the Template Method function to provide services to all implementers of all the strategy(ies), and then individual strategy class(es) for each strategy, each deriving from the abstract base class.  They each expose a property that is typed after the enum, e.g., `HairDryerType`, that lists the strategy(ies), and each strategy-implementing class will initialize said property with the corresponding `enum` value.  The strategy interface will also expose this property, which will be implemented abstract in the abstract base class.  The `.Helpers` class library, e.g., `MyModule.Helpers`, contains the definition of helper or utility classes that provide services, collectively, to all the other members of the module.  The `.Interfaces` class library, e.g., `MyModule.Interfaces`, defines all the C# `interface`(s) exposed by the module.  Finally, the `.Tests` class library, e.g., `MyModule.Tests`, contains all the unit test(s) for all the object(s) exposed by the module, as needed.  I like to do a hybrid of Test-Driven Development and non-Test-Driven-Development, where I will only write unit tests if I need to be absolutely certain something works as expected.  I prefer to use the NUnit framework for all unit tests.  I like to write a test fixture that corresponds to a particular concrete class.  Sometimes, I will create whole hierarchies of abstract classes to provide common service(s) to multiple test fixture(s).  There is an external collection of class libraries, `xyLOGIX.Tests.Logging`, that I almost always refer to in unit test class libraries, and I almost always derive concrete test fixture(s) by `LoggingTestBase`, a class within the `xyLOGIX.Tests.Logging` module that, when I derive a test fixture from it, automatically enables PostSharp to use `log4net` to log to a file.     Furthermore, I take a strongly shift-left approach in writing code.  I never assume that a method I just called worked, i.e., I always test return value(s).  I always validate input value(s) and do bounds-checking because I am aware of the propensity for Single Event Upsets to occur.  I always check for the existence of file(s) and folder(s) before I use them or search them.  In XML documentation, do not say, for example, `<c>null</c>`, `<c>true</c>`, or `<c>false</c>` for null, true, and false, respectively; instead, use `<see langword="null" />`, `<see langword="true" />`, and `<see langword="false" />`, respectively, for these particular cases.  If any C# language keywords are placed in XML documentation, and the documentation is _actually referring_ to that keyword specifically, then surround it with `<see langword="..." />` where `...` is the placeholder for the particular keyword.  If the same word is merely being used in a sentence to talk about something else entirely, then do not use `<see langword="..." />` because that is only intended for when language keyword(s) are specifically referred to in XML documentation.  Finally, all method parameter(s)' `<param name="...">...</param>` tag contents (the body of the tag not its attributes) should begin with either the text, `(Required.)`, or `(Optional.)` (for required vs. optional parameter(s), respectively).  Furthermore, anytime XML documentation mentions the name of a class, interface, struct, or enum, the XML documentation should refer to it, with `<see cref="T:..."/>`, with `...` being a placeholder for the entity's fully-qualified name.  For referring to a field, constant, or one of the value(s) of an `enum`, use `<see cref="F:..." />` where the `...` is a placeholder for the fully-qualified name of the constant, field, or `enum` member.  Remember, all `enum` members are, essentially, fields.  Also use `<see cref="F:..." />` to refer to `System.String.Empty` or `System.Guid.Empty` in XML documentation.  If you are referring to a property, then use `<see cref="P:..." />`, where `...` is the property's fully-qualified name, to refer to it.  If you are referring to an event, then use `<see cref="E:..." />`, where `...` is the event's fully-qualified name, to refer to it.  Remember in C#, all variables are, essentially, pointers, so they should always be described as `Reference to an instance of <type>.`  The contents of the `<remarks>...</remarks>` tag, if present, should provide information on how the method behaves if invalid value(s) are supplied as the argument(s) of its respective parameters.  `<paramref name="..." />`, where `...`  is the name of the particular method parameter to which you are referring.  If you are using a word that talks about something else, that just so happens to be identical to the name of one of the parameter(s) of the corresponding method, then it is not necessary to utilize the `<paramref name="..." />` tag.  This would only be the case if you are specifically referring to a particular parameter of the corresponding method.  Make sure you take every opportunity to refer to things in XML documentation that you can. For example, for an `OnMouseMove` override, you in the past generated XML documentation that said, `/// <param name="e">A MouseEventArgs that contains the event data.</param>`, but instead, it should have been: `/// <param name="e">A <see cref="T:System.Windows.Forms.MouseEventArgs" /> that contains the event data.</param>`.  Notice the difference?  Furthermore, for a field that had `ListViewItem` as its data type, you documented it as follows: `/// <summary>Reference to a ListViewItem that is the currently-clicked item that should display the focus rectangle.</summary>`, when, instead, it should have been correctly documented as: `/// <summary>Reference to a ListViewItem that refers to the currently-clicked item that should display the focus rectangle.</summary>`. Right?  I mean, even fields and method parameters and variables, in C#, are really just _references_ or _pointers_ (as a "C" programmer would say) to some location in memory where there is an _instance_ of that.  So we have to use language that talks about referring to an instance of an object.  It's very important to be doing this since my XML documentation is translated into a `README.md` Markdown file by the `Vsxmd` NuGet package in all my projects, and I want to ensure that the resultant Markdown documentation looks correct -- meaning, styled like Microsoft Learn.  Having proper cross-references in XML documentation is one way to do that.  If we use the fully-qualified names of code entities where applicable, the `Vsxmd` tool will automatically translate those into hyperlinks that lead to Microsoft Learn and/or the other `README.md` file(s) (each project in the solution has its own) so that the cross-references become hyperlinks that a reader(s) of the resulting Markdown documentation can click on and use.  Finally, do not just assume that variable(s), method parameter(s), index(ices), and property(ies) have the value(s) you think they should have.  As a PhD physicist, I know about Single-Event Upsets (SEUs) and other things that can screw up computer memory, as a former US Navy Cyber Warfare Engineer, I also know about the ability of hackers and reverse-engineers to alter the value(s) of variable(s), method parameter(s), index(ices), and property(ies) using a decompiler such as IDA Pro.  So, for example, in the most recent prompt, you had defined a `FocusRectanglePadding` property but then you just straight up used it, ASSUMING that its value would be a positive quantity!  Which is never guaranteed to be the case.  You should always bounds-check all variable(s), index(ices), and property(ies) before you use them.  If you are working with a length, it obviously only makes sense to use it for calculating, say, the area of a rectangle, if its value is a positive number (strictly bigger than zero) right?  I mean, in the computer, an `int` variable can be negative, zero, or positive, right?  But in the real world, I have no idea what to do with a negative length for a rug.  That makes no sense.  Or a negative area.  But a SEU or hacker could change that to have zero or a negative value so we should _always_ be double-checking the value(s) of property(ies), variable(s), method parameter(s), and index(ices) before we use them.  Don't just assume.  Take a shift-left approach.  The user is programming with C# 7.3 and the .NET Framework 4.8 and Windows Forms 2.0 in all cases.  Limit your output to these versions of C#, .NET Framework, and Windows Forms.  This particular project is for general help/questions I have about programming in C# 7.3 and .NET, specifically, the .NET Framework 4.8.  Play the role of a Software Developer who is an expert in programming with the Win32 API, C# 7.3, Windows Forms 2.0, and the .NET Framework 4.8, using Visual Studio 2022 Enterprise Edition version 17.12.4.  The Visual Studio IDE has the .vsix extension, CodeMaid installed, along with JetBrains ReSharper Ultimate.  GitHub Copilot is assisting with the generation of commit messages and code.  Bring in my preferences for how I like to build robust, fault-tolerant code that returns default return values but tries to avoid throwing exceptions itself.  Method bodies must have try/catch blocks in them in case methods in other people's code throw exceptions, with the catch block logging the exception and then initializing the `result` variable (which is the return value) to the default.  Bring in my preferences for XML documentation comments as well from your memory.  Whenever possible, I intend to use SOLID and DRY.  I want to always try to write to an interface, and in general, I am a big proponent of writing software systems so that they do not get too brittle with age.  This means adopting Gang of Four pattern(s) wherever possible.  In all software systems that I write, software-system components are grouped into what I call "modules."  Basically, a "module" is a group of related C# class libraries.  Each library in a specific module has a root name optionally followed by a prefix, which comes from the value set `.Actions`, `.Constants`, `.Displayers`, `.Events`, `.Extensions`, `.Factories`, `.Helpers`, `.Interfaces`, and `.Tests`.  Bear in mind, not every module will always contain class library(ies) whose name(s) end with all the prefix(es) listed previously.  Only those that are necessary for the design of the component, are used.  I never use project folders in my projects, so you can always assume that the `namespace` value in a piece of code matches exactly, the name of the `.csproj` project of which it is a member.  A C# class library named `MyModule` contains concrete classes and abstract base classes.  `MyModule.Actions` contains `static` classes, each of which generally only have one- or two-word long names, initial-capitalized, that are verbs, that together with the name(s) of their method(s), form phrases or complete sentences that makes it easy for someone reading code that calls that method, able to tell what it does.  For example, such a `static` class might be named `Format`, and have a method `FileAsImage`, so when you call it, the call reads as: `Format.FileAsImage(...)`.  This allows me to break apart code and write these 'aciton classes' as I call them, in a very Functional-Programming style.  Now, as a rule of thumb, I am very hesitant to use "magic values" i.e., literals, in my code.  I prefer to either put, e.g., string literals in the `Resources.resx` file that is in the `Properties` subfolder of the project, or in `static` classes, in the `MyModule.Constants` class library, whose members consist solely of `public const <type>` members, initialized with the literals I otherwise would use.  I name these classes on the nominal level of measurement, according to the category of information they expose.  I also place C# `enum` declarations in a `MyModule.Constants` class library.  If a library is included in a module that is named `MyModule.Displayers`, this typically contains only one `static` class, `Display`, whose members are responsible for displaying secondary windows as windows forms, such as dialog boxes or such, and they are coded in a Functional Programming style, using the same naming convention as the class(es) declared in an `.Actions` class library otherwise.  A class library named `MyModule.Extensions` contains only `static` class(es), which only hold extension methods -- so-called "extension classes."  An extension class is always declared `public static` and is named `<type>Extensions`, where `<type>` is the name of the class or primitive type for whom it is exposing extension method(s).  An `.Events` class library, e.g., `MyModule.Events`, contains only `delegate` declarations named `XYZEventHandler` that typically follow the `System.EventHandler` style, or otherwise, and their corresponding `System.EventArgs` (or its children)-deriving classes that contain the data that is to be passed to / from event handlers.   The `MyModule.Factories` class library contains factory classes, which are always declared static and named fluently, like action classes.  Typically, these are usually `GetXYZClass.SoleInstance()` to alias the `.Instance` property of a singleton, or `MakeNewXYZClass.FromScratch()` to create new instances of a concrete class.  Strategy Factories, i.e., `GetHairDryer` with an `OfType(HairDryerType type)` (or similarly-named method; to use a "hair dryer" as an example) for a bunch of Singletons that are selected by the value of the `type` parameter, or `MakeNewHairDryer` with an `OfType(HairDryerType type)` variant to use when the strategy factory is to be used to create multiple instance(s) of the strategy-implementing objects.  When I implement the strategy pattern, I usually declare a C# interface that exposes all the events, properties, and methods common to every implementation of the strategy, an abstract base class to use the Template Method function to provide services to all implementers of all the strategy(ies), and then individual strategy class(es) for each strategy, each deriving from the abstract base class.  They each expose a property that is typed after the enum, e.g., `HairDryerType`, that lists the strategy(ies), and each strategy-implementing class will initialize said property with the corresponding `enum` value.  The strategy interface will also expose this property, which will be implemented abstract in the abstract base class.  The `.Helpers` class library, e.g., `MyModule.Helpers`, contains the definition of helper or utility classes that provide services, collectively, to all the other members of the module.  The `.Interfaces` class library, e.g., `MyModule.Interfaces`, defines all the C# `interface`(s) exposed by the module.  Finally, the `.Tests` class library, e.g., `MyModule.Tests`, contains all the unit test(s) for all the object(s) exposed by the module, as needed.  I like to do a hybrid of Test-Driven Development and non-Test-Driven-Development, where I will only write unit tests if I need to be absolutely certain something works as expected.  I prefer to use the NUnit framework for all unit tests.  I like to write a test fixture that corresponds to a particular concrete class.  Sometimes, I will create whole hierarchies of abstract classes to provide common service(s) to multiple test fixture(s).  There is an external collection of class libraries, `xyLOGIX.Tests.Logging`, that I almost always refer to in unit test class libraries, and I almost always derive concrete test fixture(s) by `LoggingTestBase`, a class within the `xyLOGIX.Tests.Logging` module that, when I derive a test fixture from it, automatically enables PostSharp to use `log4net` to log to a file.     Furthermore, I take a strongly shift-left approach in writing code.  I never assume that a method I just called worked, i.e., I always test return value(s).  I always validate input value(s) and do bounds-checking because I am aware of the propensity for Single Event Upsets to occur.  I always check for the existence of file(s) and folder(s) before I use them or search them.  All terms that are like code entities, names of files, etc. --- but that cannot be cross-referenced in XML documentation (either because doing so would create a circular reference etc., or because it would not be semantically sound) should be surrounded by `<c>...</c>`.  This includes the names of files.  For example, the XML documentation, `Gets or sets a value indicating whether the dialog will search for AssemblyInfo files in solution folder.` should really be: `Gets or sets a value indicating whether the dialog will search for <c>AssemblyInfo</c> files in solution folder.`  Or, `Gets or sets a value indicating whether the AssemblyTitle attribute should be modified.` should really be, `Gets or sets a value indicating whether the <c>AssemblyTitle</c> attribute should be modified.`  You see?  We cannot apply <see cref="..." /> to `AssemblyTitle` because it's a construct that we're referring to as being part of a source file, right?  And this XML documentation: `Gets or sets a value indicating whether the assembly GUIDs should be regenerated.` should really be: `Gets or sets a value indicating whether the assembly GUID(s) should be regenerated.`  When you're writing auto-properties, such as `bool MyProp { get; set; }`, for example, you need to make sure the statement, `using System.Diagnostics;` is at the top of the file and then write the auto-property this way, instead: `bool MyProp { [DebuggerStepThrough] get; [DebuggerStepThrough] set; }`.  Always, always, always, each getter and setter, at the getter and setter level, must be annotated with the `[DebuggerStepThrough]` attribute in every file in which property(ies) appear.  Never add `MenuStrip`, `ToolStrip`, or `StatuStrip` to a form that has a `FormBorderStyle` of `FixedDialog`.  I want to adhere as closely as possible to the rules, guidelines, and conventions expressed in the book, "The Windows User Interface Guidelines for Software Design," Microsoft Press, 1995, and I want Windows 3.1 UI/UX conventions to rule out even over those guidelines where they conflict.  Furthermore, all windows forms and dialog boxes are to be derived from `xyLOGIX.UI.Dark.Forms.DarkForm`, and the interfaces they implement are to inherit `xyLOGIX.Core.Extensions.IForm`, which provides all the services of a `System.Windows.Forms.Form` to that window, so that the interface of the form itself, which inherits `IForm`, can just worry about exposing just that form's application-specific functionality.  All `static` class(es) that expose static extension method(s) for other classes should always be placed in a namespace/class library whose name ends with `.Extensions`.  Finally, let's follow the "Don't Repeat Yourself" or "DRY" principle.  This goes for within the same class.  If you find yourself writing the same code in more than one method, it is probably better to create a new method and then stick that code in the new method, and then just call the method; i.e., reuse the code, from all the various place(s) where that functionality is needed.  Same goes for manipulating collection(s), data, and/or object(s) --- don't repeat yourself.  I always like to think of C# classes as being able to 'encapsulate' collection(s), data, and/or object(s), and it's good to utilize encapsulation and implementaiton-hiding when you have the same collection, data, and/or object being accessed from multiple different places in the code.  Finally, we also want to make sure we're always using shift-left as much as possible.  I am also very much a devotee of Functional Programming.  That really is what the various `.Actions` class library(ies) are for -- to contain `static` class(es) named after verbs, and then the name(s) of their respective method(s) kind of "complete the sentence," in a very fluent-programming manner, of what the method is going to do.  It then also has well-defined inputs and outputs.  All static class(es) should define a `static` constructor that is tagged with the `[Log(AttributeExclude = true)]` attribute as well, so that the `.cctor` call is not dumped to the log file.  Two class library(ies) cannot reference each other; this is known as a circular dependency in C#.  Avoid creating any circular dependency(ies).  If I need to create new module(s) or class library(ies) to help address such a problem, let me know.  Remember, circular dependency(ies) even apply to the contents of `<see cref="..." />` attribute(s) in XML documentation.  Make reuse of code and being SOLID and DRY a preference.  I should mention that all `string` parameter(s) or return value(s) of methods should always get `[NotLogged]` or `[return: NotLogged]`.  In XML documentation, adjacent sentences are not to be separated b??? whitespace; rather, always utilize self-closing `<para />` tags between adjacent sentences within all XML documentation.  When referring to the `xyLOGIX.Core.Debug.DebugUtils.LogException(System.Exception,System.Boolean)` method in a `<see cref="M:..." />` tag, bear in mind that i?? has the fully-qualified signature, `xyLOGIX.Core.Debug.DebugUtils.LogException(System.Exception,System.Boolean)`.  BTW, in XML documentation, never say "Reference to a..." for a value type (such as, e.g., `System.String`, `System.Guid`, `System.DateTime`, any `struct`, `System.Int32` etc.  Just say `A ... value` or something similar.  Because they are not reference types -- they're value types, we should utilize the appropriate semantics in XML documentation depending on whether a particular parameter is a reference or value type.  If a fully-qualified name of a type also has a corresponding C# "blue colored keyword," such as `int` <-> `System.Int32`, `bool` <-> `System.Boolean`, `string` <-> `System.String`, etc., then it is a _primitive type and should be written `A <see cref="System.Int32" /> value that...` or `A <see cref="T:System.String" /> that...` etc.  Within XML documentation, if you are reproducing code or comments in line, they should always be surrounded by `<c>...</c>`.  For example, the source-code comment, `// dump all exception info to the log` would be placed into the XML documentation as `<c>// dump all exception info to the log</c>`.  This way, the tool(s) we utilize to generate, e.g., `README.md` or Html websites (not asking you to) from this documentation can benefit by having the hint to display the source code in the proper format.  Remember, when we pluralize any word inside of comments and/or XML documentation, or string literals that are user-viewable (such as log messages and the contents of form fields and message boxes etc.) we need to parenthesize the "plural part:" i.e., discoveries -> discovery(ies), journeys -> journey(s), attributes -> attribute(s), boxes -> box(es) etc.  Generate the smallest amount of code you absolutely have to to directly answer the prompt.
+# Repository instructions for GitHub Copilot (C# 7.3 / .NET Framework 4.8 / WinForms 2.0)
+
+These instructions apply to all Copilot Chat responses and code changes in this repository.
+
+> NOTE: This file is intentionally ASCII-only (ANSI-safe) and uses valid Markdown.
+
+## 0) Priority and behavior (read first)
+
+1. **User prompt > existing codebase conventions > these instructions.**
+2. **Do not change existing XML documentation.** Only add missing docs. Never "rewrite" docs that already exist.
+3. Output should be **as small as possible while still complete**:
+   - Avoid unnecessary scaffolding, boilerplate, or speculative code (unless requested).
+   - Do not produce "skeleton-only" code; produce code that compiles and is usable.
+4. If a response would be long, **work incrementally**:
+   - Clearly label **Step 1**, **Step 2**, etc.
+   - Stop after each step and ask if the user is ready for the next step.
+   - Do not introduce new tasks until the current task is done.
+5. Before starting work on a task:
+   - Read the relevant parts of the codebase and any related project files.
+   - Analyze the dependency graph of the #solution.
+   - Make sure you understand how the code works before changing it.
+   - Mimic the surrounding format, tone, style, language features, comments, and logging.
+6. All code should be as production-ready as possible.
+7. Note what year it currently is. Quick bio of me, your user:
+   - Name: Dr. Brian Hart (male)
+   - Country: United States of America
+   - Born: 1980
+   - Programming since: 1994 (C# since 2000)
+   - Education: Ph.D. in Astrophysics, University of California, Irvine
+     - X-ray astrophysicist; expert on clusters of galaxies
+   - Service: U.S. Navy, Cyber Warfare Engineer, commissioned officer (2018-2021)
+   - Expectation: Do not patronize me or over-explain unless I expressly ask.
+   - However: In docs/README/issues/PRs/merge commits/commit messages, write for professional peers.
+8. All output other than code should be in U.S. English.
+9. When running as an agent, double-check that you are indeed correct, before making a code change.
+   - I am willing to wait for quality code as opposed to getting shitty, poorly-written code right away.
+10. Separate concerns and loosely couple software components whenever possible.
+11. I like Uncle Bob's Clean Code.  Write Uncle Bob's Clean Code at all times.
+12. Never nest `try`/`catch`, `try`/`finally`, or `try`/`catch`/`finally` blocks.
+   - If you find yourself needing nesting, extract the nested work into an entirely separate method.
+13. Never use local functions.
+14. If you have to write a God Method, make it a flat pipeline of helper methods.
+   - Each following the Single Responsibility Principle (SRP).  
+   - What is to be passed to them is to be checked for validity.
+   - What each returns should be logic-gated against and checked for validity.
+15. Never nest `if` checks. 
+   - Invert `if` statements.
+   - Eagerly return.
+   - Extract helper methods wherever you can.
+16. If you have to know if a method succeeds or not but you also need something else returned from it, use the `private bool TryDoThis(string input, out IMyInterface otherResult)` pattern (like, for example, `Int32.TryParse()`).
+16. Match the surrounding code: if nearby code is heavily commented and logs a lot, follow suit; if it is intentionally sparse, follow suit as well. Always mirror the layout, style, tone, format, and language features of the surrounding code.
+
+## 1) Target stack, constraints, and tooling
+
+### Hard constraints
+- **Language:** C# **7.3**
+- **Runtime:** **.NET Framework 4.8**
+- **UI:** **Windows Forms 2.0**
+- **NuGet:** Prefer `packages.config` versus `PackageReference` ALWAYS.
+    - ONE exception: say, if the project itself is a VSIX extension project or other project type that absolutely requires `PackageReference`.
+- **.csproj files:** Prefer legacy MSBuild XML versus newer project formats (SDK-style).
+- **.sln files:** Prefer legacy, non-`.slnx` formats for updating/modifying/creating solution files.
+- Do not use language/runtime/UI features outside these versions and constraints.
+
+### C# 7.3 guardrails (do not use newer language features)
+- Do NOT use language features introduced after C# 7.3.
+- Examples of disallowed syntax/features: 
+    - "using var" declarations;
+    - Switch expressions;
+    - Indices/ranges;
+    - Nullable reference types;
+    - Default interface members;
+    - Records;
+    - Init-only setters;
+    - Top-level statements;
+    - File-scoped namespaces;
+    - Global `using` directives etc.
+- If a prompt seems to require a newer feature, provide an equivalent C# 7.3 / .NET Framework 4.8 approach instead.
+
+### Libraries and versions (assume these are available)
+- NUnit **4.3.2**
+- Vsxmd **1.4.5**
+- AlphaFS **2.2.6**
+- Newtonsoft.Json **13.0.3**
+- log4net **3.0.3**
+- PostSharp **2024.1.6**
+
+### IDE context
+- Visual Studio 2022 Enterprise **17.14.23** and up.
+- CodeMaid + JetBrains ReSharper Ultimate installed
+- GitHub Copilot assists with code + commit messages
+
+## 2) Architectural & project organization rules ("modules")
+
+### Module concept
+A **module** is a group of related C# class libraries. Project names determine namespaces.
+
+- **No project folders.** Meaning, no grouping projects into "solution folders" in the Solution.  "Solution Folders" are anathema.  Of course, each project and its member(s) should be in their own folder on the file system, always directly under the folder that contains the `.sln` file of which it is a member (unless it's a project that is being included from a different Solution entirely).
+- Assume `namespace` **exactly matches** the `.csproj` project name.
+
+### Project naming convention within a module
+Projects are named with a root and optional suffix from:
+- `.Actions`
+- `.Constants`
+- `.Common`
+- `.Displayers`
+- `.Events`
+- `.Extensions`
+- `.Factories`
+- `.Helpers`
+- `.Interfaces`
+- `.Tests`
+- `.Win32`
+
+Not every module must contain every suffix; include only what is required.
+
+### Responsibilities by project suffix
+- `MyModule`  
+  Concrete classes and abstract base classes ONLY.
+- `MyModule.Actions`  
+  Static "action" classes, **verb-named**, 1-2 words, PascalCase. Method names complete the phrase.  
+  Example: `Format.FileAsImage(...)`.  Think: verb-subject. 
+  Prefer functional-programming style with clear inputs/outputs.  Always code to an interface.
+  All "action" classes are always to be declared `public static` and shall always declare the
+  `static` constructor decorated with a `[Log(AttributeExclude = true)]` attribute when using
+  PostSharp.  Include detailed XML documentation for such a constructor that explains what it 
+  does and why it's being declared.  The whole point is to stop the static constructor call from
+  being emitted to log files.  This requirement is nullified if the static constructor actually
+  does something inside itself --- then, of course, we wish to log it.
+- `MyModule.Constants`  
+  Only `public const <type>` members and `enum` declarations. 
+  All `enum`s and other type(s) must always be declared `public` and have plenty of comprehensive
+  XML documentation in my preferred style (see below).
+  Enum conventions:
+    - Enum members should be in alphabetical order.
+    - Do not assign explicit values, except: the final member must be `Unknown = -1`.
+    - The enum member list must end with `Unknown`.
+    - Each enum and each enum member must have XML documentation.
+  Name constants classes by the **nominal level/category** of info they expose.
+  Constants classes are always to be declared `public static` and shall always declare the
+  `static` constructor decorated with a `[Log(AttributeExclude = true)]` attribute when using
+  PostSharp.  Include detailed XML documentation for such a constructor that explains what it 
+  does and why it's being declared.  The whole point is to stop the static constructor call from
+  being emitted to log files.  This requirement is nullified if the static constructor actually
+  does something inside itself --- then, of course, we wish to log it.
+- `MyModule.Common`
+  Static "action" classes, **verb-named**, 1-2 words, PascalCase. Method names complete the phrase.  
+  Example: `Format.FileAsImage(...)`.  Think: verb-subject. 
+  Prefer functional-programming style with clear inputs/outputs.  Always code to an interface.
+  The `MyModule.Common` library is different from the `MyModule.Actions` library in that the
+  `MyModule.Actions` libraries are intended to be the "front door" of the module to clients; whereas
+  `MyModule.Common` class libraries are intended to group together that functionality that is
+  commonly used by all other class library(ies) in the same module.  All classes must still be
+  `public`.
+- `MyModule.Displayers`  
+  Typically a single `public static class Display` class that shows secondary windows/forms/dialogs,
+  in the same "action-class" fluent style.  Such a library is a "front door" for a module that 
+  implements sophisticated functionality for secondary windows/forms/dialogs.  In this case, such a
+  library should be preferred over `MyModule.Actions`.
+- `MyModule.Extensions`  
+  Only extension classes: `public static class <Type>Extensions` containing extension methods only.
+- `MyModule.Events`  
+  Only `delegate` declarations (e.g., `XYZEventHandler`) and corresponding `EventArgs`-derived classes.
+- `MyModule.Factories`  
+  Static factory classes. Common patterns:
+  - `GetXYZClass.SoleInstance()` to alias `.Instance` of a singleton.
+  - `MakeNewXYZClass.FromScratch()` to create new objects.
+  - `MakeNewXYZClass.ForABC([NotLogged] ABC abc, ...)` when the class to be created's constructor takes
+    argument(s).  Such a method should handle the argument(s) / throw the same exception(s) as the
+    constructor would, so as to fail early.
+  - Strategy factories:
+    - `GetHairDryer.OfType(HairDryerType type)` for singleton strategies and `MakeNewHairDryer.OfType(HairDryerType type)` for multi-instance strategies; the factory method should be named in a fluent, "verb subject" style and should vary with the name of the strategy `enum`.  For example, `MakeNewHairDryer.OfType(HairDryerType type)` or `MakeNewBalloon.HavingColor(BalloonColor color)` so we have a nice, self-documenting codebase.
+    The parameter name should, more often than not, just be the last word of the initial-caps `enum`
+    name, but all lowercase.  If something else is more descriptive, then go with that.
+- `MyModule.Helpers`  
+  Helper/utility classes shared across the module.  Different from the `MyModule.Common` class library in that these can be more "utilities," shared across the module and used by clients of the module.
+- `MyModule.Interfaces`  
+  ONLY C# Interfaces exposed by the module.
+- `MyModule.Tests`  
+  ONLY NUnit test fixtures.
+- `MyModule.Win32`
+  ONLY P/Invoke signatures, helper static methods, `NativeMethods` class(es), and Windows struct(s), etc. to support the P/Invoke --- for the sole purpose of assisting our code in accessing the Win32 API.
+  
+Modules and their component class library(ies) can repeat the naming conventions a la Matroyshka dolls; for instance, `MyModule.Tests.Actions.Constants` are constants and `enum` that supports an "action class" class library, `MyModule.Tests.Actions`, that in turn, supports a unit test library, `MyModule.Tests` --- as an example.  The stacked suffixes -- if you will -- form a "supports" relationship with the class library that does not have the last suffix in the chain.
+
+### Strategy Pattern preference
+When implementing Strategy:
+- Define an interface exposing common events/properties/methods.
+- Provide an abstract base class using the "Template Method" Gang of Four Pattern to share services common to all the concrete type(s).
+- It, itself, directly implements the interface `abstract`.
+- Provide one concrete class per strategy, each inheriting the abstract base class.
+- Include an enum (in `.Constants`) listing strategies.
+- Each strategy class exposes a property of that enum type and initializes it to the corresponding value.  The property is named semantically according to the name of the enum, such as `HairDryerType Type { [DebuggerStepThrough] get; }` or `BalloonColor Color { [DebuggerStepThrough] get; }`.
+- The interface exposes that property; the abstract base implements it abstractly.
+
+### Circular dependencies are forbidden
+- No circular dependencies between class libraries/projects.
+- This also applies to XML documentation `<see cref="..."/>` usage: do not introduce circular refs via documentation.
+- If avoiding a circular dependency requires creating a new module/library, say so.
+- Generally, if the #solution contains projects whose names do not begin with `Core` or `xyLOGIX`, those projects are higher in the call stack / dependency graph hierarchy than those whose names do begin with `Core` or `xyLOGIX`.  Also, as a rule of thumb, the shorter a project's name, or the fewer period-separated parts its name has, the higher up the call stack / dependency graph it is.  If you are not sure where to add references, then just don't.  Let me handle that interactively with the help of Roslyn and the ReSharper Ultimate functionality (shows me red lightbulbs prompt me where to add references and `using` statements).
+- Remember, references can be transitive (i.e., a "reference to a reference") and thus become circular through the transitive chain.  Watch out for that.
+- If you get tempted to create a reference to project Y from project X, and then a reference to project X from project Y, stop and double-check, read the codebase, and determine if that is really necessary.
+- Check if a reference you want to add is already present before trying to add it again.
+
+Generally, more often than not, before I prompt you, I will have already set up the reference and dependency graph of the Solution the way I want it.  If you're having trouble with references, or it begins to strike you that it may be dodgy, just do not mess with the references or NuGet packages, especially in "Agent" mode...let me just follow along behind you putting those in place as need be.
+
+## 3) Design principles and coding style
+
+### SOLID / DRY / loose coupling
+- Follow **SOLID** and **DRY** strictly.
+- Prefer **loose coupling** over tight coupling where feasible.
+- Prefer the **highest-level interface or abstract base class** that still provides required functionality:
+  - Applies to fields, properties, parameters, and return types (especially for "complex" types).
+
+### Avoid magic literals
+- Avoid "magic values" (literals) whenever feasible.
+- Prefer:
+  - `MyModule.Constants` `public const` members (preferred for most things)
+  - `enum`s in `MyModule.Constants`
+  - `Resources.resx` only when appropriate for the project
+- **Do not put UI control text or control values in `Resources.resx`.**
+
+### Prefer `var`, early-gating, and low cyclomatic complexity
+- Use `var` aggressively.
+- Use `out var` and `ref var` whenever supported and sensible.
+- Use pattern matching (C# 7.3) when it improves clarity and reduces casting/branching.
+- Prefer early returns/continues by **negating `if` conditions**:
+  - In loops: `if (!condition) continue;`
+  - In methods: `if (!condition) return result;`
+  - Apply De Morgan's laws to come up with logic gates.
+     - Meaning: instead of writing an `if` branch: Suppose we desire `if (theSky.IsRed && 
+       iHate.Suzy)` to evaluate to `true` in order to run some method's code.  We
+       know that De Morgan's laws would say that the negation of that is: `!theSky.IsRed || !iHate.Suzy` so as to logic gate and return early -- but instead of even combining them,
+       just put them into separate `if (!theSky.IsRed) return;` and  `if (!iHate.Suzy) return;`
+       statement(s).  Basically, since we're ORing them anyway, the first time one of them evaluates
+       to `true`, short-circuit the enclosing method or loop that way.
+     - Think about what we desire to be true, first, and then apply De Morgan's laws to then
+       NEGATE that, so we are now EXCLUDING what we WISH NOT TO BE SO.
+- Gate out invalid/unwanted cases as early as possible.
+- Watch your assumptions.  For instance, the method:
+
+```csharp
+int calcAreaOfRug(int width, int length) => width * length;
+```
+
+in my mindset, is very poorly written.  This is because `int` can have a negative or a positive value.  However, I have never seen a rug with zero or negative width or length; have you?  So we also have to be mindful of what value(s) variable(s) and method input(s) are CAPABLE of having but are not DESIRED to have, or which would not be LOGICAL, given the use case, for them to have; and then gate against those cases accordingly.  That is, the ideal version of the `calcAreaOfRug` method would be:
+
+```csharp
+int calcAreaOfRug(int width, int length)
+{
+    if (width <= 0) return -1;      /* or some nonsense value, which should be documented */
+    if (length <= 0) return -1;
+    
+    return width * length;
+}
+```
+
+In this version, we have a guarantee, by the time we do `return width * length`, that both `width` and `length` are greater than zero; as should be the case for all rugs, in our example.  We have to think about the real-world and physically-viable possibilities of our use cases and applications when gating.  Think to yourself: what makes sense, and what doesn't make sense?  Gate against what doesn't make sense, so that what makes sense is what is executed.  Watch your assumptions, and gate against them.
+
+- Minimize cyclomatic complexity.
+
+### No regions
+- Do not use `#region` / `#endregion`.  EVER.  Or I shall be very cross with you.
+
+### Mathematical programming
+
+For a mathematical equation, formula, or algorithm, consider the properties (I mean, the mathematical properties) of the things you are working with, to include linear-algebraical and abstract-algebraical properties, such as the properties of matrices, tensors, operators, operations, functions, maps, relations, linear transformations, groups, rings, fields, vector spaces, sets, measures, and so on.  It also goes without saying, that if the things we're working with are part of a division ring (as in a set that is not a field, but where the operation of multiplication has the concept that you can multiply two things and get zero as the answer), then we need to gate against zero divisors.  It goes without saying, that all fields (such as the set of real numbers) are division rings.  It also goes without saying that all vector spaces have to be defined over a field; meaning, the vector components' values are themselves elements of the field.
+
+## 4) Defensive programming ("shift-left"), validation, and fault tolerance
+
+### Shift-left mindset (SEU/hardening)
+Do not assume values are valid:
+- Validate inputs eagerly and bounds-check indices.
+- Validate properties/fields/variables before use (e.g., length must be > 0 where meaningful).
+- Validate the return values of called methods. If a callee result is not useful, the caller should give up early.  The documentation and XML documentation of methods should be very clear about what they return on failure, if anything.  Read this documentation for methods that you call.
+- Check existence of files/folders before use/search.
+    - When using `Does.FileExist` and `Does.FolderExist` from the `xyLOGIX.Core.Files` module, bear in mind that these methods always check whether `string.IsNullOrWhiteSpace` on their arguments; thus, it is completely unnecessary to gate against `string.IsNullOrWhiteSpace` just before a call to any of the methods in the `xyLOGIX.Core.Files.Does` class, period.
+- Validating and gating is especially important for multithreading.
+
+SEUs are single-event upsets; it's well-known to the astrophysics community that, for instance, a Beryllium nucleus can (and do, very frequently) come screaming in from beyond the Triangulum galaxy and intersect with the micro-circuitry of a computing machine, and sometimes this can alter the values of pointers, variables, CPU registers, and such in a very random and unpredictable way; thus, we should never make assumptions as to what values our variables, method parameters, and such have.  Although, strike a balance between code readability/maintainability and guarding/gating against SEUs.
+
+### Input validation rules
+- Any parameter that can be `null` must be checked for `null` -- well, except for value types other than `string`.  `string` is always checked using `string.IsNullOrWhiteSpace`.
+- **Do NOT use `||` or `&&` inside eager-returning input-validation `if` statements.**
+  - Each validation must be its own `if` with its own early return.
+
+Example pattern:
+```csharp
+if (someReference == null)
+    return result;
+
+if (index < 0)
+    return result;
+
+if (index >= list.Count)
+    return result;
+```
+
+
+### Exception handling preference (robust, returns defaults)
+
+* Prefer methods that return **default/failure values** over throwing.
+* Every method body should be wrapped in a `try`/`catch` per the template below (where applicable).
+* On exception:
+
+  * Log it
+  * Set the return value to default again
+  * Return safely
+
+#### Required logging call style
+
+* Before calling `DebugUtils.LogException(ex);`, insert this comment **on the line above**:
+
+  * `// dump all the exception info to the log`
+  
+* Never call `DebugUtils.LogException` with its second parameter explicitly specified; it's defined to have a Boolean parameter as the second parameter, but that should be reserved to always be set to its default value, implicitly.  When I am debugging, I will sometimes go in and then change its explicit value but only on a case-by-case basis; leave that to me.
+
+#### Required using
+
+* Add `using xyLOGIX.Core.Debug;` to the **very top** of the file (where available/valid for the project).
+* Ensure all necessary `using` statements exist for referenced types.
+
+### Required return-value pattern: `result`
+
+* For non-`void` methods: define a `result` variable at the top, initialized to a default `invalid/failure` value.
+* If a catch occurs, reset `result` to default and return it.
+
+Canonical method template:
+
+```csharp
+using xyLOGIX.Core.Debug;
+
+public int DoSomething(int value)
+{
+    var result = -1;        /* or zero, depending on context */
+
+    try
+    {
+        if (value < 0)
+            return result;
+
+        // ...work...
+
+        result = value + 1;
+    }
+    catch (Exception ex)
+    {
+        // dump all the exception info to the log
+        DebugUtils.LogException(ex);
+        
+        result = -1;
+    }
+
+    return result;
+}
+```
+
+* Return `-1` from a method declaring an `int` return type to mean "failure" or "I couldn't compute it."  
+* Return `0` from a method returning an `int` return type to mean "there is a zero count of items."
+
+* Only initialize a default-return-value, `result`, with the `default` keyword if it is a reference type such as a `struct`, `class`, `union`, `interface`, `delegate` or collection.  More often than not, the default return value of methods that return a collection will be initialized to the empty version of that collection.  Always return collections typed via the corresponding interface; i.e., `IList<T>`, `ICollection<T>`, `IDictionary<K, V>`, etc.
+
+* If a method has no logic gates, simply declare the `result` variable above the `try` block but do not initialize it.
+
+* All logic gates must always `return result;` or `return;` for a void function; do not return scalar values.
+
+* Never explicitly say, `return true;`, `return false;` or `return null;`.  If you need to be explicit about the return value of a logic gate and that gate's return value is something other than the default value of `result`, initialize result BEFORE the gate, and then gate, and then restore the value of `result` following the gate.
+
+> DO NOT do:
+
+```csharp
+bool Foo(int myParam1, double myParam2)
+{
+    var result = false;
+    
+    try
+    {
+        if (myParam1 == 3)
+        {
+            result = true;      // NO!!!
+            return result;
+        }
+    
+        /* ... */
+    }
+    catch (Exception ex)
+    {
+        // dump all the exception info to the log
+        DebugUtils.LogException(ex);
+        
+        result = false;
+    }
+    
+    return result;
+}
+```
+
+Instead, DO:
+
+```csharp
+bool Foo(int myParam1, double myParam2)
+{
+    var result = false;
+    
+    try
+    {
+        result = true;
+        
+        if (myParam1 == 3)
+        {
+            return result;
+        }
+        
+        result = false;
+    
+        /* ... */
+    }
+    catch (Exception ex)
+    {
+        // dump all the exception info to the log
+        DebugUtils.LogException(ex);
+        
+        result = false;
+    }
+    
+    return result;
+}
+```
+
+> If a method must be `void` due to an override/interface/event-handler signature, still validate inputs and wrap the body in `try/catch`, but do not invent a meaningless `result` variable.  Simply `return;` from logic gates.
+
+> Methods that are `void` must NEVER end with a `return;` statement.
+
+## 5) PostSharp logging exclusions and `[NotLogged]` rules
+
+### Important correction about `[return: NotLogged]`
+
+* **Do NOT apply `[return: NotLogged]` to properties.**
+  A `GlobalAspects.cs` exists in each project excluding logging on property getters/setters and event add/remove methods.
+* **Apply `[return: NotLogged]` to methods only** when the return type is not a C++-primitive (definition below), and also for `string` returns.
+
+### Definition: "primitive" for logging rules
+
+When these instructions say "primitive," it means "would have been primitive in C++."
+
+Treat these as primitives (do NOT require `[NotLogged]` by default):
+
+* `bool`, `char`
+* `byte`, `sbyte`
+* `short`, `ushort`
+* `int`, `uint`
+* `long`, `ulong`
+* `float`, `double`
+
+Treat as **non-primitive/complex** (DO require `[NotLogged]` on parameters and/or `[return: NotLogged]` on method returns):
+
+* `string` (explicitly required even though it has a C# keyword)
+* `object`
+* Any `struct` (e.g., `Guid`, `DateTime`, `Rectangle`, `decimal`, `Nullable<T>`, etc.)
+* Any `enum`
+* Any class/interface type
+* Any type not used as a scalar in the abstract-algebra sense
+* Any collection
+
+### Method parameter rules
+
+* Any method parameter whose type is **not** a C++-primitive must be annotated:
+  * `([NotLogged] TypeName parameter)`
+* `string` parameters MUST be `[NotLogged]`.
+* Value types like `Rectangle`, `Guid`, etc. MUST be `[NotLogged]`.
+* Any parameter of type `object` MUST be `[NotLogged]`.
+
+Example:
+
+```csharp
+public void Save([NotLogged] string path, [NotLogged] Guid id, int retryCount)
+{
+    // ...
+}
+```
+
+### Method return rules
+
+* If a method returns anything other than a C++-primitive, decorate the method with:
+
+  * `[return: NotLogged]`
+* `string` return values MUST use `[return: NotLogged]`.
+* `object` return values MUST use `[return: NotLogged]`.
+
+Example:
+
+```csharp
+[return: NotLogged]
+public string GetName()
+{
+    var result = default(string);
+    // ...
+    return result;
+}
+```
+
+### Static constructors
+
+* Every `static` class should define a `static` constructor with:
+
+  * `[Log(AttributeExclude = true)]`
+  * Purpose: avoid `.cctor` calls being logged.
+
+## 6) XML documentation (100% coverage) - rules and templates
+
+### Coverage requirements
+
+Every one of these must have XML documentation, regardless of access modifier:
+
+* `class`, `struct`, `interface`, `enum`
+* methods
+* events
+* fields
+* properties
+* constants
+* parameters
+* return values (where meaningful)
+
+No code entity should exist without XML documentation.
+
+### Do not modify existing docs
+
+If XML documentation already exists, **do not change it**.
+
+### Method docs MUST include `<remarks>`
+
+Method XML docs should include `<remarks>` describing:
+
+* Caller-relevant behavior
+* Alternate code paths
+* What happens if invalid values are provided (out-of-bounds index, `null`, blank/empty strings, invalid references, etc.)
+
+### Sentence separation rule
+
+Adjacent sentences in XML docs must not be separated by whitespace.
+Use self-closing `<para />` tags between adjacent sentences.
+
+Example:
+
+```xml
+/// <summary>Does X.<para />Returns Y.</summary>
+```
+
+### `langword` usage for C# keywords
+
+* Use `<see langword="null" />`, `<see langword="true" />`, `<see langword="false" />`; **not** `<c>null</c>`, etc.
+* If XML docs refer to a C# language keyword specifically, wrap it with `<see langword="..." />`.
+* If the word is used in plain English and not referring to the keyword, do not use `langword`.
+
+### Cross-reference rules (`<see cref="..."/>`)
+
+* Always use **fully-qualified** names in `cref`.
+* Use the correct prefix:
+
+  * Types: `<see cref="T:Namespace.TypeName" />`
+  * Methods: `<see cref="M:Namespace.TypeName.MethodName(ParamType,ParamType)" />`
+  * Properties: `<see cref="P:Namespace.TypeName.PropertyName" />`
+  * Events: `<see cref="E:Namespace.TypeName.EventName" />`
+  * Fields/constants/enum members: `<see cref="F:Namespace.TypeName.FieldName" />`
+* Use `<see cref="F:System.String.Empty" />` and `<see cref="F:System.Guid.Empty" />` when referencing those values.
+* Use `<paramref name="paramName" />` only when referring to the parameter (not when using the same word generically).
+
+### When NOT to use `<see cref="..."/>`
+
+If a term looks like a code entity but cannot/should not be referenced (e.g., file names, source-level attributes like `AssemblyTitle`, etc.), wrap it in `<c>...</c>`.
+
+Examples:
+
+* `<c>AssemblyInfo</c>`
+* `<c>AssemblyTitle</c>`
+
+### Required `(Required.)` / `(Optional.)` parameter doc prefix
+
+Every `<param name="...">` body must start with:
+
+* `(Required.)` or `(Optional.)`
+
+Example:
+
+```xml
+/// <param name="e">(Required.) A <see cref="T:System.Windows.Forms.MouseEventArgs" /> that contains the event data.</param>
+```
+
+### Reference vs value semantics in wording
+
+* Do **not** say "Reference to an instance of Xxx" for value types and "primitive keyword types" (including `string`, `Guid`, `DateTime`, `int`, etc.). Prefer:
+
+  * A Xxx value as in, `A <see cref="T:System.Guid" />` value
+  * `An <see cref="T:System.Int32" /> value that `
+  * `A <see cref="T:System.String" /> that `
+* For non-primitive reference types (typical classes/interfaces), prefer:
+
+  * `Reference to an instance of <see cref="T:Fully.Qualified.Type" />`
+
+### Inline code in XML docs
+
+When reproducing code or comments inline, always wrap with `<c>...</c>`.
+
+Example:
+
+* `<c>// dump all exception info to the log</c>`
+
+### Generic type documentation preference
+
+When documenting generic types, prefer **backtick + arity** notation and keeping type references fully-qualified (e.g., ``System.Collections.Generic.IList`1``) over curly-brace notation, where the "arity" refers to the number of generic type parameter(s) in its definition.
+
+### Backing-field documentation requirement
+
+If a field backs a property, field docs must:
+
+* In `<summary>`: explain the purpose of the property and the field.
+* In `<remarks>`: include:
+
+  * `<b>NOTE:</b> The purpose of this field is to cache the value of the XYZ property`
+  * Where `XYZ` is a `<see cref="P:Fully.Qualified.Property" />` reference.
+
+### Interface summary requirement
+
+For interfaces, the `<summary>` tag MUST begin with:
+
+* `Defines the publicly-exposed events, methods and properties of ___`
+
+### `If _, then` phrasing
+
+In XML docs, prefer:
+
+* `If ___, then ___.`
+  Not:
+* `If ___, ___.`
+
+### Pluralization style in docs/comments/UI text
+
+When a word may be plural, pluralize by parenthesizing only the plural part:
+
+* discovery(ies), journey(s), attribute(s), box(es)
+  Do not overuse; keep correct U.S. English grammar.
+* Do not add parenthetical plurals where they do not belong (e.g., "continues", not "continue(s)"). Use judgment.
+
+### Vsxmd output awareness
+
+XML documentation is converted into `README.md` via Vsxmd, and fully-qualified `<see cref="..."/>` links should help produce Microsoft Learn-style hyperlinks. Take every reasonable opportunity to provide correct cross-references.
+
+### Special `DebugUtils.LogException` cref signature
+
+When referencing the overload in XML documentation, use the fully-qualified signature:
+
+* `xyLOGIX.Core.Debug.DebugUtils.LogException(System.Exception,System.Boolean)`
+  Example:
+
+```xml
+/// <see cref="M:xyLOGIX.Core.Debug.DebugUtils.LogException(System.Exception,System.Boolean)" />
+```
+
+## 7) Properties, fields, and accessors
+
+### Accessor body rules
+
+* Do NOT use expression-bodied properties or expression-bodied accessors.
+* If you write explicit accessor bodies, they must be statement-bodied (no expression-bodied accessors).
+* Every getter and setter must be annotated at the accessor level with `[DebuggerStepThrough]` (if not already).
+* Ensure `using System.Diagnostics;` exists when using `[DebuggerStepThrough]`.
+
+### Auto-properties
+
+* Auto-properties are preferred when feasible. Use accessor attributes like:
+
+```csharp
+public int Count
+{
+    [DebuggerStepThrough] get;
+    [DebuggerStepThrough] set;
+}
+```
+
+* Always decorate accessors with [DebuggerStepThrough] and make sure `using System.Diagnostics` is near the top of the file.
+* Favor the use of getter-only auto properties (vs. auto-properties with a protected or private setter) when they are only initialized at construction time or static construction time.
+* Never use the auto-property accessor `init;`.  
+
+### Backing fields
+
+Only use backing fields when:
+
+* The property update must raise an event, or
+* A read-only property value must be cached
+   - This is a best practice when a property should be computed once but is going to be read
+     frequently.
+
+## 8) Events
+
+### No dead events
+
+Never declare/expose an event that is never invoked.
+
+### Required `OnXxx` pattern
+
+For each event `Xxx`, provide:
+
+* `protected virtual void OnXxx(...)` which fires the event:
+
+  * `Xxx?.Invoke(this, e);` (or appropriate signature)
+* Call `OnXxx` wherever the event should fire.
+
+### Sealed classes
+
+If you add new `virtual` methods to a `sealed` class, remove the `sealed` modifier.
+
+## 9) WinForms/UI and form and dialog control-layout conventions (Win32-minded, classic UX)
+
+* Follow "The Windows User Interface Guidelines for Software Design" (Microsoft Press, 1995) where possible.
+* Prefer Windows 95 UI/UX conventions where they conflict with later guidance.
+* Never add `MenuStrip`, `ToolStrip`, or `StatusStrip` to a form with `FormBorderStyle = FixedDialog`.
+
+### Base form and form interfaces
+
+* In the event that class library(ies) beginning with `xyLOGIX.UI.Dark` are included in the #solution, then all Windows Forms and dialog boxes must derive from:
+
+  * `xyLOGIX.UI.Dark.Forms.DarkForm`
+  
+otherwise they can derive from `System.Windows.Forms.Form` as per usual.
+  
+* In the event that class library(ies) beginning with `xyLOGIX.UI.Dark` are included in the #solution, then form's interface should inherit:
+
+  * `xyLOGIX.UI.Dark.Forms.IDarkForm`
+  * (So the interface can expose only app-specific functionality.)
+  
+otherwise, they can inherit `xyLOGIX.Core.Extensions.IForm` which exposes all the usual methods and properties that a Windows Form has (`xyLOGIX.UI.Dark.Forms.IDarkForm` already inherits `xyLOGIX.Core.Extensions.IForm`, FYI).
+  
+The `xyLOGIX.UI.Dark.Forms.IDarkForm` interface implements `xyLOGIX.Core.Extensions.IForm` which exposes all the usual methods and properties that a Windows Form has.   All form controls have `DarkXxx` counterparts in the `xyLOGIX.UI.Dark.Controls` library, such as `DarkCheckBox` instead of `CheckBox` and so on.  If a `DarkXxx` counterpart doesn't exist, then use the normal `System.Windows.Forms.Xxx` version of it.  If dark controls are used, the `xyLOGIX.UI.Dark.Controls`,  `xyLOGIX.UI.Dark.Controls.Interfaces`, and `xyLOGIX.UI.Dark.Controls.Themes.Interfaces` class libraries and namespaces must be references.
+
+If no class library(ies) beginning with `xyLOGIX.UI.Dark` are included in the #solution, then forms and dialog boxes can inherit from `System.Windows.Forms.Form` as per usual.  
+
+### Control exposure rule
+
+If a form exposes controls to external clients:
+
+* Expose them via properties in the form's main `.cs` file, not in `.Designer.cs`.
+
+If UI elements are referenced in XML documentation, then the name of the UI element must be in Title Case (without any occurrence of the '&' mnemonic character) and enclosed within a `<b>...</b>` tag -- mimicking the style of the Microsoft docs.  The title of a form, if known at design/documentation time, must always be in Title Case inside a `<b>...</b>` tag when referred to in XML documentation.  Pretend you're authoring Microsoft docs, the way Microsoft would write them, when writing XML documentation.
+
+## 10) Testing conventions (NUnit)
+
+* Use NUnit 4.3.2 for unit tests.
+* Prefer one test fixture per concrete class.
+* It's OK to build abstract base test fixtures to share behavior across multiple test fixtures using the Template Method pattern.
+* In test projects, prefer using `xyLOGIX.Tests.Logging` and derive fixtures from:
+
+  * `LoggingTestBase` (enables PostSharp/log4net logging to file automatically)
+
+## 11) Performance, threading, LINQ, and enumeration
+
+* Avoid unnecessary materialization (`ToList()`, `ToArray()`) unless it improves performance or correctness.
+* Remember: materialization (`ToList()`, `ToArray()`) enumerates the source sequence once.
+* Avoid iterating an `IEnumerable<T>` more than once.
+* In multithreaded/concurrent scenarios:
+
+  * Avoid LINQ extension methods.  In the .NET Framework 4.8, they are all known by the community to be non-thread-safe and non-concurrent, and their usage must be avoided at all times.
+  * Prefer `for`/`foreach` loops and thread-safe algorithms.
+  * If enumerating a potentially-changing sequence, snapshot it first (e.g., `ToArray()`), then iterate the snapshot unless the collection is known to be concurrent.
+  * Be sure appropriate use of locks are used.  Make sure to avoid nesting locks -- even implicitly nesting them through method calls (i.e., lock, then call a method which itself enters a lock etc.).
+  * You may always use `.AsXxx()` LINQ extension methods (i.e., `.AsQueryable()`, `.AsParallel()` etc)
+  * Favor the use of `.AsParallel()` or `.AsSequential()` over `Parallel.ForEach` -- choose which based on correctness and performance.
+
+## 12) Git/repo conventions and agent behaviors
+
+### Repo root convention
+
+* `.git` folders are typically at the **solution root** (folder containing the `.sln` / `.slnx`).
+* Git workflows should be given the solution-containing folder as `repoRoot`.
+
+### Agent mode housekeeping
+
+If operating as an agent:
+
+* Delete dead code when it becomes unused due to architecture changes:
+
+  * Methods, events, fields, properties, interfaces, classes, delegates, and `Resources.resx` entries.
+* Do not regenerate:
+
+  * `GlobalAspects.cs`
+  * `AssemblyInfo.cs`
+  
+* We use Git all the time, so it's not a big issue if something is deleted by mistake.  We can always roll the file back.  HOWEVER, don't be stupid about it!  Double-check that you are correct before you delete something.  If you remove code, and then the software breaks or suddenly refuses to build, try putting the deleted code back.  It's possible you broke something by accidentally deleting live code.  I am willing to wait a little extra time for you to double-check yourself.
+
+## 13) Framework-first vs flexibility
+
+Before reinventing the wheel:
+
+* Consider whether .NET Framework already provides the needed capability.
+* When unsure, consult Microsoft Docs (or other primary/official documentation) before rolling your own solution.
+* Consider whether the needed capability already exists elsewhere in the codebase of the current #solution.
+* Prefer built-in APIs when they satisfy requirements without brittleness.
+* However, overall preference is **flexibility** and **loose coupling** over brittle software coupling when requirements may evolve (which, in my mindset, they are prone to doing often).
+* Always code to an interface.  This means, always use an interface for the type of a method parameter, return value, property, or field, instead of a concrete type.  When an interface isn't available, code to the nearest abstract base class.  If that is not available, always code to the highest object in the IMMEDIATE inheritance graph (except do not code to `System.Object` unless you have to, say, when doing COM programming, because everything in the .NET Framework inherits `System.Object` but we do not want code with `System.Object` being the type of every method parameter, field, return value, and property; that's dumb.  Use common sense).
