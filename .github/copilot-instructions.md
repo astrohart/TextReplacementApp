@@ -1102,6 +1102,31 @@ If UI elements are referenced in XML documentation, then the name of the UI elem
 * In test projects, prefer using `xyLOGIX.Tests.Logging` and derive fixtures from:
 
   * `LoggingTestBase` (enables PostSharp/log4net logging to file automatically)
+  
+* Adorn ALL test fixture classes with the `TestFixture` and `ExplicitlySynchronized` attributes.
+     - The `TestFixture` attribute comes from NUnit.
+     - The `ExplicitlySynchronized` attribute comes from `PostSharp.Patterns.Threading`.
+     
+* Only if MULTIPLE tests display / interact with a GUI, then add the following attributes to the test fixture at the class level:
+    - The `NonParallelizable` attribute, which comes from NUnit; and
+    - The `Apartment(ApartmentState.STA)` attribute, which also comes from NUnit.
+    
+* Apply the `Apartment(ApartmentState.STA)` attribute to the class level if MORE THAN ONE test shows a GUI; if only one test shows a GUI, then drop the `NonParallelizable` attribute and apply the `[Apartment(ApartmentState.STA)]` attribute to the specific test that shows the GUI ONLY.
+
+* If even ONE test shows a Windows Form, then override `LoggingTestBase.OneTimeSetUp` and implement it thus:
+
+```csharp
+public override void OneTimeSetUp()
+{
+    base.OneTimeSetUp();
+    
+    Application.EnableVisualStyles();
+    Application.SetCompatibleTextRenderingDefault(false);
+}
+```
+This will ensure that Windows Forms have the correct look and feel.
+
+It is not necessary to decorate the override with the `[OneTimeSetUp]` attribute as that is done by the base class, `LoggingTestsBase`.  Do NOT add a `// ??? NO [OneTimeSetUp] attribute` comment to the file, nor add a `// ??? Method-level attribute` or any other such comment to the file.
 
 ## 11) Performance, threading, LINQ, and enumeration
 
@@ -1116,6 +1141,7 @@ If UI elements are referenced in XML documentation, then the name of the UI elem
   * Be sure appropriate use of locks are used.  Make sure to avoid nesting locks -- even implicitly nesting them through method calls (i.e., lock, then call a method which itself enters a lock etc.).
   * You may always use `.AsXxx()` LINQ extension methods (i.e., `.AsQueryable()`, `.AsParallel()` etc)
   * Favor the use of `.AsParallel()` or `.AsSequential()` over `Parallel.ForEach` -- choose which based on correctness and performance.
+  * NEVER call `.AsParallel()` then `.AsSequential()` in the same sequence (or vice-versa).  Use one OR the other.
 
 ## 12) Git/repo conventions and agent behaviors
 
@@ -1138,6 +1164,8 @@ If operating as an agent:
   
 * We use Git all the time, so it's not a big issue if something is deleted by mistake.  We can always roll the file back.  HOWEVER, don't be stupid about it!  Double-check that you are correct before you delete something.  If you remove code, and then the software breaks or suddenly refuses to build, try putting the deleted code back.  It's possible you broke something by accidentally deleting live code.  I am willing to wait a little extra time for you to double-check yourself.
 
+* Bear in mind that 99.99999% of my software components are libraries, so of course they will have TONS of methods that are "never called" but you are correct, if they are exposed by an interface then they are meant to be called BY CLIENTS.  OK, now let's do the final section, Section 13.
+
 ## 13) Framework-first vs flexibility
 
 Before reinventing the wheel:
@@ -1148,3 +1176,112 @@ Before reinventing the wheel:
 * Prefer built-in APIs when they satisfy requirements without brittleness.
 * However, overall preference is **flexibility** and **loose coupling** over brittle software coupling when requirements may evolve (which, in my mindset, they are prone to doing often).
 * Always code to an interface.  This means, always use an interface for the type of a method parameter, return value, property, or field, instead of a concrete type.  When an interface isn't available, code to the nearest abstract base class.  If that is not available, always code to the highest object in the IMMEDIATE inheritance graph (except do not code to `System.Object` unless you have to, say, when doing COM programming, because everything in the .NET Framework inherits `System.Object` but we do not want code with `System.Object` being the type of every method parameter, field, return value, and property; that's dumb.  Use common sense).
+* Never produce XML documentation like the following:
+
+```csharp
+/// <summary>
+/// Initializes the manager for the main application tab control.
+/// </summary>
+/// <remarks>
+/// This method creates an
+/// <see
+///     cref="T:ControlTestApp.Windows.TabControlManagers.Interfaces.ITabControlManager" />
+/// instance for the
+/// <see cref="P:ControlTestApp.Windows.MainWindow.DarkTabControl" />.
+/// <para />
+/// If creation of the manager fails, then the corresponding field remains set to
+/// <see langword="null" />.
+/// </remarks>
+```
+
+The correct version is:
+
+```csharp
+/// <summary>
+/// Initializes the manager for the main application tab control.
+/// </summary>
+/// <remarks>
+/// This method creates a reference to an instance of an object that implements the
+/// <see
+///     cref="T:ControlTestApp.Windows.TabControlManagers.Interfaces.ITabControlManager" />
+/// interface for the
+/// <see cref="P:ControlTestApp.Windows.MainWindow.DarkTabControl" />.
+/// <para />
+/// If creation of the manager fails, then the corresponding field remains set to
+/// <see langword="null" />.
+/// </remarks>
+```
+
+Notice the `<remarks>` section.  See how it refers to `a reference to an instance of an object that implements the IMyInterface interface` and not `an IMyInterface instance`? I never talk about interfaces as if they are object instances; it's always, "we have a reference to an instance of an object that implements the interface," not "an IMyInterface instance;" that makes no sense in view of how C# objects actually work.
+
+## 14) Proper way to check things with logging
+
+When you're running an `if` check and it has surrounding logging:
+
+```csharp
+                DebugUtils.WriteLine(
+                    DebugLevel.Info,
+                    "AssemblyInfoProvider.Save: *** INFO *** Checking whether the method parameter, 'data', has a null reference for a value..."
+                );
+
+                if (data == null)
+                {
+                    DebugUtils.WriteLine(
+                        DebugLevel.Error,
+                        "AssemblyInfoProvider.Save: *** ERROR *** A null reference was passed for the method parameter, 'data'. Stopping..."
+                    );
+
+                    DebugUtils.WriteLine(
+                        DebugLevel.Debug,
+                        $"AssemblyInfoProvider.Save: Result = {result}"
+                    );
+
+                    return result;
+                }
+
+                DebugUtils.WriteLine(
+                    DebugLevel.Info,
+                    "AssemblyInfoProvider.Save: *** SUCCESS *** We have been passed a valid object reference for the method parameter, 'data'. Proceeding..."
+                );
+
+```
+
+There should be mucho comments here.  The version above is incorrect.  Too few comments.  The correct version is:
+
+```csharp
+                DebugUtils.WriteLine(
+                    DebugLevel.Info,
+                    "AssemblyInfoProvider.Save: *** INFO *** Checking whether the method parameter, 'data', has a null reference for a value..."
+                );
+
+                // Check whether the method parameter, 'data', is set to a null reference.
+                // If this is the case, then write an error message to the log file, and
+                // then terminate the execution of this method, returning the default 
+                // return value.
+                if (data == null)
+                {
+                    // The method parameter, 'data', is set to a null reference.  This is not desirable.
+                    DebugUtils.WriteLine(
+                        DebugLevel.Error,
+                        "AssemblyInfoProvider.Save: *** ERROR *** A null reference was passed for the method parameter, 'data'. Stopping..."
+                    );
+
+                    DebugUtils.WriteLine(
+                        DebugLevel.Debug,
+                        $"AssemblyInfoProvider.Save: Result = {result}"
+                    );
+
+                    // stop.
+                    return result;
+                }
+
+                DebugUtils.WriteLine(
+                    DebugLevel.Info,
+                    "AssemblyInfoProvider.Save: *** SUCCESS *** We have been passed a valid object reference for the method parameter, 'data'. Proceeding..."
+                );
+
+```
+
+Analyze the differences between these two listings and tell me what you see.  Now, do this (or something similar) every time we're logging in a method and also running `if` checks.
+
+Inside the `if` branch, above the first logging line, the comment above it should always end with a second sentence, `This is not desirable.` if the logging line logs an *** ERROR *** message.  Also, there is not enough logging and comments in the `DetectEncodingWithBomCheck` method.  Do this no matter the purpose nor the modifier of any method, only if the method is decorated with the `[Log(AttributeExclude = false)]` attribute, then you refrain from all logging and of course, it would also not be necessary to heavily comment in this case.
