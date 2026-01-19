@@ -58,6 +58,69 @@ These instructions apply to all Copilot Chat responses and code changes in this 
     - A key emphasis is placed on these tools' UI and UX being laid out in as strict an adherance to the book,
       "The Windows User Interface Guidelines for Software Design" by Microsoft Press, published in 1995, and 
       on Windows 95 style UI design patterns as much as possible.
+        - EXCEPTION: All push buttons must be sized (87,27) as opposed to (75,23) as called for by the Guidelines
+        - EXCEPTION: All forms must have Segoe UI, 9pt for their font and NOT MS Sans Serif, 8.25pt.
+    - The Window style/chrome of a form must vary depending on the type of form that it is.
+        - If the main window of an application that has a menu bar, one or more toolbar(s), a status bar, and 
+          displays MDI child windows or tabbed documents in which the user enters, views, updates, or deletes 
+          data and loads or saves that data to/from document file(s) that the user opens and saves with the application,
+          such as Word or Excel, then the form must have an "overlapped window" style.  Specifically, certain of its properties must have the following value(s) (note -- if a property is not covered in the following list, leave its default value alone): 
+            - `AutoScaleMode` = `Dpi`
+            - `ControlBox` = `true`
+            - `Font` = `Segoe UI, 9pt`
+            - `FormBorderStyle` = `Sizable`,
+            - `IsMdiContainer` ask me
+            - `MainMenuStrip` -> Set to main menu `MenuStrip`
+                - Such a control should be called `mainMenu` by default
+            - `MaximizeBox` = `true`
+            - `MinimizeBox` = `true`
+            - `ShowIcon` = `true`
+            - `ShowInTaskbar` = `true`
+            - `Size` = 1024x768
+            - `SizeGripStyle` = `Show`
+            - `StartPosition` = `CenterScreen`,
+            - `Text` should be equal to the application product name
+            - `WindowState` = `Maximized`
+        - If the main window of an application is that of a "dialog-based app" i.e., an app that perhaps alters data values, but  that does not necessarily open MDI child windows and/or deal with document files per se, then this is an app that   
+          generally serves to be more of a "utility" style app.  Its main window must have the following styles/properties:
+            - `AutoScaleMode` = `Dpi`
+            - `ControlBox` = `true`
+            - `Font` = `Segoe UI, 9pt`
+            - `FormBorderStyle` = `FixedSingle`,
+            - `IsMdiContainer` = `false`
+            - `MainMenuStrip` -> Set to main menu `MenuStrip`
+                - Such a control should be called `mainMenu` by default
+            - `MaximizeBox` = `false`
+            - `MinimizeBox` = `true`
+            - `ShowIcon` = `true`
+            - `ShowInTaskbar` = `true`
+            - `Size` = 470x561
+            - `SizeGripStyle` = `Show`
+            - `StartPosition` = `CenterScreen`,
+            - `Text` should be equal to the application product name
+            - `WindowState` = `Normal`     
+        - For a dialog box within either of the two type(s) of application(s) shown above, the properties/style(s) should be:
+            - `AutoScaleMode` = `Dpi`
+            - `ControlBox` = `true`
+            - `Font` = `Segoe UI, 9pt`
+            - `FormBorderStyle` = `FixedDialog`,
+            - `IsMdiContainer` = `false`
+            - `MainMenuStrip` -> no menu
+            - `MaximizeBox` = `false`
+            - `MinimizeBox` = `false`
+            - `ShowIcon` = `false`
+            - `ShowInTaskbar` = `false`
+            - `Size` = 470x561
+            - `SizeGripStyle` = `Show`
+            - `StartPosition` = `CenterParent`,
+            - `Text` should be equal to the application product name
+            - `WindowState` = `Normal`       
+        - For a dialog box, it is essential to parent it -- meaning, find out what window is to be its owner and pass that to the call to `ShowDialog` that shows it.  Otherwise, during the method that displays it, if the owner window cannot be identified, or, say, it is being shown by a Windows Service, then set its `StartPosition` property to `CenterScreen`, but do that at runtime, not at design time.
+        - For a dialog box, there are **OK** and **Cancel** buttons, neither of which have an underlined letter.  If such a button has any word other than those, then it can have an underlined letter.  The **OK** button has a `DialogResult` of `OK`, and the **Cancel** button has a `DialogResult` of `Cancel` and its `CausesValidation` property is also set to `false`.  
+        - The dialog itself must have the **OK** button (I prefer to set is `Name` property to `okayButton`) set as its `AcceptButton` button, and the **Cancel** button (I prefer to set its `Name` property to `cancelButton`) should be set as the `CancelButton` property of the dialog box's form.  The **OK** button must always be the second-to-last entry in the dialog's tab order, followed by the **Cancel** button.  FYI: Sometimes, a dialog box does not care whether the user wishes to continue.  Case in point: an "About" box, whose single goal in life is merely to display static information.  Such a dialog can have just a single **Close** button, with a caption of "&Close" and name of `closeButton` which is both the `AcceptButton` and `CancelButton`. A **Close** button must have its `DialogResult` property set to `Cancel` and its `CausesValidation` property set to `false`.  It is not necessary to attach a `Click` event handler to a **OK**, **Cancel**, or **Close** button, since merely setting the `DialogResult` property of such a button is enough to tell Windows Forms that that button, when clicked by the user, sets the `DialogResult` property of the form to the same thing and then closes the form.  We can use the `OnFormClosing` override to trap the `DialogResult` of `OK` and invoke validation logic.
+        - Never attach event handlers to the event(s) a `Form` itself will raise.  Just override the appropriate `OnXXX()` `protected` `virtual` methods that `System.Windows.Forms.Form` defines, which raise the corresponding event(s); just
+        make sure to always allow the base-class version to run first.
+        - When a method has a `object sender` and/or an `EventArgs e` (or `XYZEventArgs e`) parameter(s), each of these should be individually decorated with the PostSharp `[NotLogged]` attribute.
     - Lately, I've taken a keen interest in designing Windows Forms apps that can serve as standalone tools I can
       launch and use to enhance my own experience as a user of Microsoft Visual Studio.
     - The interest in in producing them as Dark-theme application(s) if I am using them as a developer or if they
@@ -154,7 +217,7 @@ Projects are named with a root and optional suffix from:
 
 Not every module must contain every suffix; include only what is required.
 
-### Responsibilities by project suffix
+### Responsibilites by project suffix
 - `MyModule`  
   Concrete classes and abstract base classes ONLY.
 - `MyModule.Actions`  
@@ -232,6 +295,97 @@ When implementing Strategy:
 - Include an enum (in `.Constants`) listing strategies.
 - Each strategy class exposes a property of that enum type and initializes it to the corresponding value.  The property is named semantically according to the name of the enum, such as `HairDryerType Type { [DebuggerStepThrough] get; }` or `BalloonColor Color { [DebuggerStepThrough] get; }`.
 - The interface exposes that property; the abstract base implements it abstractly.
+- Concrete class(es) implement the `enum`-typed property as an `override` and they use the static initializer to set its value; i.e., `public override BalloonColor Color { [DebuggerStepThrough] get; } = BalloonColor.Red` is how the property would be declared in the concrete class, `RedBalloon`.  
+- All XML documentation must be copied down the object tree from base -> child for all events, methods, and properties that are implemented and/or overriden.
+
+An abstract base class must declare, and suppress logging for, the `static` and `protected` constructors, like the example shown:
+
+```csharp
+using System;
+using System.Diagnostics;
+using xyLOGIX.Core.Debug;
+
+namespace MyNamespace
+{
+    /// <summary>
+    /// Provides a base implementation of the
+    /// <see cref="T:MyModule.Interfaces.IHairDryer" /> interface.
+    /// </summary>
+    /// <remarks>
+    /// This class uses the Template Method pattern to provide common functionality
+    /// to all hair dryer strategy implementations.
+    /// </remarks>
+    public abstract class HairDryerBase : IHairDryer
+    {
+        /// <summary>Initializes <see langword="static" /> data or performs actions that need to be performed once only for the <see cref="T:.HairDryerBase"/> class.</summary><remarks>This constructor is called automatically prior to the first instance being created or before any <see langword="static" /> members are referenced.<para />We've decorated this constructor with the <c>[Log(AttributeExclude = true)]</c> attribute in order to simplify the logging output.</remarks>
+        [Log(AttributeExclude = true)]
+        static HairDryerBase() { }
+
+        /// <summary>Initializes a new instance of <see cref="T:.HairDryerBase" /> and returns a reference to it.</summary><remarks><strong>NOTE:</strong> This constructor is marked <see langword="protected" /> due to the fact that this class is marked <see langword="abstract" />.<para />We've decorated this constructor with the <c>[Log(AttributeExclude = true)]</c> attribute in order to simplify the logging output.</remarks>
+        [Log(AttributeExclude = true)]
+        protected HairDryerBase() { }
+
+        /// <summary>
+        /// Gets the type of hair dryer.
+        /// </summary>
+        public abstract HairDryerType Type { [DebuggerStepThrough] get; }
+
+        /// <summary>
+        /// Dries the hair.
+        /// </summary>
+        public void DryHair()
+        {
+            try
+            {
+                OnBeforeDryHair();
+                DoDryHair();
+                OnAfterDryHair();
+            }
+            catch (Exception ex)
+            {
+                // dump all the exception info to the log
+                DebugUtils.LogException(ex);
+            }
+        }
+
+        /// <summary>
+        /// Called before the hair drying operation begins.
+        /// </summary>
+        /// <remarks>
+        /// Derived classes can override this method to perform setup tasks.
+        /// </remarks>
+        protected virtual void OnBeforeDryHair()
+        {
+            // Default implementation does nothing
+        }
+
+        /// <summary>
+        /// Performs the actual hair drying operation.
+        /// </summary>
+        /// <remarks>
+        /// Derived classes must implement this method to provide strategy-specific
+        /// hair drying logic.
+        /// </remarks>
+        protected abstract void DoDryHair();
+
+        /// <summary>
+        /// Called after the hair drying operation completes.
+        /// </summary>
+        /// <remarks>
+        /// Derived classes can override this method to perform cleanup tasks.
+        /// </remarks>
+        protected virtual void OnAfterDryHair()
+        {
+            // Default implementation does nothing
+        }
+    }
+
+}
+```
+
+Likewise for each concrete class, although the non-`static` constructor is `public`.
+
+This is to make sure PostSharp refrains from logging these constructors.
 
 ### Circular dependencies are forbidden
 - No circular dependencies between class libraries/projects.
@@ -471,13 +625,109 @@ bool Foo(int myParam1, double myParam2)
 
 > Methods that are `void` must NEVER end with a `return;` statement.
 
+### 4.1) Refined Return Value Pattern by Type:
+
+#### **For `string` Returns:**
+```csharp
+[return: NotLogged]
+public string GetName()
+{
+    var result = string.Empty;  // NOT default, NOT null
+    
+    try
+    {
+        // ...work...
+    }
+    catch (Exception ex)
+    {
+        // dump all the exception info to the log
+        DebugUtils.LogException(ex);
+        
+        result = string.Empty;  // NOT default, NOT null
+    }
+    
+    return result;
+}
+```
+
+#### **For Interface/Object/Reference Type Returns:**
+```csharp
+[return: NotLogged]
+public IMyInterface GetInstance()
+{
+    var result = default;
+    
+    try
+    {
+        // ...work...
+    }
+    catch (Exception ex)
+    {
+        // dump all the exception info to the log
+        DebugUtils.LogException(ex);
+        
+        result = default;
+    }
+    
+    return result;
+}
+```
+
+and
+
+```csharp
+[return: NotLogged]
+public MyClass Foo()
+{
+    var result = default;
+    
+    try
+    {
+        // ...work...
+    }
+    catch (Exception ex)
+    {
+        // dump all the exception info to the log
+        DebugUtils.LogException(ex);
+        
+        result = default;
+    }
+    
+    return result;
+}
+```
+
+#### **For Primitive Returns (`int`, `bool`, etc.):**
+```csharp
+public int GetCount()
+{
+    var result = -1;  // or 0, depending on semantics
+    
+    try
+    {
+        // ...work...
+    }
+    catch (Exception ex)
+    {
+        // dump all the exception info to the log
+        DebugUtils.LogException(ex);
+        
+        result = -1;  // or 0
+    }
+    
+    return result;
+}
+```
+
+For primitive returns, we'll explicitly set the `result` variable to some nonsensical value that would indicate failure, empty list, zero count, or some other 'bad' condition that we do not desire.
+
 ## 5) PostSharp logging exclusions and `[NotLogged]` rules
 
 ### Important correction about `[return: NotLogged]`
 
 * **Do NOT apply `[return: NotLogged]` to properties.**
   A `GlobalAspects.cs` exists in each project excluding logging on property getters/setters and event add/remove methods.
-* **Apply `[return: NotLogged]` to methods only** when the return type is not a C++-primitive (definition below), and also for `string` returns.
+* **Apply `[return: NotLogged]` to methods only** when the return type is not a C++-primitive (definition below), and also for `string` returns.  `enum` return values are logged.
 
 ### Definition: "primitive" for logging rules
 
@@ -491,13 +741,13 @@ Treat these as primitives (do NOT require `[NotLogged]` by default):
 * `int`, `uint`
 * `long`, `ulong`
 * `float`, `double`
+* `enum`
 
 Treat as **non-primitive/complex** (DO require `[NotLogged]` on parameters and/or `[return: NotLogged]` on method returns):
 
 * `string` (explicitly required even though it has a C# keyword)
 * `object`
 * Any `struct` (e.g., `Guid`, `DateTime`, `Rectangle`, `decimal`, `Nullable<T>`, etc.)
-* Any `enum`
 * Any class/interface type
 * Any type not used as a scalar in the abstract-algebra sense
 * Any collection
@@ -526,6 +776,7 @@ public void Save([NotLogged] string path, [NotLogged] Guid id, int retryCount)
   * `[return: NotLogged]`
 * `string` return values MUST use `[return: NotLogged]`.
 * `object` return values MUST use `[return: NotLogged]`.
+* `enum` return values MUST NOT use `[return: NotLogged]`
 
 Example:
 
@@ -744,6 +995,67 @@ For each event `Xxx`, provide:
 
   * `Xxx?.Invoke(this, e);` (or appropriate signature)
 * Call `OnXxx` wherever the event should fire.
+
+### Custom `EventArgs`-derived class template
+
+The following C# source code listing is how a custom `EventArgs`-derived class should be declared:
+
+```csharp
+using PostSharp.Patterns.Diagnostics;
+using PostSharp.Patterns.Threading;
+using System;
+using System.Diagnostics;
+
+namespace MyModule.Events
+{
+    /// <summary>
+    /// Provides data for the
+    /// <see cref="E:MyModule.Interfaces.IHairDryer.DryingCompleted" /> event.
+    /// </summary>
+    [ExplicitlySynchronized, Log(AttributeExclude = true)]
+    public class DryingCompletedEventArgs : EventArgs
+    {
+        /// <summary>
+        /// Initializes <see langword="static" /> data or performs actions that need to be
+        /// performed once only for the
+        /// <see cref="T:MyModule.Events.DryingCompletedEventArgs" /> class.
+        /// </summary>
+        /// <remarks>
+        /// This constructor is called automatically prior to the first instance being
+        /// created or before any <see langword="static" /> members are referenced.
+        /// <para />
+        /// We've decorated this constructor with the <c>[Log(AttributeExclude = true)]</c>
+        /// attribute in order to simplify the logging output.
+        /// </remarks>
+        [Log(AttributeExclude = true)]
+        static DryingCompletedEventArgs() { }
+
+        /// <summary>
+        /// Constructs a new instance of
+        /// <see cref="T:MyModule.Events.DryingCompletedEventArgs" /> and returns a
+        /// reference to it.
+        /// </summary>
+        /// <param name="success">
+        /// (Required.) Value indicating whether the hair was dried successfully.
+        /// </param>
+        [Log(AttributeExclude = true)]
+        public DryingCompletedEventArgs(bool success)
+        {
+            Success = success;
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the drying operation was successful.
+        /// </summary>
+        public bool Success
+        {
+            [DebuggerStepThrough] get;
+        }
+    }
+}
+```
+
+We always initialize getter-only properties from the ctor.  We never use the member initializer list when calling the `OnDryingCompleted` event-invocator method (as it would be named); we pass the value through the ctor.
 
 ### Sealed classes
 
