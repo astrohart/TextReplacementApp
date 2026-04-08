@@ -1,4 +1,4 @@
-# Repository instructions for GitHub Copilot (C# 7.3 / .NET Framework 4.8 / WinForms 2.0)
+﻿# Repository instructions for GitHub Copilot (C# 7.3 / .NET Framework 4.8 / WinForms 2.0)
 
 These instructions apply to all Copilot Chat responses and code changes in this repository.
 
@@ -1285,3 +1285,1282 @@ There should be mucho comments here.  The version above is incorrect.  Too few c
 Analyze the differences between these two listings and tell me what you see.  Now, do this (or something similar) every time we're logging in a method and also running `if` checks.
 
 Inside the `if` branch, above the first logging line, the comment above it should always end with a second sentence, `This is not desirable.` if the logging line logs an *** ERROR *** message.  Also, there is not enough logging and comments in the `DetectEncodingWithBomCheck` method.  Do this no matter the purpose nor the modifier of any method, only if the method is decorated with the `[Log(AttributeExclude = false)]` attribute, then you refrain from all logging and of course, it would also not be necessary to heavily comment in this case.
+
+## 15) File System Operations and Verification
+
+### Always Verify Critical File System Operations
+
+After performing critical file system operations (such as copying, moving, or creating files), **always verify** that the operation succeeded by checking the expected result.
+
+#### Example: File Copy Verification
+
+```
+AlphaFsFileSystem.CopyFile(sourceFile, destFile, true);
+
+DebugUtils.WriteLine(
+    DebugLevel.Info,
+    $"TryCopyFileSingleAttempt *** INFO: Checking whether the file having pathname, '{destFile}', exists on the file system..."
+);
+
+// Check whether a file having pathname, 'destFile', exists on the file system.
+// If it does not, then write an error message to the log file, and then terminate
+// the execution of this method, returning the default return value.
+if (!AlphaFsFileSystem.FileExists(destFile))
+{
+    DebugUtils.WriteLine(
+        DebugLevel.Error,
+        $"TryCopyFileSingleAttempt: *** ERROR *** The system could not locate the file having pathname, '{destFile}', on the file system.  Stopping..."
+    );
+
+    DebugUtils.WriteLine(
+        DebugLevel.Debug,
+        $"*** TryCopyFileSingleAttempt: Result = {result}"
+    );
+
+    return result;
+}
+
+DebugUtils.WriteLine(
+    DebugLevel.Info,
+    $"TryCopyFileSingleAttempt: *** SUCCESS *** The file having pathname, '{destFile}', was found on the file system.  Proceeding..."
+);
+```
+
+#### Verification Checklist
+
+- ✅ **After copying a file:** Verify destination file exists via `AlphaFsFileSystem.FileExists(destFile)`
+- ✅ **After moving a file:** Verify destination exists and source no longer exists
+- ✅ **After creating a directory:** Verify directory exists via `AlphaFsFileSystem.DirectoryExists(path)`
+- ✅ **After deleting a file:** Verify file no longer exists via `!AlphaFsFileSystem.FileExists(pathname)`
+
+### Logging Style for Method Entry Points
+
+When logging at the entry of a method or at key decision points, always use the following format:
+
+```
+DebugUtils.WriteLine(
+    DebugLevel.Info,
+    "*** MethodName.SubMethodName: Checking whether [condition]..."
+);
+```
+
+- Start with `***`
+- Include the full method name (including class name if helpful for context)
+- Use a colon `:`
+- Describe what is being checked/done
+
+### Success Block Comment Format
+
+When documenting that a method succeeded because no exceptions were caught, always use a **multi-line C-style block comment**:
+
+```
+/*
+ * If we made it this far with no Exception(s) getting caught, then
+ * assume that the operation(s) succeeded.
+ */
+
+result = true;
+```
+
+**Never** use a single-line variant:
+
+```
+/* If we made it this far with no Exception(s) getting caught, then assume that the operation(s) succeeded. */
+```
+
+### Result Logging Format
+
+When logging the result of a method at the end (just before `return`), always use this format:
+
+```
+DebugUtils.WriteLine(
+    DebugLevel.Debug,
+    $"*** MethodName: Result = {result}"
+);
+```
+
+- Always prefix with `***`
+- Always include the full method name
+- Always use `Result = {result}` format
+
+### Context Method Names
+
+When working with `ICloneContext`, use the correct method names:
+
+- ✅ **Correct:** `context.IncrementCurrent()`
+- ❌ **Incorrect:** `context.IncrementCurrentStep()`
+
+---
+
+## 16) Retry Loop Implementation Standards
+
+### Use `do/while` for Retry Loops
+
+Always implement retry loops using the `do/while` construct, **never** `while`:
+
+```
+var retryCount = 0;
+
+// Attempt to copy the file with retry logic using a do/while loop.
+// This handles transient file system error(s) such as file lock(s) and network interruption(s).
+do
+{
+    Interlocked.Increment(ref retryCount);
+
+    DebugUtils.WriteLine(
+        DebugLevel.Info,
+        $"TryCopyFileWithRetry: *** FYI *** Copy attempt {retryCount} of {MAX_RETRIES} for file '{sourceFile}'..."
+    );
+
+    // Attempt to copy the file once.
+    // If the copy operation succeeds, then exit the retry loop.
+    if (TryCopyFileSingleAttempt(sourceFile, destFile))
+    {
+        // The file copy operation succeeded on this attempt.
+        DebugUtils.WriteLine(
+            DebugLevel.Info,
+            $"TryCopyFileWithRetry: *** SUCCESS *** File copied successfully on attempt {retryCount}."
+        );
+
+        result = true;
+
+        // exit the retry loop.
+        break;
+    }
+
+    // The file copy operation failed on this attempt.  This is not desirable.
+    DebugUtils.WriteLine(
+        DebugLevel.Warning,
+        $"TryCopyFileWithRetry: *** WARNING *** Copy attempt {retryCount} failed for file '{sourceFile}'."
+    );
+
+    DebugUtils.WriteLine(
+        DebugLevel.Info,
+        "TryCopyFileWithRetry: Checking whether we have exhausted the maximum number of retry attempt(s)..."
+    );
+
+    // Check whether we have exhausted the maximum number of retry attempt(s).
+    // If this is the case, then log a final error message and give up.
+    if (retryCount >= MAX_RETRIES)
+    {
+        // We have exhausted the maximum number of retry attempt(s).  This is not desirable.
+        DebugUtils.WriteLine(
+            DebugLevel.Error,
+            $"TryCopyFileWithRetry: *** ERROR *** Failed to copy file '{sourceFile}' after {MAX_RETRIES} attempt(s).  Giving up."
+        );
+
+        // give up.
+        break;
+    }
+
+    DebugUtils.WriteLine(
+        DebugLevel.Info,
+        $"*** FYI *** Pausing {INTER_RETRY_DELAY_MS} ms before retry attempt {retryCount + 1}..."
+    );
+
+    // Pause before the next retry attempt.
+    Thread.Sleep(INTER_RETRY_DELAY_MS);
+} while (retryCount < MAX_RETRIES);
+```
+
+### Extract Nested `try/catch` Blocks
+
+If you need to nest `try/catch` blocks, **extract the nested block into a separate helper method** instead.
+
+❌ **Incorrect:**
+
+```
+private bool SomeMethod()
+{
+    var result = false;
+    
+    try
+    {
+        // Outer logic
+        
+        try
+        {
+            // Inner logic
+        }
+        catch (Exception innerEx)
+        {
+            // Handle inner exception
+        }
+    }
+    catch (Exception ex)
+    {
+        // Handle outer exception
+    }
+    
+    return result;
+}
+```
+
+✅ **Correct:**
+
+```
+private bool SomeMethod()
+{
+    var result = false;
+    
+    try
+    {
+        // Outer logic
+        
+        if (!TryDoInnerOperation())
+        {
+            return result;
+        }
+        
+        /* If we made it this far with no Exception(s) getting caught, then
+         * assume that the operation(s) succeeded.
+         */
+        
+        result = true;
+    }
+    catch (Exception ex)
+    {
+        // dump all the exception info to the log
+        DebugUtils.LogException(ex);
+        
+        result = false;
+    }
+    
+    return result;
+}
+
+private bool TryDoInnerOperation()
+{
+    var result = false;
+    
+    try
+    {
+        // Inner logic
+        
+        /* If we made it this far with no Exception(s) getting caught, then
+         * assume that the operation(s) succeeded.
+         */
+        
+        result = true;
+    }
+    catch (Exception ex)
+    {
+        // dump all the exception info to the log
+        DebugUtils.LogException(ex);
+        
+        result = false;
+    }
+    
+    return result;
+}
+```
+
+### Retry Loop Helper Method Pattern
+
+Each iteration of a retry loop should delegate to a helper method that uses the `TryXYZ`/`out var` pattern (where applicable):
+
+```
+private bool TryCopyFileWithRetry(
+    [NotLogged] string sourceFile,
+    [NotLogged] string destFile
+)
+{
+    var retryCount = 0;
+
+    do
+    {
+        Interlocked.Increment(ref retryCount);
+
+        // Delegate to helper method for single attempt
+        if (TryCopyFileSingleAttempt(sourceFile, destFile))
+        {
+            return true; // Success
+        }
+
+        if (retryCount >= MAX_RETRIES)
+        {
+            break; // Give up
+        }
+
+        Thread.Sleep(INTER_RETRY_DELAY_MS);
+    } while (retryCount < MAX_RETRIES);
+
+    return false; // Failed after all retries
+}
+
+private bool TryCopyFileSingleAttempt(
+    [NotLogged] string sourceFile,
+    [NotLogged] string destFile
+)
+{
+    var result = false;
+
+    try
+    {
+        AlphaFsFileSystem.CopyFile(sourceFile, destFile, true);
+
+        // Verify the operation succeeded
+        if (!AlphaFsFileSystem.FileExists(destFile))
+        {
+            return result;
+        }
+
+        /*
+         * If we made it this far with no Exception(s) getting caught, then
+         * assume that the operation(s) succeeded.
+         */
+
+        result = true;
+    }
+    catch (Exception ex)
+    {
+        // dump all the exception info to the log
+        DebugUtils.LogException(ex);
+
+        result = false;
+    }
+
+    return result;
+}
+```
+
+---
+
+## 17) Atomic Operations for Increment/Decrement
+
+### Never Use `++` or `--` Operators
+
+The `++` and `--` operators are **prohibited** in this codebase, regardless of whether the code is executing in a single-threaded or multi-threaded environment.
+
+**Always use `Interlocked.Increment` and `Interlocked.Decrement`** to ensure atomicity and consistency.
+
+#### ❌ **Incorrect:**
+
+```csharp
+var count = 0;
+
+// ...
+
+count++; // NEVER do this
+```
+
+```csharp
+var retryAttempts = 5;
+
+// ...
+
+retryAttempts--; // NEVER do this
+```
+
+#### ✅ **Correct:**
+
+```csharp
+var count = 0;
+
+// ...
+
+Interlocked.Increment(ref count);
+```
+
+```csharp
+var retryAttempts = 5;
+
+// ...
+
+Interlocked.Decrement(ref retryAttempts);
+```
+
+#### Why This Matters
+
+- **Atomicity:** `Interlocked.Increment` and `Interlocked.Decrement` guarantee atomic operations, preventing race conditions even in single-threaded contexts where future changes might introduce concurrency.
+- **Consistency:** Using `Interlocked` methods universally ensures a consistent codebase standard.
+- **Future-Proofing:** Code that starts as single-threaded may later become multi-threaded. Using `Interlocked` from the start prevents subtle bugs.
+- **Better Safe Than Sorry:** Even if you believe the code is single-threaded, using atomic operations eliminates the risk of Single-Event Upsets (SEUs) or other unforeseen concurrency issues.
+
+#### Usage in Loops
+
+```csharp
+var retryCount = 0;
+
+do
+{
+    Interlocked.Increment(ref retryCount);
+
+    // Attempt operation...
+
+} while (retryCount < MAX_RETRIES);
+```
+
+#### Usage for Counters
+
+```csharp
+var filesProcessed = 0;
+
+foreach (var file in files)
+{
+    // Process file...
+    
+    Interlocked.Increment(ref filesProcessed);
+}
+```
+
+```csharp
+var totalFilesToCopy = 0;
+var numFilesCopied = 0;
+
+foreach (var file in filteredFiles)
+{
+    Interlocked.Increment(ref totalFilesToCopy);
+
+    DebugUtils.WriteLine(
+        DebugLevel.Info,
+        $"CopyProjectTreeStep.ExecuteStepAsync: *** FYI *** Preparing to copy file, '{file}'..."
+    );
+
+    if (!await CopySingleFileAsync(file, context))
+    {
+        DebugUtils.WriteLine(
+            DebugLevel.Warning,
+            $"*** WARNING *** Failed to copy file: '{file}'.  Continuing with remaining files..."
+        );
+
+        continue;
+    }
+
+    DebugUtils.WriteLine(
+        DebugLevel.Info,
+        $"CopyProjectTreeStep.ExecuteStepAsync: *** SUCCESS *** The file, '{file}', was copied successfully.  Proceeding..."
+    );
+
+    Interlocked.Increment(ref numFilesCopied);
+}
+
+/* If we made it this far with no Exception(s) getting caught,
+ * and at least one file was copied, then assume that the operation(s)
+ * succeeded.
+ */
+
+DebugUtils.WriteLine(
+    DebugLevel.Info,
+    $"*** FYI *** Out of {totalFilesToCopy} file(s), {numFilesCopied} file(s) were copied successfully."
+);
+
+result = numFilesCopied > 0 && totalFilesToCopy == numFilesCopied;
+```
+
+#### Why This Pattern?
+
+- **Tracks attempts vs. successes:** `totalFilesToCopy` counts all files processed; `numFilesCopied` counts only successful operations
+- **Atomic increments:** Both counters use `Interlocked.Increment` to ensure thread-safety
+- **Clear success criteria:** The final `result` calculation checks both:
+  - At least one file was copied successfully (`numFilesCopied > 0`)
+  - All attempted copies succeeded (`totalFilesToCopy == numFilesCopied`)
+
+#### Usage in Filtering Loops
+
+When filtering items before processing, use a separate counter for the filtered count:
+
+```csharp
+var filesToCopy = 0;
+var filteredFiles = new AdvisableCollection<string>();
+
+foreach (var file in allFiles)
+{
+    DebugUtils.WriteLine(
+        DebugLevel.Info,
+        $"*** FYI *** Checking file: '{file}'..."
+    );
+
+    var dir = AlphaFsFileSystem.GetDirectoryName(file);
+
+    // Check to see whether the file's parent directory is excluded.
+    // If this is the case, then skip this file and continue with the next file.
+    if (IsExcludedDirectory(dir))
+    {
+        // The file's parent directory is excluded.  This is not desirable.
+        DebugUtils.WriteLine(
+            DebugLevel.Info,
+            $"*** FYI *** The directory, '{dir}', is excluded. Skipping file..."
+        );
+
+        // skip this file.
+        continue;
+    }
+
+    // Check to see whether the file should be copied using the file-filtering algorithm.
+    // If this is not the case, then skip this file and continue with the next file.
+    if (!ShouldCopyFile(file))
+    {
+        // The file should NOT be copied.  This is not desirable.
+        DebugUtils.WriteLine(
+            DebugLevel.Info,
+            $"*** FYI *** The file, '{file}', was excluded by the file-filtering algorithm. Skipping..."
+        );
+
+        // skip this file.
+        continue;
+    }
+
+    DebugUtils.WriteLine(
+        DebugLevel.Info,
+        $"*** SUCCESS *** The file, '{file}', passed all filtering checks. Including in copy list..."
+    );
+
+    filteredFiles.Add(file);
+
+    Interlocked.Increment(ref filesToCopy);
+}
+
+DebugUtils.WriteLine(
+    DebugLevel.Info,
+    $"*** FYI *** {filesToCopy} file(s) need to be copied after filtering."
+);
+```
+
+#### Common Dual-Counter Scenarios
+
+| Scenario | Total Counter | Success Counter | Success Criteria |
+|----------|---------------|-----------------|------------------|
+| **File copying** | `totalFilesToCopy` | `numFilesCopied` | `numFilesCopied > 0 && totalFilesToCopy == numFilesCopied` |
+| **Validation** | `totalItemsChecked` | `numItemsValid` | `numItemsValid > 0 && totalItemsChecked == numItemsValid` |
+| **Processing** | `totalItemsProcessed` | `numItemsSucceeded` | `numItemsSucceeded > 0` (partial success OK) |
+| **Retry operations** | `totalAttempts` | `numSuccessfulAttempts` | `numSuccessfulAttempts > 0` |
+
+## 18) **Exception Handling Best Practices for Async Methods**
+
+### **1. Always Use `try/catch` with `result` Variable Pattern**
+
+All asynchronous methods must wrap their body in a `try/catch` block and use a `result` variable initialized to a default (invalid) value:
+
+```csharp
+[return: NotLogged]
+public async Task<bool> MyAsyncOperationAsync(
+    [NotLogged] string parameter
+)
+{
+    var result = false;
+
+    try
+    {
+        // Validation gates
+        if (string.IsNullOrWhiteSpace(parameter))
+        {
+            return result;
+        }
+
+        // Perform async work
+        await SomeOperationAsync(parameter);
+
+        /*
+         * If we made it this far with no Exception(s) getting caught, then
+         * assume that the operation(s) succeeded.
+         */
+
+        result = true;
+    }
+    catch (Exception ex)
+    {
+        // dump all the exception info to the log
+        DebugUtils.LogException(ex);
+
+        result = false;
+    }
+
+    return result;
+}
+```
+
+---
+
+### **2. Always Return `Task<T>` or `Task`, Never `void`**
+
+❌ **Incorrect:**
+
+```csharp
+public async void MyMethod() // NEVER use async void
+{
+    // ...
+}
+```
+
+✅ **Correct:**
+
+```csharp
+public async Task<bool> MyMethodAsync()
+{
+    var result = false;
+    
+    try
+    {
+        // ...
+        result = true;
+    }
+    catch (Exception ex)
+    {
+        // dump all the exception info to the log
+        DebugUtils.LogException(ex);
+        
+        result = false;
+    }
+    
+    return result;
+}
+```
+
+**Why:**
+- `async void` swallows exceptions and cannot be awaited
+- `async void` should only be used for event handlers (and even then, wrap in `try/catch`)
+
+---
+
+### **3. Use `await Task.FromResult(result)` for Synchronous Returns**
+
+When an async method needs to return synchronously (e.g., after validation failure), use `await Task.FromResult(result)`:
+
+```csharp
+[return: NotLogged]
+public async Task<bool> ValidateAndProcessAsync(
+    [NotLogged] string input
+)
+{
+    var result = false;
+
+    try
+    {
+        DebugUtils.WriteLine(
+            DebugLevel.Info,
+            "ValidateAndProcessAsync: Checking whether the input is valid..."
+        );
+
+        // Check to see whether the input is valid.
+        // If this is not the case, then write an error message to the log file,
+        // and then terminate the execution of this method.
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            // The input is NOT valid.  This is not desirable.
+            DebugUtils.WriteLine(
+                DebugLevel.Error,
+                "ValidateAndProcessAsync: *** ERROR *** The input is NOT valid.  Stopping..."
+            );
+
+            DebugUtils.WriteLine(
+                DebugLevel.Debug,
+                $"ValidateAndProcessAsync: Result = {result}"
+            );
+
+            // stop.
+            return await Task.FromResult(result);
+        }
+
+        DebugUtils.WriteLine(
+            DebugLevel.Info,
+            "ValidateAndProcessAsync: *** SUCCESS *** The input is valid.  Proceeding..."
+        );
+
+        // Perform async work
+        await SomeAsyncOperation(input);
+
+        /*
+         * If we made it this far with no Exception(s) getting caught, then
+         * assume that the operation(s) succeeded.
+         */
+
+        result = true;
+    }
+    catch (Exception ex)
+    {
+        // dump all the exception info to the log
+        DebugUtils.LogException(ex);
+
+        result = false;
+    }
+
+    DebugUtils.WriteLine(
+        DebugLevel.Debug,
+        $"ValidateAndProcessAsync: Result = {result}"
+    );
+
+    return await Task.FromResult(result);
+}
+```
+
+---
+
+### **4. Always Validate Async Task Results**
+
+When calling async methods, always validate their results:
+
+```csharp
+[return: NotLogged]
+public async Task<bool> OrchestrationMethodAsync(
+    [NotLogged] ICloneContext context
+)
+{
+    var result = false;
+
+    try
+    {
+        // Attempt async operation
+        if (!await TryPerformOperationAsync(context))
+        {
+            // The async operation did NOT succeed.  This is not desirable.
+            DebugUtils.WriteLine(
+                DebugLevel.Error,
+                "OrchestrationMethodAsync: *** ERROR *** The async operation did NOT succeed.  Stopping..."
+            );
+
+            DebugUtils.WriteLine(
+                DebugLevel.Debug,
+                $"OrchestrationMethodAsync: Result = {result}"
+            );
+
+            // stop.
+            return result;
+        }
+
+        DebugUtils.WriteLine(
+            DebugLevel.Info,
+            "OrchestrationMethodAsync: *** SUCCESS *** The async operation succeeded.  Proceeding..."
+        );
+
+        /*
+         * If we made it this far with no Exception(s) getting caught, then
+         * assume that the operation(s) succeeded.
+         */
+
+        result = true;
+    }
+    catch (Exception ex)
+    {
+        // dump all the exception info to the log
+        DebugUtils.LogException(ex);
+
+        result = false;
+    }
+
+    DebugUtils.WriteLine(
+        DebugLevel.Debug,
+        $"OrchestrationMethodAsync: Result = {result}"
+    );
+
+    return result;
+}
+```
+
+---
+
+### **5. Thread-Safe UI Switching with `JoinableTaskFactory`**
+
+When calling async methods that require UI thread access, use `JoinableTaskFactory.SwitchToMainThreadAsync()`:
+
+```csharp
+[return: NotLogged]
+public async Task<Project> AddProjectToSolutionAsync(
+    [NotLogged] string projectPathname
+)
+{
+    var result = default(Project);
+
+    try
+    {
+        // Switch to UI thread if not already on it
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+        DebugUtils.WriteLine(
+            DebugLevel.Info,
+            "AddProjectToSolutionAsync: Checking whether the project pathname is valid..."
+        );
+
+        // Check to see whether the project pathname is valid.
+        // If this is not the case, then write an error message to the log file,
+        // and then terminate the execution of this method.
+        if (!ProjectPathnameValidator.IsValid(projectPathname))
+        {
+            // The project pathname is NOT valid.  This is not desirable.
+            DebugUtils.WriteLine(
+                DebugLevel.Error,
+                "AddProjectToSolutionAsync: *** ERROR *** The project pathname is NOT valid.  Stopping..."
+            );
+
+            DebugUtils.WriteLine(
+                DebugLevel.Debug,
+                $"AddProjectToSolutionAsync: Result = {result}"
+            );
+
+            // stop.
+            return await Task.FromResult(result);
+        }
+
+        DebugUtils.WriteLine(
+            DebugLevel.Info,
+            "AddProjectToSolutionAsync: *** SUCCESS *** The project pathname is valid.  Proceeding..."
+        );
+
+        // Perform UI operation
+        result = Dte2.Solution.AddFromFile(projectPathname, false);
+    }
+    catch (Exception ex)
+    {
+        // dump all the exception info to the log
+        DebugUtils.LogException(ex);
+
+        result = default;
+    }
+
+    DebugUtils.WriteLine(
+        DebugLevel.Debug,
+        $"AddProjectToSolutionAsync: Result = {(result != null ? "valid Project reference" : "null")}"
+    );
+
+    return await Task.FromResult(result);
+}
+```
+
+---
+
+### **6. Never Nest `try/catch` Blocks in Async Methods**
+
+Extract nested `try/catch` logic into separate async helper methods:
+
+❌ **Incorrect:**
+
+```csharp
+private async Task<bool> BadAsyncMethod()
+{
+    var result = false;
+    
+    try
+    {
+        // Outer logic
+        
+        try
+        {
+            // Inner async logic
+            await SomeOperationAsync();
+        }
+        catch (Exception innerEx)
+        {
+            // Handle inner exception
+        }
+    }
+    catch (Exception ex)
+    {
+        // Handle outer exception
+    }
+    
+    return result;
+}
+```
+
+✅ **Correct:**
+
+```csharp
+private async Task<bool> GoodAsyncMethod()
+{
+    var result = false;
+    
+    try
+    {
+        // Outer logic
+        
+        if (!await TryPerformInnerOperationAsync())
+        {
+            return result;
+        }
+        
+        /*
+         * If we made it this far with no Exception(s) getting caught, then
+         * assume that the operation(s) succeeded.
+         */
+        
+        result = true;
+    }
+    catch (Exception ex)
+    {
+        // dump all the exception info to the log
+        DebugUtils.LogException(ex);
+        
+        result = false;
+    }
+    
+    return result;
+}
+
+private async Task<bool> TryPerformInnerOperationAsync()
+{
+    var result = false;
+    
+    try
+    {
+        await SomeOperationAsync();
+        
+        /*
+         * If we made it this far with no Exception(s) getting caught, then
+         * assume that the operation(s) succeeded.
+         */
+        
+        result = true;
+    }
+    catch (Exception ex)
+    {
+        // dump all the exception info to the log
+        DebugUtils.LogException(ex);
+        
+        result = false;
+    }
+    
+    return result;
+}
+```
+
+---
+
+### **7. Always Log Exceptions Before Returning Default**
+
+```csharp
+catch (Exception ex)
+{
+    // dump all the exception info to the log
+    DebugUtils.LogException(ex);
+
+    result = false; // or default(T) for reference types
+}
+```
+
+**Never** call `DebugUtils.LogException(ex)` without the preceding comment.
+
+---
+
+### **8. Use `[return: NotLogged]` for Non-Primitive Async Returns**
+
+```csharp
+[return: NotLogged]
+public async Task<Project> GetProjectAsync()
+{
+    var result = default(Project);
+    
+    try
+    {
+        // ...
+        
+        result = await SomeOperationAsync();
+    }
+    catch (Exception ex)
+    {
+        // dump all the exception info to the log
+        DebugUtils.LogException(ex);
+        
+        result = default;
+    }
+    
+    return result;
+}
+```
+
+## **19) Input Parameter Validation in Asynchronous Methods**
+
+### **Core Validation Principles**
+
+All asynchronous methods follow a strict validation pattern that prioritizes **shift-left defensive programming** using **validator objects** and **silent validation methods** wherever possible:
+
+1. **Always validate parameters before any async work**
+2. **Each validation check must be on its own line with its own early return**
+3. **Never use `||` or `&&` in validation statements**
+4. **Use validator objects (e.g., `CloneContextValidator.IsValid()`) for complex types**
+5. **Use silent validation methods (e.g., `PathnameValidator.IsValidFilePathSilent()`) for pathname strings**
+6. **Log all validation failures**
+7. **Return default values on validation failure**
+
+---
+
+### **1. Validator-Based Parameter Validation Pattern**
+
+#### **A. Complex Type Validation Using Validator Objects**
+
+For complex types like `ICloneContext`, use the corresponding `*Validator` class:
+
+```csharp
+[return: NotLogged]
+public async Task<bool> MyAsyncMethodAsync(
+    [NotLogged] ICloneContext context
+)
+{
+    var result = false;
+
+    try
+    {
+        DebugUtils.WriteLine(
+            DebugLevel.Info,
+            "MyAsyncMethodAsync: Checking whether the specified cloning setting(s) are valid..."
+        );
+
+        // Check to see whether the specified cloning setting(s) are valid.
+        // If this is not the case, then write an error message to the log file,
+        // and then terminate the execution of this method.
+        if (!CloneContextValidator.IsValid(context))
+        {
+            // The specified cloning setting(s) are NOT valid.  This is not desirable.
+            DebugUtils.WriteLine(
+                DebugLevel.Error,
+                "MyAsyncMethodAsync: *** ERROR *** The specified cloning setting(s) are NOT valid.  Stopping..."
+            );
+
+            DebugUtils.WriteLine(
+                DebugLevel.Debug,
+                $"MyAsyncMethodAsync: Result = {result}"
+            );
+
+            // stop.
+            return await Task.FromResult(result);
+        }
+
+        DebugUtils.WriteLine(
+            DebugLevel.Info,
+            "MyAsyncMethodAsync: *** SUCCESS *** The specified cloning setting(s) are valid.  Proceeding..."
+        );
+
+        // Perform async work...
+        await SomeAsyncOperation(context);
+
+        /*
+         * If we made it this far with no Exception(s) getting caught, then
+         * assume that the operation(s) succeeded.
+         */
+
+        result = true;
+    }
+    catch (Exception ex)
+    {
+        // dump all the exception info to the log
+        DebugUtils.LogException(ex);
+
+        result = false;
+    }
+
+    DebugUtils.WriteLine(
+        DebugLevel.Debug,
+        $"MyAsyncMethodAsync: Result = {result}"
+    );
+
+    return await Task.FromResult(result);
+}
+```
+
+#### **B. Pathname Validation Using Silent Validator Methods**
+
+For `string` parameters representing **file pathnames**, use `PathnameValidator.IsValidFilePathSilent()`:
+
+```csharp
+[return: NotLogged]
+public async Task<bool> ProcessFileAsync(
+    [NotLogged] string pathname
+)
+{
+    var result = false;
+
+    try
+    {
+        DebugUtils.WriteLine(
+            DebugLevel.Info,
+            $"ProcessFileAsync: Checking whether the pathname, '{pathname}', is valid..."
+        );
+
+        // Check to see whether the pathname, 'pathname', is valid.
+        // If this is not the case, then write an error message to the log file,
+        // and then terminate the execution of this method.
+        if (!PathnameValidator.IsValidFilePathSilent(pathname))
+        {
+            // The specified pathname, 'pathname', is not set to a valid path or does not have a valid format.  This is not desirable.
+            DebugUtils.WriteLine(
+                DebugLevel.Error,
+                $"ProcessFileAsync: *** ERROR *** The specified pathname, '{pathname}', is not set to a valid path or does not have a valid format.  Stopping..."
+            );
+
+            DebugUtils.WriteLine(
+                DebugLevel.Debug,
+                $"ProcessFileAsync: Result = {result}"
+            );
+
+            // stop.
+            return await Task.FromResult(result);
+        }
+
+        DebugUtils.WriteLine(
+            DebugLevel.Info,
+            $"ProcessFileAsync: *** SUCCESS *** The pathname, '{pathname}', appears to have a valid value.  Proceeding..."
+        );
+
+        // Perform async work...
+
+        /*
+         * If we made it this far with no Exception(s) getting caught, then
+         * assume that the operation(s) succeeded.
+         */
+
+        result = true;
+    }
+    catch (Exception ex)
+    {
+        // dump all the exception info to the log
+        DebugUtils.LogException(ex);
+
+        result = false;
+    }
+
+    DebugUtils.WriteLine(
+        DebugLevel.Debug,
+        $"ProcessFileAsync: Result = {result}"
+    );
+
+    return await Task.FromResult(result);
+}
+```
+
+For `string` parameters representing **folder pathnames**, use `PathnameValidator.IsValidFolderPathSilent()`:
+
+```csharp
+DebugUtils.WriteLine(
+    DebugLevel.Info,
+    $"MethodName: Checking whether the folder pathname, '{folderPath}', is valid..."
+);
+
+// Check to see whether the folder pathname, 'folderPath', is valid.
+// If this is not the case, then write an error message to the log file,
+// and then terminate the execution of this method.
+if (!PathnameValidator.IsValidFolderPathSilent(folderPath))
+{
+    // The specified folder pathname, 'folderPath', is not set to a valid path or does not have a valid format.  This is not desirable.
+    DebugUtils.WriteLine(
+        DebugLevel.Error,
+        $"MethodName: *** ERROR *** The specified folder pathname, '{folderPath}', is not set to a valid path or does not have a valid format.  Stopping..."
+    );
+
+    DebugUtils.WriteLine(
+        DebugLevel.Debug,
+        $"MethodName: Result = {result}"
+    );
+
+    // stop.
+    return await Task.FromResult(result);
+}
+
+DebugUtils.WriteLine(
+    DebugLevel.Info,
+    $"MethodName: *** SUCCESS *** The folder pathname, '{folderPath}', appears to have a valid value.  Proceeding..."
+);
+```
+
+---
+
+### **2. Validation Order and Categories**
+
+Parameters must be validated in this order:
+
+#### **A. Complex Type Validation (Using Validator Objects)**
+
+Always validate complex types first using their corresponding `*Validator` classes:
+
+```csharp
+// Check to see whether the specified cloning setting(s) are valid.
+// If this is not the case, then write an error message to the log file,
+// and then terminate the execution of this method.
+if (!CloneContextValidator.IsValid(context))
+{
+    // The specified cloning setting(s) are NOT valid.  This is not desirable.
+    DebugUtils.WriteLine(
+        DebugLevel.Error,
+        "MethodName: *** ERROR *** The specified cloning setting(s) are NOT valid.  Stopping..."
+    );
+
+    DebugUtils.WriteLine(
+        DebugLevel.Debug,
+        $"MethodName: Result = {result}"
+    );
+
+    // stop.
+    return await Task.FromResult(result);
+}
+```
+
+#### **B. Pathname Validation (Using Silent Validator Methods)**
+
+Check pathname validity **without** checking for `string.IsNullOrWhiteSpace` first:
+
+```csharp
+// Check to see whether the pathname, 'projectFile', is valid.
+// If this is not the case, then write an error message to the log file,
+// and then terminate the execution of this method.
+if (!ProjectPathnameValidator.IsValidSilent(projectFile))
+{
+    // The specified pathname, 'projectFile', is not set to a valid path or does not have a valid format.  This is not desirable.
+    DebugUtils.WriteLine(
+        DebugLevel.Error,
+        $"MethodName: *** ERROR *** The specified pathname, '{projectFile}', is not set to a valid path or does not have a valid format.  Stopping..."
+    );
+
+    DebugUtils.WriteLine(
+        DebugLevel.Debug,
+        $"MethodName: Result = {result}"
+    );
+
+    // stop.
+    return await Task.FromResult(result);
+}
+```
+
+**Do NOT** precede pathname validation with `string.IsNullOrWhiteSpace()` checks—the silent validator methods handle this internally.
+
+#### **C. File System Existence Checks**
+
+Validate file/directory existence **after** validating pathname format:
+
+```csharp
+DebugUtils.WriteLine(
+    DebugLevel.Info,
+    $"MethodName: Checking whether a file having pathname, '{pathname}', exists on the file system..."
+);
+
+// Check to see whether a file having pathname, 'pathname', exists on the file system.
+// If this is not the case, then write an error message to the log file,
+// and then terminate the execution of this method.
+if (!AlphaFsFileSystem.FileExists(pathname))
+{
+    // A file having pathname, 'pathname', does NOT exist on the file system.  This is not desirable.
+    DebugUtils.WriteLine(
+        DebugLevel.Error,
+        $"MethodName: *** ERROR *** The system could not locate the file having pathname, '{pathname}', on the file system.  Stopping..."
+    );
+
+    DebugUtils.WriteLine(
+        DebugLevel.Debug,
+        $"MethodName: Result = {result}"
+    );
+
+    // stop.
+    return await Task.FromResult(result);
+}
+
+DebugUtils.WriteLine(
+    DebugLevel.Info,
+    $"MethodName: *** SUCCESS *** The file having pathname, '{pathname}', was found on the file system.  Proceeding..."
+);
+```
+
+---
+
+### **3. Key Validation Rules Summary**
+
+| Rule | Description |
+|------|-------------|
+| **Use validator objects** | Always use `*Validator.IsValid()` for complex types like `ICloneContext`, if one exists in the codebase of the currently-loaded Solution, that is. |
+| **Use silent validators for pathnames** | Use `PathnameValidator.IsValidFilePathSilent()` or `IsValidFolderPathSilent()` for `string` pathnames |
+| **Never check `string.IsNullOrWhiteSpace` for pathnames** | Silent validators already handle this internally |
+| **One check per `if`** | Never combine conditions with `\|\|` or `&&` |
+| **Immediate return** | Each validation failure returns `await Task.FromResult(result)` |
+| **Log before check** | Always log what you're checking before the check |
+| **Log check result** | Always log `*** SUCCESS ***` after passing a check |
+| **Log failure** | Always log `*** ERROR ***` for validation failures |
+| **Comment before `if`** | Explain what is being checked and why |
+| **Comment inside `if`** | Explain that the condition is "not desirable" |
+| **Comment before return** | Use `// stop.` before early returns |
+| **Result logging** | Log `result` value before every early return |
