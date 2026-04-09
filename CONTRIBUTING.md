@@ -1,4 +1,4 @@
-﻿# Contributing to %%Solt_Name%%
+﻿# Contributing to TextReplacementApp
 
 ## XML Documentation Standards
 
@@ -58,7 +58,7 @@ Every source file must include the following standard copyright/trademark header
 // Copyright © 2021-2026 xyLOGIX, LLC.  All rights reserved.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 // 
-// xyLOGIX and %%Product_Name%% are trademarks of xyLOGIX, LLC.
+// xyLOGIX and Fast Text Replacer Tool are trademarks of xyLOGIX, LLC.
 // Trademark rights are not granted under the MIT License.
 ```
 
