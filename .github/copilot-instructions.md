@@ -2564,3 +2564,208 @@ DebugUtils.WriteLine(
 | **Comment inside `if`** | Explain that the condition is "not desirable" |
 | **Comment before return** | Use `// stop.` before early returns |
 | **Result logging** | Log `result` value before every early return |
+
+---
+
+## **20) Pipeline Architecture Primer**
+
+This section defines the **canonical pipeline pattern** used throughout this codebase to decompose large, multi-step workflows into discrete, testable, single-responsibility units.  When GitHub Copilot is asked to refactor a "God method" into a pipeline in **any** solution that has copied this `copilot-instructions.md`, it must follow every rule in this section exactly.
+
+### Overview
+
+A pipeline transforms a single large method — one with a sequential list of heterogeneous operations — into:
+
+| Artifact | Project suffix | Role |
+|---|---|---|
+| Step `enum` | `.Constants` | One member per discrete step; `Unknown = -1` last; alphabetical order |
+| Step `interface` | `.Steps.[WorkflowName].Interfaces` | `IXxxStep` — contract for a single step |
+| Abstract base class | `.Steps.[WorkflowName]` | `XxxStepBase` — shared services; Template Method pattern |
+| Concrete step class(es) | `.Steps.[WorkflowName]` | One class per `enum` member |
+| Pipeline `interface` | `.Pipelines.Interfaces` | `IXxxPipeline` — `ExecuteAsync` + `ProgressUpdate` event |
+| Pipeline class | `.Pipelines` | Runs steps in order; stops on first failure |
+| Context `interface` | `.Contexts.Interfaces` | `IXxxContext` — all state the pipeline and steps share |
+| Context class | `.Contexts` | Concrete implementation of `IXxxContext` |
+| Factory | `.Factories` | `MakeNewXxxStep.OfType(XxxStep type)` |
+
+### Step `enum` rules
+
+- Declared in the `.Constants` project for the module.
+- Members are in **alphabetical order**; `Unknown = -1` is always last.
+- Each member maps 1:1 to one concrete step class.
+- Use `<c>IXxxStep</c>` (not `<see cref="..."/>`) in `<remarks>` to mention the step interface, to avoid circular project references.
+
+```csharp
+/// <summary>Defines the step(s) available in the Xxx workflow.</summary>
+/// <remarks>
+/// Each member corresponds to a concrete implementation of the
+/// <c>IXxxStep</c> interface.
+/// </remarks>
+public enum XxxStep
+{
+    /// <summary>First step.</summary>
+    AlphabeticallyFirst,
+
+    /// <summary>Second step.</summary>
+    AlphabeticallySecond,
+
+    /// <summary>Unknown or unspecified step type.</summary>
+    Unknown = -1
+}
+```
+
+### Step `interface` (`IXxxStep`) rules
+
+Declared in `.Steps.[WorkflowName].Interfaces`.  Must expose:
+
+1. A `Step` property of the step `enum` type, decorated `[DebuggerStepThrough]` on the getter.
+2. A `[return: NotLogged] Task<bool> ExecuteAsync([NotLogged] IXxxContext context)` method.
+3. A `ProgressUpdate` event of the appropriate `EventHandler` delegate type.
+
+```csharp
+public interface IXxxStep
+{
+    XxxStep Step { [DebuggerStepThrough] get; }
+
+    [return: NotLogged]
+    Task<bool> ExecuteAsync([NotLogged] IXxxContext context);
+
+    event XxxProgressUpdateEventHandler ProgressUpdate;
+}
+```
+
+### Abstract base class (`XxxStepBase`) rules
+
+Declared in `.Steps.[WorkflowName]`.  Must:
+
+- Declare both `static` and `protected` constructors, both decorated `[Log(AttributeExclude = true)]`.
+- Implement `IXxxStep` as `abstract`.
+- Expose `Step` as `public abstract XxxStep Step { [DebuggerStepThrough] get; }`.
+- Declare `ExecuteAsync` as `public abstract`.
+- Wire `ProgressUpdate` forwarding if individual steps raise sub-progress events.
+
+```csharp
+public abstract class XxxStepBase : IXxxStep
+{
+    [Log(AttributeExclude = true)]
+    static XxxStepBase() { }
+
+    [Log(AttributeExclude = true)]
+    protected XxxStepBase() { }
+
+    public abstract XxxStep Step { [DebuggerStepThrough] get; }
+
+    [return: NotLogged]
+    public abstract Task<bool> ExecuteAsync([NotLogged] IXxxContext context);
+
+    public event XxxProgressUpdateEventHandler ProgressUpdate;
+
+    protected virtual void OnProgressUpdate(
+        [NotLogged] XxxProgressUpdateEventArgs e
+    ) => ProgressUpdate?.Invoke(this, e);
+}
+```
+
+### Concrete step class rules
+
+- Named `[EnumMemberName]Step` (e.g., `AlphabeticallyFirstStep`).
+- Declares `public override XxxStep Step { [DebuggerStepThrough] get; } = XxxStep.AlphabeticallyFirst;`
+- `ExecuteAsync` wraps all work in `try/catch`, uses the `result` variable pattern, validates `context` first via the corresponding `*Validator` class, and calls `context.IncrementCurrent()` at a semantically meaningful point.
+- Both `static` and `public` constructors are decorated `[Log(AttributeExclude = true)]`.
+- All XML documentation is copied down from the interface and base class for every `override`.
+
+```csharp
+public class AlphabeticallyFirstStep : XxxStepBase
+{
+    [Log(AttributeExclude = true)]
+    static AlphabeticallyFirstStep() { }
+
+    [Log(AttributeExclude = true)]
+    public AlphabeticallyFirstStep() { }
+
+    public override XxxStep Step
+    {
+        [DebuggerStepThrough] get;
+    } = XxxStep.AlphabeticallyFirst;
+
+    [return: NotLogged]
+    public override async Task<bool> ExecuteAsync(
+        [NotLogged] IXxxContext context
+    )
+    {
+        var result = false;
+
+        try
+        {
+            if (!XxxContextValidator.IsValid(context))
+                return await Task.FromResult(result);
+
+            // ... step-specific work ...
+
+            result = true;
+        }
+        catch (Exception ex)
+        {
+            // dump all the exception info to the log
+            DebugUtils.LogException(ex);
+
+            result = false;
+        }
+
+        return await Task.FromResult(result);
+    }
+}
+```
+
+### Pipeline `interface` (`IXxxPipeline`) rules
+
+Declared in `.Pipelines.Interfaces`.  Must expose:
+
+1. `Task<bool> ExecuteAsync([NotLogged] IXxxContext context)` — runs all steps in order.
+2. `event XxxProgressUpdateEventHandler ProgressUpdate` — forwarded from each step.
+
+### Pipeline class (`XxxPipeline`) rules
+
+- Declared in `.Pipelines`.
+- `ExecuteAsync` instantiates each step via `MakeNewXxxStep.OfType(XxxStep.Xxx)`, subscribes to its `ProgressUpdate`, calls `step.ExecuteAsync(context)`, unsubscribes, and returns `false` immediately if any step fails.
+- Steps are executed in a **documented, fixed order** that is invariant across runs.
+- Both `static` and `public` constructors are decorated `[Log(AttributeExclude = true)]`.
+
+### Factory rules
+
+- Declared in `.Factories` as `public static class MakeNewXxxStep`.
+- Exposes `public static IXxxStep OfType(XxxStep type)` — a `switch` on `type` that returns the correct concrete instance.
+- Returns `default(IXxxStep)` (with a log warning) for `XxxStep.Unknown` or any unrecognized value.
+- The `static` constructor is decorated `[Log(AttributeExclude = true)]`.
+
+### Context rules
+
+- `IXxxContext` (in `.Contexts.Interfaces`) exposes all properties and methods that steps and the pipeline need.
+- `XxxContext` (in `.Contexts`) implements `IXxxContext`; `Current` and `TotalSteps` are mutated only through `IncrementCurrent()` and `ResetTotalSteps(int)`, both thread-safe via `Interlocked` and `lock(SyncRoot)`.
+- Both `static` and `public` constructors on `XxxContext` are decorated `[Log(AttributeExclude = true)]`.
+
+### Canonical prompting sequence when refactoring a God method into a pipeline
+
+When asked to perform this refactoring, GitHub Copilot **must** follow these phases in order and **stop after each phase** to await approval:
+
+**Phase 1 — Discovery**
+> "Identify the discrete, single-responsibility steps latent in `[MethodName]`.  Propose a `[WorkflowName]Step` enum with one member per step, alphabetically ordered, `Unknown = -1` last.  Do not write any code yet."
+
+**Phase 2 — Constants & Context**
+> "Scaffold the `[WorkflowName]Step` enum in `[Module].Constants`, the `I[WorkflowName]Context` interface in `[Module].Contexts.Interfaces`, and the `[WorkflowName]Context` class in `[Module].Contexts`.  Stop before writing the step interface, base class, or any concrete steps."
+
+**Phase 3 — Step Interface & Base Class**
+> "Write `I[WorkflowName]Step` in `[Module].Steps.[WorkflowName].Interfaces` and `[WorkflowName]StepBase` in `[Module].Steps.[WorkflowName]`.  Stop before writing any concrete step class."
+
+**Phase 4 — Concrete Steps (one at a time)**
+> "Implement `[EnumMemberName]Step` only.  Extract only the logic that belongs to this step from `[OriginalMethod]`.  Stop after this one step."
+
+Repeat Phase 4 for each step in sequence.
+
+**Phase 5 — Pipeline Interface & Class**
+> "Write `I[WorkflowName]Pipeline` in `[Module].Pipelines.Interfaces` and `[WorkflowName]Pipeline` in `[Module].Pipelines`.  Wire all [N] steps in `ExecuteAsync` in the correct order."
+
+**Phase 6 — Factory**
+> "Write `MakeNew[WorkflowName]Step.OfType([WorkflowName]Step type)` in `[Module].Factories`."
+
+**Circular-dependency check (mandatory before every phase)**
+GitHub Copilot must verify — before suggesting any project reference — that adding it would not create a cycle through the transitive reference graph.  If a cycle would result, a new intermediary library must be proposed instead.
