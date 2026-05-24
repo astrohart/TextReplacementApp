@@ -1,964 +1,407 @@
-﻿# Repository instructions for GitHub Copilot (C# 7.3 / .NET Framework 4.8 / WinForms 2.0)
+# Repository instructions for GitHub Copilot
 
-These instructions apply to all Copilot Chat responses and code changes in this repository.
+These instructions apply to all Copilot Chat responses, agent-mode changes, code snippets, issue text, pull request text, commit-message assistance, documentation, and generated source files in this repository.
 
-> NOTE: This file is intentionally ASCII-only (ANSI-safe) and uses valid Markdown.
+> NOTE: This file is intentionally ASCII-only and uses valid Markdown.
 
-## 0) Priority and behavior (read first)
+## 0) Priority, scope, and response behavior
 
-1. **User prompt > existing codebase conventions > these instructions.**
-2. **Do not change existing XML documentation.** Only add missing docs. Never "rewrite" docs that already exist.
-3. Output should be **as small as possible while still complete**:
-   - Avoid unnecessary scaffolding, boilerplate, or speculative code (unless requested).
-   - Do not produce "skeleton-only" code; produce code that compiles and is usable.
-4. If a response would be long, **work incrementally**:
-   - Clearly label **Step 1**, **Step 2**, etc.
-   - Stop after each step and ask if the user is ready for the next step.
-   - Do not introduce new tasks until the current task is done.
-5. Before starting work on a task:
-   - Read the relevant parts of the codebase and any related project files.
-   - Analyze the dependency graph of the #solution.
-   - Make sure you understand how the code works before changing it.
-   - Mimic the surrounding format, tone, style, language features, comments, and logging.
-6. All code should be as production-ready as possible.
-7. Note what year it currently is. Quick bio of me, your user:
-   - Name: Dr. Brian Hart (male)
-   - Country: United States of America
-   - Born: 1980
-   - Programming since: 1994 (C# since 2000)
-   - Education: Ph.D. in Astrophysics, University of California, Irvine
-     - X-ray astrophysicist; expert on clusters of galaxies
-   - Service: U.S. Navy, Cyber Warfare Engineer, commissioned officer (2018-2021)
-   - Expectation: Do not patronize me or over-explain unless I expressly ask.
-   - However: In docs/README/issues/PRs/merge commits/commit messages, write for professional peers.
-8. All output other than code should be in U.S. English.
-9. When running as an agent, double-check that you are indeed correct, before making a code change.
-   - I am willing to wait for quality code as opposed to getting shitty, poorly-written code right away.
-10. Separate concerns and loosely couple software components whenever possible.
-11. I like Uncle Bob's Clean Code.  Write Uncle Bob's Clean Code at all times.
-12. Never nest `try`/`catch`, `try`/`finally`, or `try`/`catch`/`finally` blocks.
-   - If you find yourself needing nesting, extract the nested work into an entirely separate method.
-13. Never use local functions.
-14. If you have to write a God Method, make it a flat pipeline of helper methods.
-   - Each following the Single Responsibility Principle (SRP).  
-   - What is to be passed to them is to be checked for validity.
-   - What each returns should be logic-gated against and checked for validity.
-15. Never nest `if` checks. 
-   - Invert `if` statements.
-   - Eagerly return.
-   - Extract helper methods wherever you can.
-16. If you have to know if a method succeeds or not but you also need something else returned from it, use the `private bool TryDoThis(string input, out IMyInterface otherResult)` pattern (like, for example, `Int32.TryParse()`).
-16. Match the surrounding code: if nearby code is heavily commented and logs a lot, follow suit; if it is intentionally sparse, follow suit as well. Always mirror the layout, style, tone, format, and language features of the surrounding code.
+1. Priority order is: user prompt > existing repository conventions > these instructions.
+2. Use U.S. English for all non-code output.
+3. Do not patronize the user or over-explain basics. The user is an experienced C# developer.
+4. Produce the smallest complete answer or code change that directly satisfies the prompt. Do not emit skeleton-only code.
+5. Work incrementally for long work. Label steps clearly, complete the current step, and stop before beginning the next requested chunk.
+6. Do not introduce unrelated tasks while a task is in progress.
+7. Never use Comprehensive Commit format for GitHub issue or pull request titles.
+8. In issue and pull request titles and bodies, wrap code entities, paths, and file names in backticks liberally.
+9. Before changing code, inspect the relevant source files, adjacent partial-class files, project files, documentation, and dependency graph.
+10. If a source file is `partial`, inspect nearby files in the same folder that contain the same partial class before changing it.
+11. Preserve existing file headers and above-namespace documentation when generating a drop-in source file.
+12. Check `CONTRIBUTING.md` for required source-file headers before generating new source files.
+13. If a file-read tool fails, retry. If it still fails, do not assume the target file does not exist.
+14. Assume required `.csproj` files already exist unless the prompt says otherwise. Do not teach the user how to add files to projects.
+15. Generate code in reference order: declarations that do not depend on other generated declarations first, then the code that depends on them.
+16. For classes with backing fields, present fields before properties.
+17. All generated code must match the surrounding repository style, layout, naming, XML documentation, comments, logging, and language features.
+18. For a drop-in replacement of an existing file, keep unchanged code faithful to the original file.
+19. Do not regenerate `GlobalAspects.cs` or `AssemblyInfo.cs`.
+20. When acting as an agent, remove dead code only after verifying it is truly dead. Public interface members are client-facing even if unused inside the solution.
+21. Be date-aware when producing docs, copyright text, or version-related statements.
 
-### 0.1) The kinds of application(s) and software system(s) I tend to develop
+## 1) User context
 
-1. Legacy Windows Forms 2.0 application(s)
-    - More often than not, such application(s) are meant to augment the software that is already on my computer.
-    - It is desired for this software to look and feel as much like Microsoft-produced software as possible.
-    - A key emphasis is placed on these tools' UI and UX being laid out in as strict an adherance to the book,
-      "The Windows User Interface Guidelines for Software Design" by Microsoft Press, published in 1995, and 
-      on Windows 95 style UI design patterns as much as possible.
-        - EXCEPTION: All push buttons must be sized (87,27) as opposed to (75,23) as called for by the Guidelines
-        - EXCEPTION: All forms must have Segoe UI, 9pt for their font and NOT MS Sans Serif, 8.25pt.
-    - The Window style/chrome of a form must vary depending on the type of form that it is.
-        - If the main window of an application that has a menu bar, one or more toolbar(s), a status bar, and 
-          displays MDI child windows or tabbed documents in which the user enters, views, updates, or deletes 
-          data and loads or saves that data to/from document file(s) that the user opens and saves with the application,
-          such as Word or Excel, then the form must have an "overlapped window" style.  Specifically, certain of its properties must have the following value(s) (note -- if a property is not covered in the following list, leave its default value alone): 
-            - `AutoScaleMode` = `Dpi`
-            - `ControlBox` = `true`
-            - `Font` = `Segoe UI, 9pt`
-            - `FormBorderStyle` = `Sizable`,
-            - `IsMdiContainer` ask me
-            - `MainMenuStrip` -> Set to main menu `MenuStrip`
-                - Such a control should be called `mainMenu` by default
-            - `MaximizeBox` = `true`
-            - `MinimizeBox` = `true`
-            - `ShowIcon` = `true`
-            - `ShowInTaskbar` = `true`
-            - `Size` = 1024x768
-            - `SizeGripStyle` = `Show`
-            - `StartPosition` = `CenterScreen`,
-            - `Text` should be equal to the application product name
-            - `WindowState` = `Maximized`
-        - If the main window of an application is that of a "dialog-based app" i.e., an app that perhaps alters data values, but  that does not necessarily open MDI child windows and/or deal with document files per se, then this is an app that   
-          generally serves to be more of a "utility" style app.  Its main window must have the following styles/properties:
-            - `AutoScaleMode` = `Dpi`
-            - `ControlBox` = `true`
-            - `Font` = `Segoe UI, 9pt`
-            - `FormBorderStyle` = `FixedSingle`,
-            - `IsMdiContainer` = `false`
-            - `MainMenuStrip` -> Set to main menu `MenuStrip`
-                - Such a control should be called `mainMenu` by default
-            - `MaximizeBox` = `false`
-            - `MinimizeBox` = `true`
-            - `ShowIcon` = `true`
-            - `ShowInTaskbar` = `true`
-            - `Size` = 470x561
-            - `SizeGripStyle` = `Show`
-            - `StartPosition` = `CenterScreen`,
-            - `Text` should be equal to the application product name
-            - `WindowState` = `Normal`     
-        - For a dialog box within either of the two type(s) of application(s) shown above, the properties/style(s) should be:
-            - `AutoScaleMode` = `Dpi`
-            - `ControlBox` = `true`
-            - `Font` = `Segoe UI, 9pt`
-            - `FormBorderStyle` = `FixedDialog`,
-            - `IsMdiContainer` = `false`
-            - `MainMenuStrip` -> no menu
-            - `MaximizeBox` = `false`
-            - `MinimizeBox` = `false`
-            - `ShowIcon` = `false`
-            - `ShowInTaskbar` = `false`
-            - `Size` = 470x561
-            - `SizeGripStyle` = `Show`
-            - `StartPosition` = `CenterParent`,
-            - `Text` should be equal to the application product name
-            - `WindowState` = `Normal`       
-        - For a dialog box, it is essential to parent it -- meaning, find out what window is to be its owner and pass that to the call to `ShowDialog` that shows it.  Otherwise, during the method that displays it, if the owner window cannot be identified, or, say, it is being shown by a Windows Service, then set its `StartPosition` property to `CenterScreen`, but do that at runtime, not at design time.
-        - For a dialog box, there are **OK** and **Cancel** buttons, neither of which have an underlined letter.  If such a button has any word other than those, then it can have an underlined letter.  The **OK** button has a `DialogResult` of `OK`, and the **Cancel** button has a `DialogResult` of `Cancel` and its `CausesValidation` property is also set to `false`.  
-        - The dialog itself must have the **OK** button (I prefer to set is `Name` property to `okayButton`) set as its `AcceptButton` button, and the **Cancel** button (I prefer to set its `Name` property to `cancelButton`) should be set as the `CancelButton` property of the dialog box's form.  The **OK** button must always be the second-to-last entry in the dialog's tab order, followed by the **Cancel** button.  FYI: Sometimes, a dialog box does not care whether the user wishes to continue.  Case in point: an "About" box, whose single goal in life is merely to display static information.  Such a dialog can have just a single **Close** button, with a caption of "&Close" and name of `closeButton` which is both the `AcceptButton` and `CancelButton`. A **Close** button must have its `DialogResult` property set to `Cancel` and its `CausesValidation` property set to `false`.  It is not necessary to attach a `Click` event handler to a **OK**, **Cancel**, or **Close** button, since merely setting the `DialogResult` property of such a button is enough to tell Windows Forms that that button, when clicked by the user, sets the `DialogResult` property of the form to the same thing and then closes the form.  We can use the `OnFormClosing` override to trap the `DialogResult` of `OK` and invoke validation logic.
-        - Never attach event handlers to the event(s) a `Form` itself will raise.  Just override the appropriate `OnXXX()` `protected` `virtual` methods that `System.Windows.Forms.Form` defines, which raise the corresponding event(s); just
-        make sure to always allow the base-class version to run first.
-        - When a method has a `object sender` and/or an `EventArgs e` (or `XYZEventArgs e`) parameter(s), each of these should be individually decorated with the PostSharp `[NotLogged]` attribute.
-    - Lately, I've taken a keen interest in designing Windows Forms apps that can serve as standalone tools I can
-      launch and use to enhance my own experience as a user of Microsoft Visual Studio.
-    - The interest in in producing them as Dark-theme application(s) if I am using them as a developer or if they
-      are intended for use by sophisticated professionals, such as myself.
-        - Otherwise, they can be Light-themed (i.e., use the default Windows system colors).
-    - I also like creating Windows Forms tools that I can potentially then market as freeware and/or software tools for enterprises, developers, and/or the general public
-    
-2. Template Wizard DLLs
-     - I.e., that host implementations of the `Microsoft.VisualStudio.TemplateWizard.IWizard` interface
-     - These can be integrated with `.vstemplate`-based project template(s) to quickly design software systems and components that I can then integrate into new and/or existing software systems.
-     - Typically, I like to build the UI/UX of such tools in Windows Forms 2.0, but with a look that matches the look and feel of Visual Studio IDE features and functionality as much as possible, for a clean, consistent, and well-defined user experience that matches the user experience that already ships with Visual Studio, as much as is possible.
-     
-3. Autonomous/heuristic classic AI systems
-     - For instance, I might be interested in creating a Windows Service style software system that can look at data as it streams by, onto which I can then impress my own ways of approaching mission-critical problems and scenarios and/or my expertise in math, sciecne, and statistics that I have gained from both my education as a Ph.D. Physicist and my own experience in the world.
-     - Kind of a "Lt Cmdr Data" of software that androidally puts my own brain in the computer but for a specific data application such as performing management of investment portfolio(s) or such.
-     - Or I might wish to write a "always keep the various software application(s) and tool(s) installed on my computer updated with the latest version(s)" sort of background windows service that, say, would run on a schedule overnight to go out to the web and scrape websites and download the latest version of, e.g., Notepad++, Zoom for Windows client, and such.
-     
-4. LINQPad scripts
-     - For some of my more larger software systems, even a simple task such as managing NuGet packages might be time consuming.  Thus, it would be imperative to write, e.g., a script to iterate over my Solution(s) that are all in a certain directory and then generate a `.ps1` script, say, that can then be invoked using DTE automation in the Package Manager Console, once per Solution, in order to manage my NuGet packages for me while I, say, go pet my dog, eat dinner, sleep, go to the mall and etc.
-     
-5. Fully integrated environment applications that mimic the look and feel of the Visual Studio Development Environment
-    - My favorite framework(s) to utilize for this sort of application are .NET Framework 4.8, C# 7.3, and Windows Forms 2.0.  I like to also make use of the `WeifenLuo.DockPanelSuite` series of NuGet package(s) so I can basically create my own "IDEs" but for different functionality and productivity application(s), such as a replacement for BareTail or klogg but one whose look and feel strongly resembles that of Visual Stuio 2019 or 2022 or 2026 etc.
-    - Or perhaps a consulting client of mine might wish to emulate the look and feel of Microsoft Management Console or something because, for security reasons they cannot have a Web-based software application but they need something that runs on users' desktops in-house.  Perhaps they manage lots and lots of confidential customer data for use in a call center.
-    - Perhaps there might be an application like this that I would write to manage my own freelancing LLC business where I try to make use of 3rd-party vendors (with clients' permission) and employees to scale the business but still oversee everything as the chief technologist.  Some sort of integrated CRM + ERP thing but that is built around a consulting and professional services business as opposed to a products business.
-    
-6. Web-Based Applications such as using ASP.NET MVC and/or Blazor
-    - This is my least-developed software system type and also the one with which I have the least experience.  But I have been running, off and on, a field-service tutoring business of my own where I make appointments to visit folks in their homes and such to tutor their children in their homework one on one and there is of course, customer service that has to be handled surrounding such appointments.  It might be handy to write a website and mobile app that are intergrated together (I am not saying I've done this, only that I'd like to) so I can advertise online about my tutoring services, have clients sign up online and then, when I go tutor them either at their home or Starbucks, they can sign my phone and pay right there on my phone or tablet for the session and get an email receipt.  This is a future idea.
-    
-### 0.2) Special emphasis on helping "future me" and others
+The user is Dr. Brian Hart, a U.S.-based C# developer who has programmed since 1994 and has used C# since 2000. He has a Ph.D. in Astrophysics from UC Irvine and served as a U.S. Navy Cyber Warfare Engineer. Write for a professional peer in documentation, READMEs, issues, pull requests, merge commits, and commit messages.
 
-1. The idea is that, whatever code I may write, I'd like to make the software system as easily maintainable and well-documented as I can, so that I do not end up having to try and remember what I wrote or why I wrote it down the road.   `README.md` and other `.md` files, XML documentation, using tools that create XML documentation and then translate it into other documentation formats, are key.  This way, if I have to pause working on a particular software system for months or years, I can come back to it and easily pick up where I left off.
+## 2) Target stack and tooling
 
-## 1) Target stack, constraints, and tooling
+- Language: C# 7.3.
+- Runtime: .NET Framework 4.8.
+- UI: Windows Forms 2.0.
+- IDE: Visual Studio 2022 Enterprise 17.14.23 or newer unless a repository-specific file states otherwise.
+- Installed tooling: CodeMaid, JetBrains ReSharper Ultimate, and GitHub Copilot.
+- Test framework: NUnit 4.3.2.
+- Documentation generator: Vsxmd 1.4.5.
+- File system library: AlphaFS 2.2.6.
+- JSON library: Newtonsoft.Json 13.0.3.
+- Logging: log4net 3.0.3.
+- Aspect/logging framework: PostSharp 2024.1.6.
+- NuGet style: prefer `packages.config`; use `PackageReference` only when a project type requires it, such as VSIX projects.
+- Project format: prefer legacy MSBuild `.csproj` XML; do not convert to SDK-style projects.
+- Solution format: prefer legacy `.sln`; do not introduce `.slnx` unless explicitly requested.
 
-### Hard constraints
-- **Language:** C# **7.3**
-- **Runtime:** **.NET Framework 4.8**
-- **UI:** **Windows Forms 2.0**
-- **NuGet:** Prefer `packages.config` versus `PackageReference` ALWAYS.
-    - ONE exception: say, if the project itself is a VSIX extension project or other project type that absolutely requires `PackageReference`.
-- **.csproj files:** Prefer legacy MSBuild XML versus newer project formats (SDK-style).
-- **.sln files:** Prefer legacy, non-`.slnx` formats for updating/modifying/creating solution files.
-- Do not use language/runtime/UI features outside these versions and constraints.
+Do not use features newer than C# 7.3, .NET Framework 4.8, or Windows Forms 2.0. Disallowed examples include nullable reference types, records, init-only setters, top-level statements, file-scoped namespaces, global using directives, switch expressions, indices/ranges, `using var`, and default interface members.
 
-### C# 7.3 guardrails (do not use newer language features)
-- Do NOT use language features introduced after C# 7.3.
-- Examples of disallowed syntax/features: 
-    - "using var" declarations;
-    - Switch expressions;
-    - Indices/ranges;
-    - Nullable reference types;
-    - Default interface members;
-    - Records;
-    - Init-only setters;
-    - Top-level statements;
-    - File-scoped namespaces;
-    - Global `using` directives etc.
-- If a prompt seems to require a newer feature, provide an equivalent C# 7.3 / .NET Framework 4.8 approach instead.
+## 3) Application families and UI intent
 
-### Libraries and versions (assume these are available)
-- NUnit **4.3.2**
-- Vsxmd **1.4.5**
-- AlphaFS **2.2.6**
-- Newtonsoft.Json **13.0.3**
-- log4net **3.0.3**
-- PostSharp **2024.1.6**
+The user commonly builds:
 
-### IDE context
-- Visual Studio 2022 Enterprise **17.14.23** and up.
-- CodeMaid + JetBrains ReSharper Ultimate installed
-- GitHub Copilot assists with code + commit messages
+- Legacy Windows Forms 2.0 desktop utilities that augment the local development environment.
+- Visual Studio Template Wizard DLLs implementing `Microsoft.VisualStudio.TemplateWizard.IWizard`.
+- Standalone tools that automate or scaffold software systems.
+- Classic AI, heuristic, or background-service style applications.
+- LINQPad scripts that automate maintenance work across large solution sets.
+- Integrated desktop applications that mimic Visual Studio, often using WeifenLuo DockPanelSuite.
+- Occasional ASP.NET MVC or Blazor applications.
 
-## 2) Architectural & project organization rules ("modules")
+Favor maintainability, documentation, loose coupling, and future re-entry after long pauses. README files, XML documentation, and generated documentation are first-class deliverables.
 
-### Module concept
-A **module** is a group of related C# class libraries. Project names determine namespaces.
+## 4) Repository, solution, and module organization
 
-- **No project folders.** Meaning, no grouping projects into "solution folders" in the Solution.  "Solution Folders" are anathema.  Of course, each project and its member(s) should be in their own folder on the file system, always directly under the folder that contains the `.sln` file of which it is a member (unless it's a project that is being included from a different Solution entirely).
-- Assume `namespace` **exactly matches** the `.csproj` project name.
+1. A module is a group of related C# class libraries.
+2. The namespace must match the `.csproj` project name exactly.
+3. Do not use Visual Studio solution folders.
+4. Projects normally live directly under the folder containing the `.sln` file, unless they are intentionally referenced from another solution.
+5. The `.git` folder is normally at the solution root. Git workflows should receive the solution-containing folder as `repoRoot`.
+6. Avoid circular dependencies, including transitive project-reference cycles and XML documentation `cref` cycles.
+7. Before suggesting a project reference, verify that it is not already present and that adding it will not create a cycle.
+8. If a reference would be dodgy or circular, stop and propose a new intermediary module instead.
+9. When uncertain about references or NuGet packages, do not modify them. Let the user handle them with Visual Studio and ReSharper.
 
-### Project naming convention within a module
-Projects are named with a root and optional suffix from:
-- `.Actions`
-- `.Constants`
-- `.Common`
-- `.Displayers`
-- `.Events`
-- `.Extensions`
-- `.Factories`
-- `.Helpers`
-- `.Interfaces`
-- `.Tests`
-- `.Win32`
+### 4.1) Standard module suffixes
 
-Not every module must contain every suffix; include only what is required.
+Use only the suffixes that the design needs:
 
-### Responsibilites by project suffix
-- `MyModule`  
-  Concrete classes and abstract base classes ONLY.
-- `MyModule.Actions`  
-  Static "action" classes, **verb-named**, 1-2 words, PascalCase. Method names complete the phrase.  
-  Example: `Format.FileAsImage(...)`.  Think: verb-subject. 
-  Prefer functional-programming style with clear inputs/outputs.  Always code to an interface.
-  All "action" classes are always to be declared `public static` and shall always declare the
-  `static` constructor decorated with a `[Log(AttributeExclude = true)]` attribute when using
-  PostSharp.  Include detailed XML documentation for such a constructor that explains what it 
-  does and why it's being declared.  The whole point is to stop the static constructor call from
-  being emitted to log files.  This requirement is nullified if the static constructor actually
-  does something inside itself --- then, of course, we wish to log it.
-- `MyModule.Constants`  
-  Only `public const <type>` members and `enum` declarations. 
-  All `enum`s and other type(s) must always be declared `public` and have plenty of comprehensive
-  XML documentation in my preferred style (see below).
-  Enum conventions:
-    - Enum members should be in alphabetical order.
-    - Do not assign explicit values, except: the final member must be `Unknown = -1`.
-    - The enum member list must end with `Unknown`.
-    - Each enum and each enum member must have XML documentation.
-  Name constants classes by the **nominal level/category** of info they expose.
-  Constants classes are always to be declared `public static` and shall always declare the
-  `static` constructor decorated with a `[Log(AttributeExclude = true)]` attribute when using
-  PostSharp.  Include detailed XML documentation for such a constructor that explains what it 
-  does and why it's being declared.  The whole point is to stop the static constructor call from
-  being emitted to log files.  This requirement is nullified if the static constructor actually
-  does something inside itself --- then, of course, we wish to log it.
-- `MyModule.Common`
-  Static "action" classes, **verb-named**, 1-2 words, PascalCase. Method names complete the phrase.  
-  Example: `Format.FileAsImage(...)`.  Think: verb-subject. 
-  Prefer functional-programming style with clear inputs/outputs.  Always code to an interface.
-  The `MyModule.Common` library is different from the `MyModule.Actions` library in that the
-  `MyModule.Actions` libraries are intended to be the "front door" of the module to clients; whereas
-  `MyModule.Common` class libraries are intended to group together that functionality that is
-  commonly used by all other class library(ies) in the same module.  All classes must still be
-  `public`.
-- `MyModule.Displayers`  
-  Typically a single `public static class Display` class that shows secondary windows/forms/dialogs,
-  in the same "action-class" fluent style.  Such a library is a "front door" for a module that 
-  implements sophisticated functionality for secondary windows/forms/dialogs.  In this case, such a
-  library should be preferred over `MyModule.Actions`.
-- `MyModule.Extensions`  
-  Only extension classes: `public static class <Type>Extensions` containing extension methods only.
-- `MyModule.Events`  
-  Only `delegate` declarations (e.g., `XYZEventHandler`) and corresponding `EventArgs`-derived classes.
-- `MyModule.Factories`  
-  Static factory classes. Common patterns:
-  - `GetXYZClass.SoleInstance()` to alias `.Instance` of a singleton.
-  - `MakeNewXYZClass.FromScratch()` to create new objects.
-  - `MakeNewXYZClass.ForABC([NotLogged] ABC abc, ...)` when the class to be created's constructor takes
-    argument(s).  Such a method should handle the argument(s) / throw the same exception(s) as the
-    constructor would, so as to fail early.
-  - Strategy factories:
-    - `GetHairDryer.OfType(HairDryerType type)` for singleton strategies and `MakeNewHairDryer.OfType(HairDryerType type)` for multi-instance strategies; the factory method should be named in a fluent, "verb subject" style and should vary with the name of the strategy `enum`.  For example, `MakeNewHairDryer.OfType(HairDryerType type)` or `MakeNewBalloon.HavingColor(BalloonColor color)` so we have a nice, self-documenting codebase.
-    The parameter name should, more often than not, just be the last word of the initial-caps `enum`
-    name, but all lowercase.  If something else is more descriptive, then go with that.
-- `MyModule.Helpers`  
-  Helper/utility classes shared across the module.  Different from the `MyModule.Common` class library in that these can be more "utilities," shared across the module and used by clients of the module.
-- `MyModule.Interfaces`  
-  ONLY C# Interfaces exposed by the module.
-- `MyModule.Tests`  
-  ONLY NUnit test fixtures.
-- `MyModule.Win32`
-  ONLY P/Invoke signatures, helper static methods, `NativeMethods` class(es), and Windows struct(s), etc. to support the P/Invoke --- for the sole purpose of assisting our code in accessing the Win32 API.
-  
-Modules and their component class library(ies) can repeat the naming conventions a la Matroyshka dolls; for instance, `MyModule.Tests.Actions.Constants` are constants and `enum` that supports an "action class" class library, `MyModule.Tests.Actions`, that in turn, supports a unit test library, `MyModule.Tests` --- as an example.  The stacked suffixes -- if you will -- form a "supports" relationship with the class library that does not have the last suffix in the chain.
+| Project | Responsibility |
+|---|---|
+| `MyModule` | Concrete classes and abstract base classes. |
+| `MyModule.Actions` | Public static verb-named action classes with fluent method names and functional inputs/outputs. |
+| `MyModule.Common` | Public static shared functionality used by other libraries in the same module. |
+| `MyModule.Constants` | Public constants and enums only. |
+| `MyModule.Displayers` | Public static display entry points, usually `Display`, for secondary windows and dialogs. |
+| `MyModule.Events` | Event delegate declarations and matching `EventArgs`-derived classes. |
+| `MyModule.Extensions` | Public static extension classes named `<Type>Extensions`; extension methods only. |
+| `MyModule.Factories` | Public static factories and singleton accessors. |
+| `MyModule.Helpers` | Helper and utility classes shared across the module or exposed to clients. |
+| `MyModule.Interfaces` | Public interfaces exposed by the module. |
+| `MyModule.Tests` | NUnit test fixtures. |
+| `MyModule.Win32` | P/Invoke signatures, `NativeMethods`, structs, and Win32 helpers. |
 
-### Strategy Pattern preference
+Stacked suffixes represent support relationships, such as `MyModule.Tests.Actions.Constants` supporting `MyModule.Tests.Actions`.
+
+### 4.2) Action, common, displayer, and factory naming
+
+- Action classes are public static, verb-named, one or two words, PascalCase.
+- Method names complete the phrase, such as `Format.FileAsImage(...)`.
+- `.Actions` libraries are module front doors.
+- `.Common` libraries hold shared module internals that remain public.
+- `.Displayers` libraries may be preferred over `.Actions` for sophisticated secondary UI display behavior.
+- Factories use fluent names such as `GetXxx.SoleInstance()`, `MakeNewXxx.FromScratch()`, `MakeNewXxx.ForAbc(...)`, `GetStrategy.OfType(...)`, or `MakeNewStrategy.OfType(...)`.
+- Constructor-argument factory methods should validate or throw consistently with the constructor.
+- Strategy-selector factories inside a `.Factories` project must not directly call a root concrete class's `.Instance` property. Add a dedicated `GetConcreteClass.SoleInstance()` wrapper and call that wrapper.
+- Outside a module's own `.Factories` project, prefer that module's factories rather than directly referencing the root concrete project.
+
+### 4.3) Constants and enums
+
+- Constants classes contain only `public const` members.
+- Name constants classes by the nominal category of information exposed.
+- Enums belong in `.Constants` libraries.
+- Enums and enum members must be public and XML documented.
+- Enum members must be alphabetized.
+- Do not assign explicit enum values except `Unknown = -1`.
+- `Unknown` is always the final enum member.
+- Do not apply `[Log(AttributeExclude = true)]` to an enum.
+
+### 4.4) Strategy pattern
+
 When implementing Strategy:
-- Define an interface exposing common events/properties/methods.
-- Provide an abstract base class using the "Template Method" Gang of Four Pattern to share services common to all the concrete type(s).
-- It, itself, directly implements the interface `abstract`.
-- Provide one concrete class per strategy, each inheriting the abstract base class.
-- Include an enum (in `.Constants`) listing strategies.
-- Each strategy class exposes a property of that enum type and initializes it to the corresponding value.  The property is named semantically according to the name of the enum, such as `HairDryerType Type { [DebuggerStepThrough] get; }` or `BalloonColor Color { [DebuggerStepThrough] get; }`.
-- The interface exposes that property; the abstract base implements it abstractly.
-- Concrete class(es) implement the `enum`-typed property as an `override` and they use the static initializer to set its value; i.e., `public override BalloonColor Color { [DebuggerStepThrough] get; } = BalloonColor.Red` is how the property would be declared in the concrete class, `RedBalloon`.  
-- All XML documentation must be copied down the object tree from base -> child for all events, methods, and properties that are implemented and/or overriden.
 
-An abstract base class must declare, and suppress logging for, the `static` and `protected` constructors, like the example shown:
+1. Define an interface exposing all common events, properties, and methods.
+2. Define an enum in `.Constants` listing strategies.
+3. Define an abstract base class that implements the interface abstractly and uses Template Method for shared behavior.
+4. Use `OnXxx` for the protected template method names, not `DoXxx`.
+5. Define one concrete strategy class per enum member.
+6. Expose an enum-typed strategy property through the interface, abstract base, and concrete classes.
+7. Initialize the concrete strategy property to its matching enum value.
+8. Copy XML documentation down the object tree for implemented or overridden events, methods, and properties.
+9. Create per-class factory accessors before the higher-level strategy factory.
+10. For brand-new strategy patterns, generate in this order: enum, interface, abstract base class, concrete classes one at a time, per-class factories, strategy factory.
+
+Static, protected, and public constructors on strategy infrastructure should be decorated with `[Log(AttributeExclude = true)]` when they exist only to suppress constructor logging.
+
+### 4.5) Strategy-of-Strategies modules
+
+When a module's sole responsibility is to manufacture objects of a particular domain and host strategy-factory machinery, `.Factories` may appear as an infix in the module name.
+
+Example: `PC.Generators.Paths.Factories.Documentation`.
+
+Use this for nested strategy families where a primary strategy selects a secondary strategy. A typical `DocumentationFile` path generator design uses:
+
+| Project | Contents |
+|---|---|
+| `PC.Generators.Paths.Documentation.Constants` | Platform enum. |
+| `PC.Generators.Paths.Documentation.Interfaces` | Leaf generator interface. |
+| `PC.Generators.Paths.Documentation` | Platform generator base and concrete leaf generators. |
+| `PC.Generators.Paths.Factories.Documentation.Constants` | Configuration enum. |
+| `PC.Generators.Paths.Factories.Documentation.Interfaces` | Configuration factory interface. |
+| `PC.Generators.Paths.Factories.Documentation` | Configuration factory base and concrete configuration factories. |
+| `PC.Generators.Paths.Factories.Documentation.Factories` | Singleton factory selectors and fluent top-level entry points. |
+
+For Visual Studio `DocumentationFile` values, `AnyCPU` uses `bin\{Configuration}\{ProjectName}.xml`, while every other platform uses `bin\{Platform}\{Configuration}\{ProjectName}.xml`.
+
+## 5) Design principles and code structure
+
+1. Follow SOLID, DRY, Clean Code, loose coupling, encapsulation, and implementation hiding.
+2. Code to the highest-level interface or abstract base class that still exposes the needed behavior. Do not use `System.Object` unless the domain requires it, such as COM programming.
+3. Prefer built-in .NET Framework APIs when they satisfy the requirement without brittleness.
+4. Consult official Microsoft documentation when framework behavior, API availability, or syntax is uncertain.
+5. Prefer flexible software over brittle coupling when requirements may evolve.
+6. Avoid magic literals. Prefer `.Constants` libraries, enums, or `Resources.resx` only when appropriate.
+7. Do not put UI control text or control values in `Resources.resx`.
+8. Never use local functions.
+9. Never use `#region` or `#endregion`.
+10. Never nest `try`/`catch`, `try`/`finally`, `try`/`catch`/`finally`, `if` checks, or locks. Extract helper methods instead.
+11. Avoid God Methods. If a large workflow is unavoidable, make it a flat pipeline of single-responsibility helper methods.
+12. Use the `TryXxx(..., out var result)` pattern when a method needs to report success and return another value.
+13. Use `var`, `out var`, `ref var`, and C# 7.3 pattern matching aggressively when they improve readability.
+14. Prefer negated early gates: `if (!condition) return result;` or `if (!condition) continue;`.
+15. Do not use `&&` or `||` in eager-returning validation gates. Put each validation in its own `if`.
+16. Minimize cyclomatic complexity.
+17. Never use `++` or `--`; use `Interlocked.Increment` and `Interlocked.Decrement`.
+18. Do not use `GetType().Name` in logging messages when the type name can be inlined in the string literal.
+19. Avoid unnecessary `ToList()` and `ToArray()` materialization.
+20. Avoid iterating an `IEnumerable<T>` more than once unless it is intentionally materialized.
+21. In multithreaded code, avoid LINQ extension methods other than `.AsXxx()` methods; use explicit loops and thread-safe algorithms.
+22. Snapshot changing sequences with `ToArray()` before iterating unless the collection is known to be concurrent.
+23. Do not call `.AsParallel()` and `.AsSequential()` in the same sequence.
+
+## 6) Defensive programming and validation
+
+Use a shift-left, fault-tolerant style. Do not assume values, indexes, properties, files, folders, return values, or external calls are valid simply because they normally should be.
+
+1. Validate inputs eagerly.
+2. Bounds-check indexes and length/size values.
+3. Gate against physically or logically impossible values, such as non-positive lengths used for area calculations.
+4. Validate called method return values before using them.
+5. Check file and folder existence before using or searching paths.
+6. After critical file operations, verify the expected result.
+7. Prefer validator objects and silent validators when the codebase provides them.
+8. For pathnames, use the relevant pathname validator's silent method rather than first checking `string.IsNullOrWhiteSpace`.
+9. `Does.FileExist` and `Does.FolderExist` from `xyLOGIX.Core.Files` already handle null or whitespace paths; do not duplicate that check immediately before calling them.
+10. Validate complex context objects before asynchronous or pipeline work.
+11. Validate parameters before async work begins.
+12. Log before checks, log failures, log successes, and log `result` before every early return when surrounding code uses detailed logging.
+
+When logging a validation gate, use this structure:
 
 ```csharp
-using System;
-using System.Diagnostics;
-using xyLOGIX.Core.Debug;
+DebugUtils.WriteLine(
+    DebugLevel.Info,
+    "ClassName.MethodName: *** INFO *** Checking whether the method parameter, 'data', has a null reference for a value..."
+);
 
-namespace MyNamespace
+// Check whether the method parameter, 'data', is set to a null reference.
+// If this is the case, then write an error message to the log file, and
+// then terminate the execution of this method, returning the default return value.
+if (data == null)
 {
-    /// <summary>
-    /// Provides a base implementation of the
-    /// <see cref="T:MyModule.Interfaces.IHairDryer" /> interface.
-    /// </summary>
-    /// <remarks>
-    /// This class uses the Template Method pattern to provide common functionality
-    /// to all hair dryer strategy implementations.
-    /// </remarks>
-    public abstract class HairDryerBase : IHairDryer
-    {
-        /// <summary>Initializes <see langword="static" /> data or performs actions that need to be performed once only for the <see cref="T:.HairDryerBase"/> class.</summary><remarks>This constructor is called automatically prior to the first instance being created or before any <see langword="static" /> members are referenced.<para />We've decorated this constructor with the <c>[Log(AttributeExclude = true)]</c> attribute in order to simplify the logging output.</remarks>
-        [Log(AttributeExclude = true)]
-        static HairDryerBase() { }
+    // The method parameter, 'data', is set to a null reference. This is not desirable.
+    DebugUtils.WriteLine(
+        DebugLevel.Error,
+        "ClassName.MethodName: *** ERROR *** A null reference was passed for the method parameter, 'data'. Stopping..."
+    );
 
-        /// <summary>Initializes a new instance of <see cref="T:.HairDryerBase" /> and returns a reference to it.</summary><remarks><strong>NOTE:</strong> This constructor is marked <see langword="protected" /> due to the fact that this class is marked <see langword="abstract" />.<para />We've decorated this constructor with the <c>[Log(AttributeExclude = true)]</c> attribute in order to simplify the logging output.</remarks>
-        [Log(AttributeExclude = true)]
-        protected HairDryerBase() { }
+    DebugUtils.WriteLine(
+        DebugLevel.Debug,
+        $"*** ClassName.MethodName: Result = {result}"
+    );
 
-        /// <summary>
-        /// Gets the type of hair dryer.
-        /// </summary>
-        public abstract HairDryerType Type { [DebuggerStepThrough] get; }
-
-        /// <summary>
-        /// Dries the hair.
-        /// </summary>
-        public void DryHair()
-        {
-            try
-            {
-                OnBeforeDryHair();
-                DoDryHair();
-                OnAfterDryHair();
-            }
-            catch (Exception ex)
-            {
-                // dump all the exception info to the log
-                DebugUtils.LogException(ex);
-            }
-        }
-
-        /// <summary>
-        /// Called before the hair drying operation begins.
-        /// </summary>
-        /// <remarks>
-        /// Derived classes can override this method to perform setup tasks.
-        /// </remarks>
-        protected virtual void OnBeforeDryHair()
-        {
-            // Default implementation does nothing
-        }
-
-        /// <summary>
-        /// Performs the actual hair drying operation.
-        /// </summary>
-        /// <remarks>
-        /// Derived classes must implement this method to provide strategy-specific
-        /// hair drying logic.
-        /// </remarks>
-        protected abstract void DoDryHair();
-
-        /// <summary>
-        /// Called after the hair drying operation completes.
-        /// </summary>
-        /// <remarks>
-        /// Derived classes can override this method to perform cleanup tasks.
-        /// </remarks>
-        protected virtual void OnAfterDryHair()
-        {
-            // Default implementation does nothing
-        }
-    }
-
-}
-```
-
-Likewise for each concrete class, although the non-`static` constructor is `public`.
-
-This is to make sure PostSharp refrains from logging these constructors.
-
-### Circular dependencies are forbidden
-- No circular dependencies between class libraries/projects.
-- This also applies to XML documentation `<see cref="..."/>` usage: do not introduce circular refs via documentation.
-- If avoiding a circular dependency requires creating a new module/library, say so.
-- Generally, if the #solution contains projects whose names do not begin with `Core` or `xyLOGIX`, those projects are higher in the call stack / dependency graph hierarchy than those whose names do begin with `Core` or `xyLOGIX`.  Also, as a rule of thumb, the shorter a project's name, or the fewer period-separated parts its name has, the higher up the call stack / dependency graph it is.  If you are not sure where to add references, then just don't.  Let me handle that interactively with the help of Roslyn and the ReSharper Ultimate functionality (shows me red lightbulbs prompt me where to add references and `using` statements).
-- Remember, references can be transitive (i.e., a "reference to a reference") and thus become circular through the transitive chain.  Watch out for that.
-- If you get tempted to create a reference to project Y from project X, and then a reference to project X from project Y, stop and double-check, read the codebase, and determine if that is really necessary.
-- Check if a reference you want to add is already present before trying to add it again.
-
-Generally, more often than not, before I prompt you, I will have already set up the reference and dependency graph of the Solution the way I want it.  If you're having trouble with references, or it begins to strike you that it may be dodgy, just do not mess with the references or NuGet packages, especially in "Agent" mode...let me just follow along behind you putting those in place as need be.
-
-## 3) Design principles and coding style
-
-### SOLID / DRY / loose coupling
-- Follow **SOLID** and **DRY** strictly.
-- Prefer **loose coupling** over tight coupling where feasible.
-- Prefer the **highest-level interface or abstract base class** that still provides required functionality:
-  - Applies to fields, properties, parameters, and return types (especially for "complex" types).
-
-### Avoid magic literals
-- Avoid "magic values" (literals) whenever feasible.
-- Prefer:
-  - `MyModule.Constants` `public const` members (preferred for most things)
-  - `enum`s in `MyModule.Constants`
-  - `Resources.resx` only when appropriate for the project
-- **Do not put UI control text or control values in `Resources.resx`.**
-
-### Prefer `var`, early-gating, and low cyclomatic complexity
-- Use `var` aggressively.
-- Use `out var` and `ref var` whenever supported and sensible.
-- Use pattern matching (C# 7.3) when it improves clarity and reduces casting/branching.
-- Prefer early returns/continues by **negating `if` conditions**:
-  - In loops: `if (!condition) continue;`
-  - In methods: `if (!condition) return result;`
-  - Apply De Morgan's laws to come up with logic gates.
-     - Meaning: instead of writing an `if` branch: Suppose we desire `if (theSky.IsRed && 
-       iHate.Suzy)` to evaluate to `true` in order to run some method's code.  We
-       know that De Morgan's laws would say that the negation of that is: `!theSky.IsRed || !iHate.Suzy` so as to logic gate and return early -- but instead of even combining them,
-       just put them into separate `if (!theSky.IsRed) return;` and  `if (!iHate.Suzy) return;`
-       statement(s).  Basically, since we're ORing them anyway, the first time one of them evaluates
-       to `true`, short-circuit the enclosing method or loop that way.
-     - Think about what we desire to be true, first, and then apply De Morgan's laws to then
-       NEGATE that, so we are now EXCLUDING what we WISH NOT TO BE SO.
-- Gate out invalid/unwanted cases as early as possible.
-- Watch your assumptions.  For instance, the method:
-
-```csharp
-int calcAreaOfRug(int width, int length) => width * length;
-```
-
-in my mindset, is very poorly written.  This is because `int` can have a negative or a positive value.  However, I have never seen a rug with zero or negative width or length; have you?  So we also have to be mindful of what value(s) variable(s) and method input(s) are CAPABLE of having but are not DESIRED to have, or which would not be LOGICAL, given the use case, for them to have; and then gate against those cases accordingly.  That is, the ideal version of the `calcAreaOfRug` method would be:
-
-```csharp
-int calcAreaOfRug(int width, int length)
-{
-    if (width <= 0) return -1;      /* or some nonsense value, which should be documented */
-    if (length <= 0) return -1;
-    
-    return width * length;
-}
-```
-
-In this version, we have a guarantee, by the time we do `return width * length`, that both `width` and `length` are greater than zero; as should be the case for all rugs, in our example.  We have to think about the real-world and physically-viable possibilities of our use cases and applications when gating.  Think to yourself: what makes sense, and what doesn't make sense?  Gate against what doesn't make sense, so that what makes sense is what is executed.  Watch your assumptions, and gate against them.
-
-- Minimize cyclomatic complexity.
-
-### No regions
-- Do not use `#region` / `#endregion`.  EVER.  Or I shall be very cross with you.
-
-### Mathematical programming
-
-For a mathematical equation, formula, or algorithm, consider the properties (I mean, the mathematical properties) of the things you are working with, to include linear-algebraical and abstract-algebraical properties, such as the properties of matrices, tensors, operators, operations, functions, maps, relations, linear transformations, groups, rings, fields, vector spaces, sets, measures, and so on.  It also goes without saying, that if the things we're working with are part of a division ring (as in a set that is not a field, but where the operation of multiplication has the concept that you can multiply two things and get zero as the answer), then we need to gate against zero divisors.  It goes without saying, that all fields (such as the set of real numbers) are division rings.  It also goes without saying that all vector spaces have to be defined over a field; meaning, the vector components' values are themselves elements of the field.
-
-## 4) Defensive programming ("shift-left"), validation, and fault tolerance
-
-### Shift-left mindset (SEU/hardening)
-Do not assume values are valid:
-- Validate inputs eagerly and bounds-check indices.
-- Validate properties/fields/variables before use (e.g., length must be > 0 where meaningful).
-- Validate the return values of called methods. If a callee result is not useful, the caller should give up early.  The documentation and XML documentation of methods should be very clear about what they return on failure, if anything.  Read this documentation for methods that you call.
-- Check existence of files/folders before use/search.
-    - When using `Does.FileExist` and `Does.FolderExist` from the `xyLOGIX.Core.Files` module, bear in mind that these methods always check whether `string.IsNullOrWhiteSpace` on their arguments; thus, it is completely unnecessary to gate against `string.IsNullOrWhiteSpace` just before a call to any of the methods in the `xyLOGIX.Core.Files.Does` class, period.
-- Validating and gating is especially important for multithreading.
-
-SEUs are single-event upsets; it's well-known to the astrophysics community that, for instance, a Beryllium nucleus can (and do, very frequently) come screaming in from beyond the Triangulum galaxy and intersect with the micro-circuitry of a computing machine, and sometimes this can alter the values of pointers, variables, CPU registers, and such in a very random and unpredictable way; thus, we should never make assumptions as to what values our variables, method parameters, and such have.  Although, strike a balance between code readability/maintainability and guarding/gating against SEUs.
-
-### Input validation rules
-- Any parameter that can be `null` must be checked for `null` -- well, except for value types other than `string`.  `string` is always checked using `string.IsNullOrWhiteSpace`.
-- **Do NOT use `||` or `&&` inside eager-returning input-validation `if` statements.**
-  - Each validation must be its own `if` with its own early return.
-
-Example pattern:
-```csharp
-if (someReference == null)
-    return result;
-
-if (index < 0)
-    return result;
-
-if (index >= list.Count)
-    return result;
-```
-
-
-### Exception handling preference (robust, returns defaults)
-
-* Prefer methods that return **default/failure values** over throwing.
-* Every method body should be wrapped in a `try`/`catch` per the template below (where applicable).
-* On exception:
-
-  * Log it
-  * Set the return value to default again
-  * Return safely
-
-#### Required logging call style
-
-* Before calling `DebugUtils.LogException(ex);`, insert this comment **on the line above**:
-
-  * `// dump all the exception info to the log`
-  
-* Never call `DebugUtils.LogException` with its second parameter explicitly specified; it's defined to have a Boolean parameter as the second parameter, but that should be reserved to always be set to its default value, implicitly.  When I am debugging, I will sometimes go in and then change its explicit value but only on a case-by-case basis; leave that to me.
-
-#### Required using
-
-* Add `using xyLOGIX.Core.Debug;` to the **very top** of the file (where available/valid for the project).
-* Ensure all necessary `using` statements exist for referenced types.
-
-### Required return-value pattern: `result`
-
-* For non-`void` methods: define a `result` variable at the top, initialized to a default `invalid/failure` value.
-* If a catch occurs, reset `result` to default and return it.
-
-Canonical method template:
-
-```csharp
-using xyLOGIX.Core.Debug;
-
-public int DoSomething(int value)
-{
-    var result = -1;        /* or zero, depending on context */
-
-    try
-    {
-        if (value < 0)
-            return result;
-
-        // ...work...
-
-        result = value + 1;
-    }
-    catch (Exception ex)
-    {
-        // dump all the exception info to the log
-        DebugUtils.LogException(ex);
-        
-        result = -1;
-    }
-
+    // stop.
     return result;
 }
+
+DebugUtils.WriteLine(
+    DebugLevel.Info,
+    "ClassName.MethodName: *** SUCCESS *** We have been passed a valid object reference for the method parameter, 'data'. Proceeding..."
+);
 ```
 
-* Return `-1` from a method declaring an `int` return type to mean "failure" or "I couldn't compute it."  
-* Return `0` from a method returning an `int` return type to mean "there is a zero count of items."
+Inside an error branch, the explanatory comment immediately above the first error log line must end with `This is not desirable.`.
 
-* Only initialize a default-return-value, `result`, with the `default` keyword if it is a reference type such as a `struct`, `class`, `union`, `interface`, `delegate` or collection.  More often than not, the default return value of methods that return a collection will be initialized to the empty version of that collection.  Always return collections typed via the corresponding interface; i.e., `IList<T>`, `ICollection<T>`, `IDictionary<K, V>`, etc.
+## 7) Exception handling and return-value pattern
 
-* If a method has no logic gates, simply declare the `result` variable above the `try` block but do not initialize it.
+Prefer methods that return default/failure values over methods that throw, while still allowing framework or third-party exceptions to be caught and logged.
 
-* All logic gates must always `return result;` or `return;` for a void function; do not return scalar values.
+### 7.1) Required method pattern
 
-* Never explicitly say, `return true;`, `return false;` or `return null;`.  If you need to be explicit about the return value of a logic gate and that gate's return value is something other than the default value of `result`, initialize result BEFORE the gate, and then gate, and then restore the value of `result` following the gate.
-
-> DO NOT do:
+- Wrap method bodies in `try`/`catch` when applicable.
+- Non-void methods declare a `result` variable near the top.
+- Initialize `result` to the semantic failure/default value unless there are no gates and assignment is guaranteed before return.
+- Logic gates return `result`, never literal `true`, `false`, or `null`.
+- In `catch`, log the exception and reset `result` to the default failure value.
+- Put `using xyLOGIX.Core.Debug;` at the top of files that use `DebugUtils`.
+- Put this exact comment immediately before every `DebugUtils.LogException(ex);` call:
 
 ```csharp
-bool Foo(int myParam1, double myParam2)
-{
-    var result = false;
-    
-    try
-    {
-        if (myParam1 == 3)
-        {
-            result = true;      // NO!!!
-            return result;
-        }
-    
-        /* ... */
-    }
-    catch (Exception ex)
-    {
-        // dump all the exception info to the log
-        DebugUtils.LogException(ex);
-        
-        result = false;
-    }
-    
-    return result;
-}
+// dump all the exception info to the log
+DebugUtils.LogException(ex);
 ```
 
-Instead, DO:
+Do not explicitly pass the second parameter to `DebugUtils.LogException`.
+
+### 7.2) Default return values
+
+- `bool`: `false` means failure unless the method explicitly documents different semantics.
+- `int`: `-1` means failure or unable to compute; `0` means zero count.
+- `string`: `string.Empty`, not `null` and not `default`.
+- Reference/interface/class/delegate/collection returns: `default` unless an empty collection is the documented failure value.
+- Return collections through collection interfaces such as `IList<T>`, `ICollection<T>`, or `IDictionary<TKey,TValue>`.
+
+### 7.3) Success comment
+
+Before setting `result = true;` because the operation reached the success point, use this multi-line C-style block comment:
 
 ```csharp
-bool Foo(int myParam1, double myParam2)
-{
-    var result = false;
-    
-    try
-    {
-        result = true;
-        
-        if (myParam1 == 3)
-        {
-            return result;
-        }
-        
-        result = false;
-    
-        /* ... */
-    }
-    catch (Exception ex)
-    {
-        // dump all the exception info to the log
-        DebugUtils.LogException(ex);
-        
-        result = false;
-    }
-    
-    return result;
-}
+/*
+ * If we made it this far with no Exception(s) getting caught, then
+ * assume that the operation(s) succeeded.
+ */
+
+result = true;
 ```
 
-> If a method must be `void` due to an override/interface/event-handler signature, still validate inputs and wrap the body in `try/catch`, but do not invent a meaningless `result` variable.  Simply `return;` from logic gates.
+Do not collapse this into a single-line block comment.
 
-> Methods that are `void` must NEVER end with a `return;` statement.
+If a method's success path temporarily needs a `true` default, set `result = true;` before the gate, return `result` from the gate, and then restore `result = false;` once that temporary success default no longer applies. If the default applies to the end, do not redundantly set it back.
 
-### 4.1) Refined Return Value Pattern by Type:
+### 7.4) Void and async methods
 
-#### **For `string` Returns:**
-```csharp
-[return: NotLogged]
-public string GetName()
-{
-    var result = string.Empty;  // NOT default, NOT null
-    
-    try
-    {
-        // ...work...
-    }
-    catch (Exception ex)
-    {
-        // dump all the exception info to the log
-        DebugUtils.LogException(ex);
-        
-        result = string.Empty;  // NOT default, NOT null
-    }
-    
-    return result;
-}
-```
+- `void` methods still validate inputs and use `try`/`catch`, but do not invent a meaningless `result` variable.
+- A `void` method must not end with `return;`.
+- Async methods must return `Task` or `Task<T>`, never `async void` except event handlers.
+- Async methods use the same `result` pattern and validate synchronous failure paths before async work.
+- When returning synchronously from an async `Task<T>` method, use `return await Task.FromResult(result);` when that matches existing repository style.
+- Validate the results of awaited calls.
+- Use `ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync()` before Visual Studio SDK or DTE operations that require the UI thread.
+- Do not nest async `try`/`catch`; extract helper methods.
 
-#### **For Interface/Object/Reference Type Returns:**
-```csharp
-[return: NotLogged]
-public IMyInterface GetInstance()
-{
-    var result = default;
-    
-    try
-    {
-        // ...work...
-    }
-    catch (Exception ex)
-    {
-        // dump all the exception info to the log
-        DebugUtils.LogException(ex);
-        
-        result = default;
-    }
-    
-    return result;
-}
-```
+### 7.5) Retry loops
 
-and
+- Use `do`/`while` for retry loops, not `while`.
+- Increment retry counters with `Interlocked.Increment`.
+- Put a single-attempt operation in its own helper, usually named `TryXxxSingleAttempt`.
+- Retry loops should log attempts, failures, exhaustion, and delays.
+- If retrying file operations, verify each attempt's expected file-system result.
 
-```csharp
-[return: NotLogged]
-public MyClass Foo()
-{
-    var result = default;
-    
-    try
-    {
-        // ...work...
-    }
-    catch (Exception ex)
-    {
-        // dump all the exception info to the log
-        DebugUtils.LogException(ex);
-        
-        result = default;
-    }
-    
-    return result;
-}
-```
+## 8) PostSharp logging and `[NotLogged]`
 
-#### **For Primitive Returns (`int`, `bool`, etc.):**
-```csharp
-public int GetCount()
-{
-    var result = -1;  // or 0, depending on semantics
-    
-    try
-    {
-        // ...work...
-    }
-    catch (Exception ex)
-    {
-        // dump all the exception info to the log
-        DebugUtils.LogException(ex);
-        
-        result = -1;  // or 0
-    }
-    
-    return result;
-}
-```
+### 8.1) Primitive definition
 
-For primitive returns, we'll explicitly set the `result` variable to some nonsensical value that would indicate failure, empty list, zero count, or some other 'bad' condition that we do not desire.
+For these logging rules, a primitive means a type that would have been primitive in C++:
 
-## 5) PostSharp logging exclusions and `[NotLogged]` rules
+- `bool`, `char`.
+- `byte`, `sbyte`.
+- `short`, `ushort`.
+- `int`, `uint`.
+- `long`, `ulong`.
+- `float`, `double`.
+- Enums.
 
-### Important correction about `[return: NotLogged]`
+Complex/non-primitive types include `string`, `object`, `decimal`, nullable value types, all structs such as `Guid`, `DateTime`, and `Rectangle`, all classes, all interfaces, delegates, and collections.
 
-* **Do NOT apply `[return: NotLogged]` to properties.**
-  A `GlobalAspects.cs` exists in each project excluding logging on property getters/setters and event add/remove methods.
-* **Apply `[return: NotLogged]` to methods only** when the return type is not a C++-primitive (definition below), and also for `string` returns.  `enum` return values are logged.
+### 8.2) Parameters and return values
 
-### Definition: "primitive" for logging rules
+- Every method parameter whose type is complex/non-primitive must be decorated with `[NotLogged]`.
+- `string` parameters are always `[NotLogged]`.
+- `object` parameters are always `[NotLogged]`.
+- Struct parameters such as `Guid`, `DateTime`, and `Rectangle` are `[NotLogged]`.
+- Methods returning complex/non-primitive types must be decorated with `[return: NotLogged]`.
+- Methods returning `string` or `object` must be decorated with `[return: NotLogged]`.
+- Methods returning enums must not be decorated with `[return: NotLogged]`.
+- Do not apply `[return: NotLogged]` to properties. `GlobalAspects.cs` already excludes property getters/setters and event add/remove methods.
+- Event-handler parameters such as `object sender` and `EventArgs e` must be individually `[NotLogged]`.
 
-When these instructions say "primitive," it means "would have been primitive in C++."
+### 8.3) Constructors and static classes
 
-Treat these as primitives (do NOT require `[NotLogged]` by default):
+- Static classes should declare a static constructor decorated with `[Log(AttributeExclude = true)]` to suppress `.cctor` logging.
+- Constants classes, action classes, common classes, extension classes, displayer classes, and factory classes follow this rule.
+- Abstract base classes should decorate static and protected constructors with `[Log(AttributeExclude = true)]` when the constructors exist for normal initialization and logging suppression.
+- Concrete strategy classes should decorate static and public constructors with `[Log(AttributeExclude = true)]`.
+- If a static constructor performs meaningful work that should be logged, do not suppress it solely for convention.
 
-* `bool`, `char`
-* `byte`, `sbyte`
-* `short`, `ushort`
-* `int`, `uint`
-* `long`, `ulong`
-* `float`, `double`
-* `enum`
+## 9) XML documentation
 
-Treat as **non-primitive/complex** (DO require `[NotLogged]` on parameters and/or `[return: NotLogged]` on method returns):
+### 9.1) Coverage and preservation
 
-* `string` (explicitly required even though it has a C# keyword)
-* `object`
-* Any `struct` (e.g., `Guid`, `DateTime`, `Rectangle`, `decimal`, `Nullable<T>`, etc.)
-* Any class/interface type
-* Any type not used as a scalar in the abstract-algebra sense
-* Any collection
+- Every class, struct, interface, enum, enum member, delegate, method, event, field, property, constant, parameter, and meaningful return value must have XML documentation regardless of access modifier.
+- Do not change existing XML documentation unless explicitly asked. Add only missing documentation.
+- For generated snippets, prefer each XML documentation element for a code entity on a single line when practical; ReSharper may reformat later.
+- Method documentation must include `<remarks>` describing caller-relevant behavior, alternate code paths, and invalid-input behavior.
+- Documentation for interface implementations, overrides, and corresponding interface members must be reusable; do not mention private helper methods in such docs.
 
-### Method parameter rules
+### 9.2) Required wording
 
-* Any method parameter whose type is **not** a C++-primitive must be annotated:
-  * `([NotLogged] TypeName parameter)`
-* `string` parameters MUST be `[NotLogged]`.
-* Value types like `Rectangle`, `Guid`, etc. MUST be `[NotLogged]`.
-* Any parameter of type `object` MUST be `[NotLogged]`.
+- Interface summaries must begin: `Defines the publicly-exposed events, methods and properties of ...`.
+- Every `<param>` body starts with `(Required.)` or `(Optional.)`.
+- Use `If ..., then ...` phrasing in XML documentation.
+- Adjacent sentences are separated with `<para />`, not whitespace.
+- Use `<see langword="null" />`, `<see langword="true" />`, and `<see langword="false" />` when specifically referencing C# keywords.
+- Use `<paramref name="..." />` only when specifically referring to the method parameter.
+- Use parenthetical plurals carefully in docs, comments, log messages, UI text, and message boxes: `attribute(s)`, `box(es)`, `GUID(s)`, `journey(s)`. Do not apply them where grammar does not call for them.
+- When documenting value types or primitive keyword types, do not say `Reference to`. Prefer `A <see cref="T:System.Guid" /> value` or `An <see cref="T:System.Int32" /> value`.
+- When documenting reference types, prefer `Reference to an instance of <see cref="T:Namespace.Type" />` or `reference to an instance of an object that implements the <see cref="T:Namespace.IType" /> interface`.
+- Do not write `an IInterface instance`; interfaces are implemented by object instances.
+
+### 9.3) `cref` and inline code
+
+Use fully-qualified XML documentation references whenever semantically valid:
+
+| Entity | Format |
+|---|---|
+| Type | `<see cref="T:Namespace.TypeName" />` |
+| Method | `<see cref="M:Namespace.TypeName.MethodName(ParamType,ParamType)" />` |
+| Property | `<see cref="P:Namespace.TypeName.PropertyName" />` |
+| Event | `<see cref="E:Namespace.TypeName.EventName" />` |
+| Field, constant, enum member | `<see cref="F:Namespace.TypeName.FieldName" />` |
+
+- Use `<see cref="F:System.String.Empty" />` and `<see cref="F:System.Guid.Empty" />` for those values.
+- When referencing `DebugUtils.LogException`, use `<see cref="M:xyLOGIX.Core.Debug.DebugUtils.LogException(System.Exception,System.Boolean)" />`.
+- Prefer generic backtick-plus-arity notation, such as `System.Collections.Generic.IList`1`, over curly-brace generic notation.
+- If a term looks like code but cannot or should not be cross-referenced, wrap it in `<c>...</c>`. Examples: file names, `AssemblyInfo`, `AssemblyTitle`, source comments, and source-level attributes.
+- Inline reproduced code or comments must be wrapped in `<c>...</c>`.
+- Avoid XML documentation `cref` references that would require adding circular project references.
+
+### 9.4) Backing field docs
+
+If a field backs a property:
+
+- The field summary explains both the property's purpose and the field's purpose.
+- The remarks include: `<b>NOTE:</b> The purpose of this field is to cache the value of the <see cref="P:Fully.Qualified.Property" /> property.`
+- If the field exists to raise property-change events rather than cache, document that instead.
+
+## 10) Properties, fields, and events
+
+### 10.1) Properties and fields
+
+- Prefer auto-properties when feasible.
+- Do not use expression-bodied properties or expression-bodied accessors.
+- Use backing fields only when an update must raise an event or a read-only value must be cached.
+- All property getters and setters must be decorated at accessor level with `[DebuggerStepThrough]`.
+- Add `using System.Diagnostics;` when `[DebuggerStepThrough]` is used.
+- Getter-only auto-properties are preferred for values initialized in constructors or static initialization.
+- Do not use `init;`.
+- When exposing controls to external clients, put control properties in the form's main `.cs` file, not in `.Designer.cs`.
 
 Example:
-
-```csharp
-public void Save([NotLogged] string path, [NotLogged] Guid id, int retryCount)
-{
-    // ...
-}
-```
-
-### Method return rules
-
-* If a method returns anything other than a C++-primitive, decorate the method with:
-
-  * `[return: NotLogged]`
-* `string` return values MUST use `[return: NotLogged]`.
-* `object` return values MUST use `[return: NotLogged]`.
-* `enum` return values MUST NOT use `[return: NotLogged]`
-
-Example:
-
-```csharp
-[return: NotLogged]
-public string GetName()
-{
-    var result = default(string);
-    // ...
-    return result;
-}
-```
-
-### Static constructors
-
-* Every `static` class should define a `static` constructor with:
-
-  * `[Log(AttributeExclude = true)]`
-  * Purpose: avoid `.cctor` calls being logged.
-
-## 6) XML documentation (100% coverage) - rules and templates
-
-### Coverage requirements
-
-Every one of these must have XML documentation, regardless of access modifier:
-
-* `class`, `struct`, `interface`, `enum`
-* methods
-* events
-* fields
-* properties
-* constants
-* parameters
-* return values (where meaningful)
-
-No code entity should exist without XML documentation.
-
-### Do not modify existing docs
-
-If XML documentation already exists, **do not change it**.
-
-### Method docs MUST include `<remarks>`
-
-Method XML docs should include `<remarks>` describing:
-
-* Caller-relevant behavior
-* Alternate code paths
-* What happens if invalid values are provided (out-of-bounds index, `null`, blank/empty strings, invalid references, etc.)
-
-### Sentence separation rule
-
-Adjacent sentences in XML docs must not be separated by whitespace.
-Use self-closing `<para />` tags between adjacent sentences.
-
-Example:
-
-```xml
-/// <summary>Does X.<para />Returns Y.</summary>
-```
-
-### `langword` usage for C# keywords
-
-* Use `<see langword="null" />`, `<see langword="true" />`, `<see langword="false" />`; **not** `<c>null</c>`, etc.
-* If XML docs refer to a C# language keyword specifically, wrap it with `<see langword="..." />`.
-* If the word is used in plain English and not referring to the keyword, do not use `langword`.
-
-### Cross-reference rules (`<see cref="..."/>`)
-
-* Always use **fully-qualified** names in `cref`.
-* Use the correct prefix:
-
-  * Types: `<see cref="T:Namespace.TypeName" />`
-  * Methods: `<see cref="M:Namespace.TypeName.MethodName(ParamType,ParamType)" />`
-  * Properties: `<see cref="P:Namespace.TypeName.PropertyName" />`
-  * Events: `<see cref="E:Namespace.TypeName.EventName" />`
-  * Fields/constants/enum members: `<see cref="F:Namespace.TypeName.FieldName" />`
-* Use `<see cref="F:System.String.Empty" />` and `<see cref="F:System.Guid.Empty" />` when referencing those values.
-* Use `<paramref name="paramName" />` only when referring to the parameter (not when using the same word generically).
-
-### When NOT to use `<see cref="..."/>`
-
-If a term looks like a code entity but cannot/should not be referenced (e.g., file names, source-level attributes like `AssemblyTitle`, etc.), wrap it in `<c>...</c>`.
-
-Examples:
-
-* `<c>AssemblyInfo</c>`
-* `<c>AssemblyTitle</c>`
-
-### Required `(Required.)` / `(Optional.)` parameter doc prefix
-
-Every `<param name="...">` body must start with:
-
-* `(Required.)` or `(Optional.)`
-
-Example:
-
-```xml
-/// <param name="e">(Required.) A <see cref="T:System.Windows.Forms.MouseEventArgs" /> that contains the event data.</param>
-```
-
-### Reference vs value semantics in wording
-
-* Do **not** say "Reference to an instance of Xxx" for value types and "primitive keyword types" (including `string`, `Guid`, `DateTime`, `int`, etc.). Prefer:
-
-  * A Xxx value as in, `A <see cref="T:System.Guid" />` value
-  * `An <see cref="T:System.Int32" /> value that `
-  * `A <see cref="T:System.String" /> that `
-* For non-primitive reference types (typical classes/interfaces), prefer:
-
-  * `Reference to an instance of <see cref="T:Fully.Qualified.Type" />`
-
-### Inline code in XML docs
-
-When reproducing code or comments inline, always wrap with `<c>...</c>`.
-
-Example:
-
-* `<c>// dump all exception info to the log</c>`
-
-### Generic type documentation preference
-
-When documenting generic types, prefer **backtick + arity** notation and keeping type references fully-qualified (e.g., ``System.Collections.Generic.IList`1``) over curly-brace notation, where the "arity" refers to the number of generic type parameter(s) in its definition.
-
-### Backing-field documentation requirement
-
-If a field backs a property, field docs must:
-
-* In `<summary>`: explain the purpose of the property and the field.
-* In `<remarks>`: include:
-
-  * `<b>NOTE:</b> The purpose of this field is to cache the value of the XYZ property`
-  * Where `XYZ` is a `<see cref="P:Fully.Qualified.Property" />` reference.
-
-### Interface summary requirement
-
-For interfaces, the `<summary>` tag MUST begin with:
-
-* `Defines the publicly-exposed events, methods and properties of ___`
-
-### `If _, then` phrasing
-
-In XML docs, prefer:
-
-* `If ___, then ___.`
-  Not:
-* `If ___, ___.`
-
-### Pluralization style in docs/comments/UI text
-
-When a word may be plural, pluralize by parenthesizing only the plural part:
-
-* discovery(ies), journey(s), attribute(s), box(es)
-  Do not overuse; keep correct U.S. English grammar.
-* Do not add parenthetical plurals where they do not belong (e.g., "continues", not "continue(s)"). Use judgment.
-
-### Vsxmd output awareness
-
-XML documentation is converted into `README.md` via Vsxmd, and fully-qualified `<see cref="..."/>` links should help produce Microsoft Learn-style hyperlinks. Take every reasonable opportunity to provide correct cross-references.
-
-### Special `DebugUtils.LogException` cref signature
-
-When referencing the overload in XML documentation, use the fully-qualified signature:
-
-* `xyLOGIX.Core.Debug.DebugUtils.LogException(System.Exception,System.Boolean)`
-  Example:
-
-```xml
-/// <see cref="M:xyLOGIX.Core.Debug.DebugUtils.LogException(System.Exception,System.Boolean)" />
-```
-
-## 7) Properties, fields, and accessors
-
-### Accessor body rules
-
-* Do NOT use expression-bodied properties or expression-bodied accessors.
-* If you write explicit accessor bodies, they must be statement-bodied (no expression-bodied accessors).
-* Every getter and setter must be annotated at the accessor level with `[DebuggerStepThrough]` (if not already).
-* Ensure `using System.Diagnostics;` exists when using `[DebuggerStepThrough]`.
-
-### Auto-properties
-
-* Auto-properties are preferred when feasible. Use accessor attributes like:
 
 ```csharp
 public int Count
@@ -968,1804 +411,184 @@ public int Count
 }
 ```
 
-* Always decorate accessors with [DebuggerStepThrough] and make sure `using System.Diagnostics` is near the top of the file.
-* Favor the use of getter-only auto properties (vs. auto-properties with a protected or private setter) when they are only initialized at construction time or static construction time.
-* Never use the auto-property accessor `init;`.  
+### 10.2) Events
+
+- Never declare an event that is never raised.
+- Every event has a corresponding `protected virtual void OnXxx(...)` invoker.
+- The invoker calls `Xxx?.Invoke(this, e);` or the appropriate delegate signature.
+- If adding virtual methods to a sealed class, remove `sealed`.
+- EventArgs-derived classes should be in `.Events`, derive from `System.EventArgs`, use getter-only properties initialized by constructor, and decorate constructors with `[Log(AttributeExclude = true)]` where appropriate.
+- Do not use object initializer syntax when raising an event; pass values through the EventArgs constructor.
+- For property-sheet Apply behavior, the event invoker may be named `DoApplyChanges` instead of `OnApplyChanges`.
+
+## 11) Windows Forms and desktop UI
+
+1. Follow classic Microsoft desktop UI conventions, especially the Windows User Interface Guidelines for Software Design and classic Windows 3.x/95 style where applicable.
+2. Forms use Segoe UI 9pt, not MS Sans Serif 8.25pt.
+3. Push buttons are sized `(87, 27)` unless existing UI or user direction requires otherwise.
+4. If `xyLOGIX.UI.Dark` libraries are present, forms and dialogs should derive from `xyLOGIX.UI.Dark.Forms.DarkForm`; otherwise use `System.Windows.Forms.Form`.
+5. If dark forms are used, form interfaces should inherit `xyLOGIX.UI.Dark.Forms.IDarkForm`. Otherwise they can inherit `xyLOGIX.Core.Extensions.IForm`.
+6. Use `DarkXxx` controls when the dark controls library provides an equivalent; otherwise use the standard Windows Forms control.
+7. Do not add `MenuStrip`, `ToolStrip`, or `StatusStrip` to a `FixedDialog` form.
+8. Never attach handlers to a form's own events when an `OnXxx` override is available. Override the protected virtual method and call the base implementation first.
+9. Dialogs must be owned when shown. If no owner is available, set `StartPosition` to `CenterScreen` at runtime.
+10. OK and Cancel buttons do not have mnemonic underlines. Other action buttons may.
+11. OK buttons are named `okayButton`, have `DialogResult.OK`, and should be the second-to-last tab stop.
+12. Cancel buttons are named `cancelButton`, have `DialogResult.Cancel`, set `CausesValidation` to `false`, and are last in tab order.
+13. About-style dialogs may use a single `&Close` button named `closeButton`, serving as both `AcceptButton` and `CancelButton`, with `DialogResult.Cancel` and `CausesValidation = false`.
+14. It is not necessary to add Click handlers to OK, Cancel, or Close buttons solely to close the dialog; use `DialogResult`.
+15. Use `OnFormClosing` to trap `DialogResult.OK` and run validation.
+16. UI element names in XML documentation are Title Case, omit mnemonic ampersands, and are wrapped in `<b>...</b>`.
+17. Form titles referenced in XML documentation should also be Title Case and wrapped in `<b>...</b>`.
+18. In Model-View-Presenter forms, expect a `MyForm.Presenter.cs` partial file containing the `Presenter` property and `InitializePresenter` method.
+
+### 11.1) Window styles
+
+Main document-style windows generally use:
+
+- `AutoScaleMode = Dpi`
+- `ControlBox = true`
+- `FormBorderStyle = Sizable`
+- `MaximizeBox = true`
+- `MinimizeBox = true`
+- `ShowIcon = true`
+- `ShowInTaskbar = true`
+- `Size = 1024x768`
+- `SizeGripStyle = Show`
+- `StartPosition = CenterScreen`
+- `WindowState = Maximized`
+
+Dialog-based utility main windows generally use:
+
+- `AutoScaleMode = Dpi`
+- `ControlBox = true`
+- `FormBorderStyle = FixedSingle`
+- `IsMdiContainer = false`
+- `MaximizeBox = false`
+- `MinimizeBox = true`
+- `ShowIcon = true`
+- `ShowInTaskbar = true`
+- `Size = 470x561`
+- `SizeGripStyle = Show`
+- `StartPosition = CenterScreen`
+- `WindowState = Normal`
+
+Dialog boxes generally use:
+
+- `AutoScaleMode = Dpi`
+- `ControlBox = true`
+- `FormBorderStyle = FixedDialog`
+- `IsMdiContainer = false`
+- no menu
+- `MaximizeBox = false`
+- `MinimizeBox = false`
+- `ShowIcon = false`
+- `ShowInTaskbar = false`
+- `Size = 470x561`
+- `SizeGripStyle = Show`
+- `StartPosition = CenterParent`
+- `WindowState = Normal`
+
+Leave unspecified properties at defaults unless existing code or user instructions require changes.
+
+## 12) Testing
+
+- Use NUnit 4.3.2.
+- Prefer one test fixture per concrete class.
+- Abstract base test fixtures may share behavior through Template Method.
+- Prefer deriving fixtures from `xyLOGIX.Tests.Logging.LoggingTestBase` when that module is available.
+- Test fixture classes use `[TestFixture]` and `[ExplicitlySynchronized]`.
+- If multiple tests display or interact with GUI, add `[NonParallelizable]` and `[Apartment(ApartmentState.STA)]` at fixture level.
+- If only one test displays GUI, apply `[Apartment(ApartmentState.STA)]` to that test.
+- If any test displays a Windows Form, override `LoggingTestBase.OneTimeSetUp`, call `base.OneTimeSetUp()`, then call `Application.EnableVisualStyles()` and `Application.SetCompatibleTextRenderingDefault(false)`.
+- Do not add comments explaining the absence of `[OneTimeSetUp]` on the override.
+- Unit tests are written when certainty is needed; do not create broad test scaffolding unless it directly supports the task.
+
+## 13) File-system operations
+
+After critical file-system operations, verify the result:
+
+| Operation | Verification |
+|---|---|
+| Copy file | Destination exists. |
+| Move file | Destination exists and source no longer exists. |
+| Create directory | Directory exists. |
+| Delete file | File no longer exists. |
 
-### Backing fields
+Prefer existing repository abstractions such as `AlphaFsFileSystem` or `xyLOGIX.Core.Files.Does` when present. Log the check, failure, success, and final result using the repository's established logging format.
 
-Only use backing fields when:
+## 14) Pipeline architecture
 
-* The property update must raise an event, or
-* A read-only property value must be cached
-   - This is a best practice when a property should be computed once but is going to be read
-     frequently.
-
-## 8) Events
-
-### No dead events
-
-Never declare/expose an event that is never invoked.
-
-### Required `OnXxx` pattern
-
-For each event `Xxx`, provide:
-
-* `protected virtual void OnXxx(...)` which fires the event:
-
-  * `Xxx?.Invoke(this, e);` (or appropriate signature)
-* Call `OnXxx` wherever the event should fire.
-
-### Custom `EventArgs`-derived class template
-
-The following C# source code listing is how a custom `EventArgs`-derived class should be declared:
-
-```csharp
-using PostSharp.Patterns.Diagnostics;
-using PostSharp.Patterns.Threading;
-using System;
-using System.Diagnostics;
-
-namespace MyModule.Events
-{
-    /// <summary>
-    /// Provides data for the
-    /// <see cref="E:MyModule.Interfaces.IHairDryer.DryingCompleted" /> event.
-    /// </summary>
-    [ExplicitlySynchronized, Log(AttributeExclude = true)]
-    public class DryingCompletedEventArgs : EventArgs
-    {
-        /// <summary>
-        /// Initializes <see langword="static" /> data or performs actions that need to be
-        /// performed once only for the
-        /// <see cref="T:MyModule.Events.DryingCompletedEventArgs" /> class.
-        /// </summary>
-        /// <remarks>
-        /// This constructor is called automatically prior to the first instance being
-        /// created or before any <see langword="static" /> members are referenced.
-        /// <para />
-        /// We've decorated this constructor with the <c>[Log(AttributeExclude = true)]</c>
-        /// attribute in order to simplify the logging output.
-        /// </remarks>
-        [Log(AttributeExclude = true)]
-        static DryingCompletedEventArgs() { }
-
-        /// <summary>
-        /// Constructs a new instance of
-        /// <see cref="T:MyModule.Events.DryingCompletedEventArgs" /> and returns a
-        /// reference to it.
-        /// </summary>
-        /// <param name="success">
-        /// (Required.) Value indicating whether the hair was dried successfully.
-        /// </param>
-        [Log(AttributeExclude = true)]
-        public DryingCompletedEventArgs(bool success)
-        {
-            Success = success;
-        }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether the drying operation was successful.
-        /// </summary>
-        public bool Success
-        {
-            [DebuggerStepThrough] get;
-        }
-    }
-}
-```
-
-We always initialize getter-only properties from the ctor.  We never use the member initializer list when calling the `OnDryingCompleted` event-invocator method (as it would be named); we pass the value through the ctor.
-
-### Sealed classes
-
-If you add new `virtual` methods to a `sealed` class, remove the `sealed` modifier.
-
-## 9) WinForms/UI and form and dialog control-layout conventions (Win32-minded, classic UX)
-
-* Follow "The Windows User Interface Guidelines for Software Design" (Microsoft Press, 1995) where possible.
-* Prefer Windows 95 UI/UX conventions where they conflict with later guidance.
-* Never add `MenuStrip`, `ToolStrip`, or `StatusStrip` to a form with `FormBorderStyle = FixedDialog`.
-
-### Base form and form interfaces
-
-* In the event that class library(ies) beginning with `xyLOGIX.UI.Dark` are included in the #solution, then all Windows Forms and dialog boxes must derive from:
-
-  * `xyLOGIX.UI.Dark.Forms.DarkForm`
-  
-otherwise they can derive from `System.Windows.Forms.Form` as per usual.
-  
-* In the event that class library(ies) beginning with `xyLOGIX.UI.Dark` are included in the #solution, then form's interface should inherit:
-
-  * `xyLOGIX.UI.Dark.Forms.IDarkForm`
-  * (So the interface can expose only app-specific functionality.)
-  
-otherwise, they can inherit `xyLOGIX.Core.Extensions.IForm` which exposes all the usual methods and properties that a Windows Form has (`xyLOGIX.UI.Dark.Forms.IDarkForm` already inherits `xyLOGIX.Core.Extensions.IForm`, FYI).
-  
-The `xyLOGIX.UI.Dark.Forms.IDarkForm` interface implements `xyLOGIX.Core.Extensions.IForm` which exposes all the usual methods and properties that a Windows Form has.   All form controls have `DarkXxx` counterparts in the `xyLOGIX.UI.Dark.Controls` library, such as `DarkCheckBox` instead of `CheckBox` and so on.  If a `DarkXxx` counterpart doesn't exist, then use the normal `System.Windows.Forms.Xxx` version of it.  If dark controls are used, the `xyLOGIX.UI.Dark.Controls`,  `xyLOGIX.UI.Dark.Controls.Interfaces`, and `xyLOGIX.UI.Dark.Controls.Themes.Interfaces` class libraries and namespaces must be references.
-
-If no class library(ies) beginning with `xyLOGIX.UI.Dark` are included in the #solution, then forms and dialog boxes can inherit from `System.Windows.Forms.Form` as per usual.  
-
-### Control exposure rule
-
-If a form exposes controls to external clients:
-
-* Expose them via properties in the form's main `.cs` file, not in `.Designer.cs`.
-
-If UI elements are referenced in XML documentation, then the name of the UI element must be in Title Case (without any occurrence of the '&' mnemonic character) and enclosed within a `<b>...</b>` tag -- mimicking the style of the Microsoft docs.  The title of a form, if known at design/documentation time, must always be in Title Case inside a `<b>...</b>` tag when referred to in XML documentation.  Pretend you're authoring Microsoft docs, the way Microsoft would write them, when writing XML documentation.
-
-## 10) Testing conventions (NUnit)
-
-* Use NUnit 4.3.2 for unit tests.
-* Prefer one test fixture per concrete class.
-* It's OK to build abstract base test fixtures to share behavior across multiple test fixtures using the Template Method pattern.
-* In test projects, prefer using `xyLOGIX.Tests.Logging` and derive fixtures from:
-
-  * `LoggingTestBase` (enables PostSharp/log4net logging to file automatically)
-  
-* Adorn ALL test fixture classes with the `TestFixture` and `ExplicitlySynchronized` attributes.
-     - The `TestFixture` attribute comes from NUnit.
-     - The `ExplicitlySynchronized` attribute comes from `PostSharp.Patterns.Threading`.
-     
-* Only if MULTIPLE tests display / interact with a GUI, then add the following attributes to the test fixture at the class level:
-    - The `NonParallelizable` attribute, which comes from NUnit; and
-    - The `Apartment(ApartmentState.STA)` attribute, which also comes from NUnit.
-    
-* Apply the `Apartment(ApartmentState.STA)` attribute to the class level if MORE THAN ONE test shows a GUI; if only one test shows a GUI, then drop the `NonParallelizable` attribute and apply the `[Apartment(ApartmentState.STA)]` attribute to the specific test that shows the GUI ONLY.
-
-* If even ONE test shows a Windows Form, then override `LoggingTestBase.OneTimeSetUp` and implement it thus:
-
-```csharp
-public override void OneTimeSetUp()
-{
-    base.OneTimeSetUp();
-    
-    Application.EnableVisualStyles();
-    Application.SetCompatibleTextRenderingDefault(false);
-}
-```
-This will ensure that Windows Forms have the correct look and feel.
-
-It is not necessary to decorate the override with the `[OneTimeSetUp]` attribute as that is done by the base class, `LoggingTestsBase`.  Do NOT add a `// ??? NO [OneTimeSetUp] attribute` comment to the file, nor add a `// ??? Method-level attribute` or any other such comment to the file.
-
-## 11) Performance, threading, LINQ, and enumeration
-
-* Avoid unnecessary materialization (`ToList()`, `ToArray()`) unless it improves performance or correctness.
-* Remember: materialization (`ToList()`, `ToArray()`) enumerates the source sequence once.
-* Avoid iterating an `IEnumerable<T>` more than once.
-* In multithreaded/concurrent scenarios:
-
-  * Avoid LINQ extension methods.  In the .NET Framework 4.8, they are all known by the community to be non-thread-safe and non-concurrent, and their usage must be avoided at all times.
-  * Prefer `for`/`foreach` loops and thread-safe algorithms.
-  * If enumerating a potentially-changing sequence, snapshot it first (e.g., `ToArray()`), then iterate the snapshot unless the collection is known to be concurrent.
-  * Be sure appropriate use of locks are used.  Make sure to avoid nesting locks -- even implicitly nesting them through method calls (i.e., lock, then call a method which itself enters a lock etc.).
-  * You may always use `.AsXxx()` LINQ extension methods (i.e., `.AsQueryable()`, `.AsParallel()` etc)
-  * Favor the use of `.AsParallel()` or `.AsSequential()` over `Parallel.ForEach` -- choose which based on correctness and performance.
-  * NEVER call `.AsParallel()` then `.AsSequential()` in the same sequence (or vice-versa).  Use one OR the other.
-
-## 12) Git/repo conventions and agent behaviors
-
-### Repo root convention
-
-* `.git` folders are typically at the **solution root** (folder containing the `.sln` / `.slnx`).
-* Git workflows should be given the solution-containing folder as `repoRoot`.
-
-### Agent mode housekeeping
-
-If operating as an agent:
-
-* Delete dead code when it becomes unused due to architecture changes:
-
-  * Methods, events, fields, properties, interfaces, classes, delegates, and `Resources.resx` entries.
-* Do not regenerate:
-
-  * `GlobalAspects.cs`
-  * `AssemblyInfo.cs`
-  
-* We use Git all the time, so it's not a big issue if something is deleted by mistake.  We can always roll the file back.  HOWEVER, don't be stupid about it!  Double-check that you are correct before you delete something.  If you remove code, and then the software breaks or suddenly refuses to build, try putting the deleted code back.  It's possible you broke something by accidentally deleting live code.  I am willing to wait a little extra time for you to double-check yourself.
-
-* Bear in mind that 99.99999% of my software components are libraries, so of course they will have TONS of methods that are "never called" but you are correct, if they are exposed by an interface then they are meant to be called BY CLIENTS.  OK, now let's do the final section, Section 13.
-
-## 13) Framework-first vs flexibility
-
-Before reinventing the wheel:
-
-* Consider whether .NET Framework already provides the needed capability.
-* When unsure, consult Microsoft Docs (or other primary/official documentation) before rolling your own solution.
-* Consider whether the needed capability already exists elsewhere in the codebase of the current #solution.
-* Prefer built-in APIs when they satisfy requirements without brittleness.
-* However, overall preference is **flexibility** and **loose coupling** over brittle software coupling when requirements may evolve (which, in my mindset, they are prone to doing often).
-* Always code to an interface.  This means, always use an interface for the type of a method parameter, return value, property, or field, instead of a concrete type.  When an interface isn't available, code to the nearest abstract base class.  If that is not available, always code to the highest object in the IMMEDIATE inheritance graph (except do not code to `System.Object` unless you have to, say, when doing COM programming, because everything in the .NET Framework inherits `System.Object` but we do not want code with `System.Object` being the type of every method parameter, field, return value, and property; that's dumb.  Use common sense).
-* Never produce XML documentation like the following:
-
-```csharp
-/// <summary>
-/// Initializes the manager for the main application tab control.
-/// </summary>
-/// <remarks>
-/// This method creates an
-/// <see
-///     cref="T:ControlTestApp.Windows.TabControlManagers.Interfaces.ITabControlManager" />
-/// instance for the
-/// <see cref="P:ControlTestApp.Windows.MainWindow.DarkTabControl" />.
-/// <para />
-/// If creation of the manager fails, then the corresponding field remains set to
-/// <see langword="null" />.
-/// </remarks>
-```
-
-The correct version is:
-
-```csharp
-/// <summary>
-/// Initializes the manager for the main application tab control.
-/// </summary>
-/// <remarks>
-/// This method creates a reference to an instance of an object that implements the
-/// <see
-///     cref="T:ControlTestApp.Windows.TabControlManagers.Interfaces.ITabControlManager" />
-/// interface for the
-/// <see cref="P:ControlTestApp.Windows.MainWindow.DarkTabControl" />.
-/// <para />
-/// If creation of the manager fails, then the corresponding field remains set to
-/// <see langword="null" />.
-/// </remarks>
-```
-
-Notice the `<remarks>` section.  See how it refers to `a reference to an instance of an object that implements the IMyInterface interface` and not `an IMyInterface instance`? I never talk about interfaces as if they are object instances; it's always, "we have a reference to an instance of an object that implements the interface," not "an IMyInterface instance;" that makes no sense in view of how C# objects actually work.
-
-## 14) Proper way to check things with logging
-
-When you're running an `if` check and it has surrounding logging:
-
-```csharp
-                DebugUtils.WriteLine(
-                    DebugLevel.Info,
-                    "AssemblyInfoProvider.Save: *** INFO *** Checking whether the method parameter, 'data', has a null reference for a value..."
-                );
-
-                if (data == null)
-                {
-                    DebugUtils.WriteLine(
-                        DebugLevel.Error,
-                        "AssemblyInfoProvider.Save: *** ERROR *** A null reference was passed for the method parameter, 'data'. Stopping..."
-                    );
-
-                    DebugUtils.WriteLine(
-                        DebugLevel.Debug,
-                        $"AssemblyInfoProvider.Save: Result = {result}"
-                    );
-
-                    return result;
-                }
-
-                DebugUtils.WriteLine(
-                    DebugLevel.Info,
-                    "AssemblyInfoProvider.Save: *** SUCCESS *** We have been passed a valid object reference for the method parameter, 'data'. Proceeding..."
-                );
-
-```
-
-There should be mucho comments here.  The version above is incorrect.  Too few comments.  The correct version is:
-
-```csharp
-                DebugUtils.WriteLine(
-                    DebugLevel.Info,
-                    "AssemblyInfoProvider.Save: *** INFO *** Checking whether the method parameter, 'data', has a null reference for a value..."
-                );
-
-                // Check whether the method parameter, 'data', is set to a null reference.
-                // If this is the case, then write an error message to the log file, and
-                // then terminate the execution of this method, returning the default 
-                // return value.
-                if (data == null)
-                {
-                    // The method parameter, 'data', is set to a null reference.  This is not desirable.
-                    DebugUtils.WriteLine(
-                        DebugLevel.Error,
-                        "AssemblyInfoProvider.Save: *** ERROR *** A null reference was passed for the method parameter, 'data'. Stopping..."
-                    );
-
-                    DebugUtils.WriteLine(
-                        DebugLevel.Debug,
-                        $"AssemblyInfoProvider.Save: Result = {result}"
-                    );
-
-                    // stop.
-                    return result;
-                }
-
-                DebugUtils.WriteLine(
-                    DebugLevel.Info,
-                    "AssemblyInfoProvider.Save: *** SUCCESS *** We have been passed a valid object reference for the method parameter, 'data'. Proceeding..."
-                );
-
-```
-
-Analyze the differences between these two listings and tell me what you see.  Now, do this (or something similar) every time we're logging in a method and also running `if` checks.
-
-Inside the `if` branch, above the first logging line, the comment above it should always end with a second sentence, `This is not desirable.` if the logging line logs an *** ERROR *** message.  Also, there is not enough logging and comments in the `DetectEncodingWithBomCheck` method.  Do this no matter the purpose nor the modifier of any method, only if the method is decorated with the `[Log(AttributeExclude = false)]` attribute, then you refrain from all logging and of course, it would also not be necessary to heavily comment in this case.
-
-## 15) File System Operations and Verification
-
-### Always Verify Critical File System Operations
-
-After performing critical file system operations (such as copying, moving, or creating files), **always verify** that the operation succeeded by checking the expected result.
-
-#### Example: File Copy Verification
-
-```
-AlphaFsFileSystem.CopyFile(sourceFile, destFile, true);
-
-DebugUtils.WriteLine(
-    DebugLevel.Info,
-    $"TryCopyFileSingleAttempt *** INFO: Checking whether the file having pathname, '{destFile}', exists on the file system..."
-);
-
-// Check whether a file having pathname, 'destFile', exists on the file system.
-// If it does not, then write an error message to the log file, and then terminate
-// the execution of this method, returning the default return value.
-if (!AlphaFsFileSystem.FileExists(destFile))
-{
-    DebugUtils.WriteLine(
-        DebugLevel.Error,
-        $"TryCopyFileSingleAttempt: *** ERROR *** The system could not locate the file having pathname, '{destFile}', on the file system.  Stopping..."
-    );
-
-    DebugUtils.WriteLine(
-        DebugLevel.Debug,
-        $"*** TryCopyFileSingleAttempt: Result = {result}"
-    );
-
-    return result;
-}
-
-DebugUtils.WriteLine(
-    DebugLevel.Info,
-    $"TryCopyFileSingleAttempt: *** SUCCESS *** The file having pathname, '{destFile}', was found on the file system.  Proceeding..."
-);
-```
-
-#### Verification Checklist
-
-- ✅ **After copying a file:** Verify destination file exists via `AlphaFsFileSystem.FileExists(destFile)`
-- ✅ **After moving a file:** Verify destination exists and source no longer exists
-- ✅ **After creating a directory:** Verify directory exists via `AlphaFsFileSystem.DirectoryExists(path)`
-- ✅ **After deleting a file:** Verify file no longer exists via `!AlphaFsFileSystem.FileExists(pathname)`
-
-### Logging Style for Method Entry Points
-
-When logging at the entry of a method or at key decision points, always use the following format:
-
-```
-DebugUtils.WriteLine(
-    DebugLevel.Info,
-    "*** MethodName.SubMethodName: Checking whether [condition]..."
-);
-```
-
-- Start with `***`
-- Include the full method name (including class name if helpful for context)
-- Use a colon `:`
-- Describe what is being checked/done
-
-### Success Block Comment Format
-
-When documenting that a method succeeded because no exceptions were caught, always use a **multi-line C-style block comment**:
-
-```
-/*
- * If we made it this far with no Exception(s) getting caught, then
- * assume that the operation(s) succeeded.
- */
-
-result = true;
-```
-
-**Never** use a single-line variant:
-
-```
-/* If we made it this far with no Exception(s) getting caught, then assume that the operation(s) succeeded. */
-```
-
-### Result Logging Format
-
-When logging the result of a method at the end (just before `return`), always use this format:
-
-```
-DebugUtils.WriteLine(
-    DebugLevel.Debug,
-    $"*** MethodName: Result = {result}"
-);
-```
-
-- Always prefix with `***`
-- Always include the full method name
-- Always use `Result = {result}` format
-
-### Context Method Names
-
-When working with `ICloneContext`, use the correct method names:
-
-- ✅ **Correct:** `context.IncrementCurrent()`
-- ❌ **Incorrect:** `context.IncrementCurrentStep()`
-
----
-
-## 16) Retry Loop Implementation Standards
-
-### Use `do/while` for Retry Loops
-
-Always implement retry loops using the `do/while` construct, **never** `while`:
-
-```
-var retryCount = 0;
-
-// Attempt to copy the file with retry logic using a do/while loop.
-// This handles transient file system error(s) such as file lock(s) and network interruption(s).
-do
-{
-    Interlocked.Increment(ref retryCount);
-
-    DebugUtils.WriteLine(
-        DebugLevel.Info,
-        $"TryCopyFileWithRetry: *** FYI *** Copy attempt {retryCount} of {MAX_RETRIES} for file '{sourceFile}'..."
-    );
-
-    // Attempt to copy the file once.
-    // If the copy operation succeeds, then exit the retry loop.
-    if (TryCopyFileSingleAttempt(sourceFile, destFile))
-    {
-        // The file copy operation succeeded on this attempt.
-        DebugUtils.WriteLine(
-            DebugLevel.Info,
-            $"TryCopyFileWithRetry: *** SUCCESS *** File copied successfully on attempt {retryCount}."
-        );
-
-        result = true;
-
-        // exit the retry loop.
-        break;
-    }
-
-    // The file copy operation failed on this attempt.  This is not desirable.
-    DebugUtils.WriteLine(
-        DebugLevel.Warning,
-        $"TryCopyFileWithRetry: *** WARNING *** Copy attempt {retryCount} failed for file '{sourceFile}'."
-    );
-
-    DebugUtils.WriteLine(
-        DebugLevel.Info,
-        "TryCopyFileWithRetry: Checking whether we have exhausted the maximum number of retry attempt(s)..."
-    );
-
-    // Check whether we have exhausted the maximum number of retry attempt(s).
-    // If this is the case, then log a final error message and give up.
-    if (retryCount >= MAX_RETRIES)
-    {
-        // We have exhausted the maximum number of retry attempt(s).  This is not desirable.
-        DebugUtils.WriteLine(
-            DebugLevel.Error,
-            $"TryCopyFileWithRetry: *** ERROR *** Failed to copy file '{sourceFile}' after {MAX_RETRIES} attempt(s).  Giving up."
-        );
-
-        // give up.
-        break;
-    }
-
-    DebugUtils.WriteLine(
-        DebugLevel.Info,
-        $"*** FYI *** Pausing {INTER_RETRY_DELAY_MS} ms before retry attempt {retryCount + 1}..."
-    );
-
-    // Pause before the next retry attempt.
-    Thread.Sleep(INTER_RETRY_DELAY_MS);
-} while (retryCount < MAX_RETRIES);
-```
-
-### Extract Nested `try/catch` Blocks
-
-If you need to nest `try/catch` blocks, **extract the nested block into a separate helper method** instead.
-
-❌ **Incorrect:**
-
-```
-private bool SomeMethod()
-{
-    var result = false;
-    
-    try
-    {
-        // Outer logic
-        
-        try
-        {
-            // Inner logic
-        }
-        catch (Exception innerEx)
-        {
-            // Handle inner exception
-        }
-    }
-    catch (Exception ex)
-    {
-        // Handle outer exception
-    }
-    
-    return result;
-}
-```
-
-✅ **Correct:**
-
-```
-private bool SomeMethod()
-{
-    var result = false;
-    
-    try
-    {
-        // Outer logic
-        
-        if (!TryDoInnerOperation())
-        {
-            return result;
-        }
-        
-        /* If we made it this far with no Exception(s) getting caught, then
-         * assume that the operation(s) succeeded.
-         */
-        
-        result = true;
-    }
-    catch (Exception ex)
-    {
-        // dump all the exception info to the log
-        DebugUtils.LogException(ex);
-        
-        result = false;
-    }
-    
-    return result;
-}
-
-private bool TryDoInnerOperation()
-{
-    var result = false;
-    
-    try
-    {
-        // Inner logic
-        
-        /* If we made it this far with no Exception(s) getting caught, then
-         * assume that the operation(s) succeeded.
-         */
-        
-        result = true;
-    }
-    catch (Exception ex)
-    {
-        // dump all the exception info to the log
-        DebugUtils.LogException(ex);
-        
-        result = false;
-    }
-    
-    return result;
-}
-```
-
-### Retry Loop Helper Method Pattern
-
-Each iteration of a retry loop should delegate to a helper method that uses the `TryXYZ`/`out var` pattern (where applicable):
-
-```
-private bool TryCopyFileWithRetry(
-    [NotLogged] string sourceFile,
-    [NotLogged] string destFile
-)
-{
-    var retryCount = 0;
-
-    do
-    {
-        Interlocked.Increment(ref retryCount);
-
-        // Delegate to helper method for single attempt
-        if (TryCopyFileSingleAttempt(sourceFile, destFile))
-        {
-            return true; // Success
-        }
-
-        if (retryCount >= MAX_RETRIES)
-        {
-            break; // Give up
-        }
-
-        Thread.Sleep(INTER_RETRY_DELAY_MS);
-    } while (retryCount < MAX_RETRIES);
-
-    return false; // Failed after all retries
-}
-
-private bool TryCopyFileSingleAttempt(
-    [NotLogged] string sourceFile,
-    [NotLogged] string destFile
-)
-{
-    var result = false;
-
-    try
-    {
-        AlphaFsFileSystem.CopyFile(sourceFile, destFile, true);
-
-        // Verify the operation succeeded
-        if (!AlphaFsFileSystem.FileExists(destFile))
-        {
-            return result;
-        }
-
-        /*
-         * If we made it this far with no Exception(s) getting caught, then
-         * assume that the operation(s) succeeded.
-         */
-
-        result = true;
-    }
-    catch (Exception ex)
-    {
-        // dump all the exception info to the log
-        DebugUtils.LogException(ex);
-
-        result = false;
-    }
-
-    return result;
-}
-```
-
----
-
-## 17) Atomic Operations for Increment/Decrement
-
-### Never Use `++` or `--` Operators
-
-The `++` and `--` operators are **prohibited** in this codebase, regardless of whether the code is executing in a single-threaded or multi-threaded environment.
-
-**Always use `Interlocked.Increment` and `Interlocked.Decrement`** to ensure atomicity and consistency.
-
-#### ❌ **Incorrect:**
-
-```csharp
-var count = 0;
-
-// ...
-
-count++; // NEVER do this
-```
-
-```csharp
-var retryAttempts = 5;
-
-// ...
-
-retryAttempts--; // NEVER do this
-```
-
-#### ✅ **Correct:**
-
-```csharp
-var count = 0;
-
-// ...
-
-Interlocked.Increment(ref count);
-```
-
-```csharp
-var retryAttempts = 5;
-
-// ...
-
-Interlocked.Decrement(ref retryAttempts);
-```
-
-#### Why This Matters
-
-- **Atomicity:** `Interlocked.Increment` and `Interlocked.Decrement` guarantee atomic operations, preventing race conditions even in single-threaded contexts where future changes might introduce concurrency.
-- **Consistency:** Using `Interlocked` methods universally ensures a consistent codebase standard.
-- **Future-Proofing:** Code that starts as single-threaded may later become multi-threaded. Using `Interlocked` from the start prevents subtle bugs.
-- **Better Safe Than Sorry:** Even if you believe the code is single-threaded, using atomic operations eliminates the risk of Single-Event Upsets (SEUs) or other unforeseen concurrency issues.
-
-#### Usage in Loops
-
-```csharp
-var retryCount = 0;
-
-do
-{
-    Interlocked.Increment(ref retryCount);
-
-    // Attempt operation...
-
-} while (retryCount < MAX_RETRIES);
-```
-
-#### Usage for Counters
-
-```csharp
-var filesProcessed = 0;
-
-foreach (var file in files)
-{
-    // Process file...
-    
-    Interlocked.Increment(ref filesProcessed);
-}
-```
-
-```csharp
-var totalFilesToCopy = 0;
-var numFilesCopied = 0;
-
-foreach (var file in filteredFiles)
-{
-    Interlocked.Increment(ref totalFilesToCopy);
-
-    DebugUtils.WriteLine(
-        DebugLevel.Info,
-        $"CopyProjectTreeStep.ExecuteStepAsync: *** FYI *** Preparing to copy file, '{file}'..."
-    );
-
-    if (!await CopySingleFileAsync(file, context))
-    {
-        DebugUtils.WriteLine(
-            DebugLevel.Warning,
-            $"*** WARNING *** Failed to copy file: '{file}'.  Continuing with remaining files..."
-        );
-
-        continue;
-    }
-
-    DebugUtils.WriteLine(
-        DebugLevel.Info,
-        $"CopyProjectTreeStep.ExecuteStepAsync: *** SUCCESS *** The file, '{file}', was copied successfully.  Proceeding..."
-    );
-
-    Interlocked.Increment(ref numFilesCopied);
-}
-
-/* If we made it this far with no Exception(s) getting caught,
- * and at least one file was copied, then assume that the operation(s)
- * succeeded.
- */
-
-DebugUtils.WriteLine(
-    DebugLevel.Info,
-    $"*** FYI *** Out of {totalFilesToCopy} file(s), {numFilesCopied} file(s) were copied successfully."
-);
-
-result = numFilesCopied > 0 && totalFilesToCopy == numFilesCopied;
-```
-
-#### Why This Pattern?
-
-- **Tracks attempts vs. successes:** `totalFilesToCopy` counts all files processed; `numFilesCopied` counts only successful operations
-- **Atomic increments:** Both counters use `Interlocked.Increment` to ensure thread-safety
-- **Clear success criteria:** The final `result` calculation checks both:
-  - At least one file was copied successfully (`numFilesCopied > 0`)
-  - All attempted copies succeeded (`totalFilesToCopy == numFilesCopied`)
-
-#### Usage in Filtering Loops
-
-When filtering items before processing, use a separate counter for the filtered count:
-
-```csharp
-var filesToCopy = 0;
-var filteredFiles = new AdvisableCollection<string>();
-
-foreach (var file in allFiles)
-{
-    DebugUtils.WriteLine(
-        DebugLevel.Info,
-        $"*** FYI *** Checking file: '{file}'..."
-    );
-
-    var dir = AlphaFsFileSystem.GetDirectoryName(file);
-
-    // Check to see whether the file's parent directory is excluded.
-    // If this is the case, then skip this file and continue with the next file.
-    if (IsExcludedDirectory(dir))
-    {
-        // The file's parent directory is excluded.  This is not desirable.
-        DebugUtils.WriteLine(
-            DebugLevel.Info,
-            $"*** FYI *** The directory, '{dir}', is excluded. Skipping file..."
-        );
-
-        // skip this file.
-        continue;
-    }
-
-    // Check to see whether the file should be copied using the file-filtering algorithm.
-    // If this is not the case, then skip this file and continue with the next file.
-    if (!ShouldCopyFile(file))
-    {
-        // The file should NOT be copied.  This is not desirable.
-        DebugUtils.WriteLine(
-            DebugLevel.Info,
-            $"*** FYI *** The file, '{file}', was excluded by the file-filtering algorithm. Skipping..."
-        );
-
-        // skip this file.
-        continue;
-    }
-
-    DebugUtils.WriteLine(
-        DebugLevel.Info,
-        $"*** SUCCESS *** The file, '{file}', passed all filtering checks. Including in copy list..."
-    );
-
-    filteredFiles.Add(file);
-
-    Interlocked.Increment(ref filesToCopy);
-}
-
-DebugUtils.WriteLine(
-    DebugLevel.Info,
-    $"*** FYI *** {filesToCopy} file(s) need to be copied after filtering."
-);
-```
-
-#### Common Dual-Counter Scenarios
-
-| Scenario | Total Counter | Success Counter | Success Criteria |
-|----------|---------------|-----------------|------------------|
-| **File copying** | `totalFilesToCopy` | `numFilesCopied` | `numFilesCopied > 0 && totalFilesToCopy == numFilesCopied` |
-| **Validation** | `totalItemsChecked` | `numItemsValid` | `numItemsValid > 0 && totalItemsChecked == numItemsValid` |
-| **Processing** | `totalItemsProcessed` | `numItemsSucceeded` | `numItemsSucceeded > 0` (partial success OK) |
-| **Retry operations** | `totalAttempts` | `numSuccessfulAttempts` | `numSuccessfulAttempts > 0` |
-
-## 18) **Exception Handling Best Practices for Async Methods**
-
-### **1. Always Use `try/catch` with `result` Variable Pattern**
-
-All asynchronous methods must wrap their body in a `try/catch` block and use a `result` variable initialized to a default (invalid) value:
-
-```csharp
-[return: NotLogged]
-public async Task<bool> MyAsyncOperationAsync(
-    [NotLogged] string parameter
-)
-{
-    var result = false;
-
-    try
-    {
-        // Validation gates
-        if (string.IsNullOrWhiteSpace(parameter))
-        {
-            return result;
-        }
-
-        // Perform async work
-        await SomeOperationAsync(parameter);
-
-        /*
-         * If we made it this far with no Exception(s) getting caught, then
-         * assume that the operation(s) succeeded.
-         */
-
-        result = true;
-    }
-    catch (Exception ex)
-    {
-        // dump all the exception info to the log
-        DebugUtils.LogException(ex);
-
-        result = false;
-    }
-
-    return result;
-}
-```
-
----
-
-### **2. Always Return `Task<T>` or `Task`, Never `void`**
-
-❌ **Incorrect:**
-
-```csharp
-public async void MyMethod() // NEVER use async void
-{
-    // ...
-}
-```
-
-✅ **Correct:**
-
-```csharp
-public async Task<bool> MyMethodAsync()
-{
-    var result = false;
-    
-    try
-    {
-        // ...
-        result = true;
-    }
-    catch (Exception ex)
-    {
-        // dump all the exception info to the log
-        DebugUtils.LogException(ex);
-        
-        result = false;
-    }
-    
-    return result;
-}
-```
-
-**Why:**
-- `async void` swallows exceptions and cannot be awaited
-- `async void` should only be used for event handlers (and even then, wrap in `try/catch`)
-
----
-
-### **3. Use `await Task.FromResult(result)` for Synchronous Returns**
-
-When an async method needs to return synchronously (e.g., after validation failure), use `await Task.FromResult(result)`:
-
-```csharp
-[return: NotLogged]
-public async Task<bool> ValidateAndProcessAsync(
-    [NotLogged] string input
-)
-{
-    var result = false;
-
-    try
-    {
-        DebugUtils.WriteLine(
-            DebugLevel.Info,
-            "ValidateAndProcessAsync: Checking whether the input is valid..."
-        );
-
-        // Check to see whether the input is valid.
-        // If this is not the case, then write an error message to the log file,
-        // and then terminate the execution of this method.
-        if (string.IsNullOrWhiteSpace(input))
-        {
-            // The input is NOT valid.  This is not desirable.
-            DebugUtils.WriteLine(
-                DebugLevel.Error,
-                "ValidateAndProcessAsync: *** ERROR *** The input is NOT valid.  Stopping..."
-            );
-
-            DebugUtils.WriteLine(
-                DebugLevel.Debug,
-                $"ValidateAndProcessAsync: Result = {result}"
-            );
-
-            // stop.
-            return await Task.FromResult(result);
-        }
-
-        DebugUtils.WriteLine(
-            DebugLevel.Info,
-            "ValidateAndProcessAsync: *** SUCCESS *** The input is valid.  Proceeding..."
-        );
-
-        // Perform async work
-        await SomeAsyncOperation(input);
-
-        /*
-         * If we made it this far with no Exception(s) getting caught, then
-         * assume that the operation(s) succeeded.
-         */
-
-        result = true;
-    }
-    catch (Exception ex)
-    {
-        // dump all the exception info to the log
-        DebugUtils.LogException(ex);
-
-        result = false;
-    }
-
-    DebugUtils.WriteLine(
-        DebugLevel.Debug,
-        $"ValidateAndProcessAsync: Result = {result}"
-    );
-
-    return await Task.FromResult(result);
-}
-```
-
----
-
-### **4. Always Validate Async Task Results**
-
-When calling async methods, always validate their results:
-
-```csharp
-[return: NotLogged]
-public async Task<bool> OrchestrationMethodAsync(
-    [NotLogged] ICloneContext context
-)
-{
-    var result = false;
-
-    try
-    {
-        // Attempt async operation
-        if (!await TryPerformOperationAsync(context))
-        {
-            // The async operation did NOT succeed.  This is not desirable.
-            DebugUtils.WriteLine(
-                DebugLevel.Error,
-                "OrchestrationMethodAsync: *** ERROR *** The async operation did NOT succeed.  Stopping..."
-            );
-
-            DebugUtils.WriteLine(
-                DebugLevel.Debug,
-                $"OrchestrationMethodAsync: Result = {result}"
-            );
-
-            // stop.
-            return result;
-        }
-
-        DebugUtils.WriteLine(
-            DebugLevel.Info,
-            "OrchestrationMethodAsync: *** SUCCESS *** The async operation succeeded.  Proceeding..."
-        );
-
-        /*
-         * If we made it this far with no Exception(s) getting caught, then
-         * assume that the operation(s) succeeded.
-         */
-
-        result = true;
-    }
-    catch (Exception ex)
-    {
-        // dump all the exception info to the log
-        DebugUtils.LogException(ex);
-
-        result = false;
-    }
-
-    DebugUtils.WriteLine(
-        DebugLevel.Debug,
-        $"OrchestrationMethodAsync: Result = {result}"
-    );
-
-    return result;
-}
-```
-
----
-
-### **5. Thread-Safe UI Switching with `JoinableTaskFactory`**
-
-When calling async methods that require UI thread access, use `JoinableTaskFactory.SwitchToMainThreadAsync()`:
-
-```csharp
-[return: NotLogged]
-public async Task<Project> AddProjectToSolutionAsync(
-    [NotLogged] string projectPathname
-)
-{
-    var result = default(Project);
-
-    try
-    {
-        // Switch to UI thread if not already on it
-        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-
-        DebugUtils.WriteLine(
-            DebugLevel.Info,
-            "AddProjectToSolutionAsync: Checking whether the project pathname is valid..."
-        );
-
-        // Check to see whether the project pathname is valid.
-        // If this is not the case, then write an error message to the log file,
-        // and then terminate the execution of this method.
-        if (!ProjectPathnameValidator.IsValid(projectPathname))
-        {
-            // The project pathname is NOT valid.  This is not desirable.
-            DebugUtils.WriteLine(
-                DebugLevel.Error,
-                "AddProjectToSolutionAsync: *** ERROR *** The project pathname is NOT valid.  Stopping..."
-            );
-
-            DebugUtils.WriteLine(
-                DebugLevel.Debug,
-                $"AddProjectToSolutionAsync: Result = {result}"
-            );
-
-            // stop.
-            return await Task.FromResult(result);
-        }
-
-        DebugUtils.WriteLine(
-            DebugLevel.Info,
-            "AddProjectToSolutionAsync: *** SUCCESS *** The project pathname is valid.  Proceeding..."
-        );
-
-        // Perform UI operation
-        result = Dte2.Solution.AddFromFile(projectPathname, false);
-    }
-    catch (Exception ex)
-    {
-        // dump all the exception info to the log
-        DebugUtils.LogException(ex);
-
-        result = default;
-    }
-
-    DebugUtils.WriteLine(
-        DebugLevel.Debug,
-        $"AddProjectToSolutionAsync: Result = {(result != null ? "valid Project reference" : "null")}"
-    );
-
-    return await Task.FromResult(result);
-}
-```
-
----
-
-### **6. Never Nest `try/catch` Blocks in Async Methods**
-
-Extract nested `try/catch` logic into separate async helper methods:
-
-❌ **Incorrect:**
-
-```csharp
-private async Task<bool> BadAsyncMethod()
-{
-    var result = false;
-    
-    try
-    {
-        // Outer logic
-        
-        try
-        {
-            // Inner async logic
-            await SomeOperationAsync();
-        }
-        catch (Exception innerEx)
-        {
-            // Handle inner exception
-        }
-    }
-    catch (Exception ex)
-    {
-        // Handle outer exception
-    }
-    
-    return result;
-}
-```
-
-✅ **Correct:**
-
-```csharp
-private async Task<bool> GoodAsyncMethod()
-{
-    var result = false;
-    
-    try
-    {
-        // Outer logic
-        
-        if (!await TryPerformInnerOperationAsync())
-        {
-            return result;
-        }
-        
-        /*
-         * If we made it this far with no Exception(s) getting caught, then
-         * assume that the operation(s) succeeded.
-         */
-        
-        result = true;
-    }
-    catch (Exception ex)
-    {
-        // dump all the exception info to the log
-        DebugUtils.LogException(ex);
-        
-        result = false;
-    }
-    
-    return result;
-}
-
-private async Task<bool> TryPerformInnerOperationAsync()
-{
-    var result = false;
-    
-    try
-    {
-        await SomeOperationAsync();
-        
-        /*
-         * If we made it this far with no Exception(s) getting caught, then
-         * assume that the operation(s) succeeded.
-         */
-        
-        result = true;
-    }
-    catch (Exception ex)
-    {
-        // dump all the exception info to the log
-        DebugUtils.LogException(ex);
-        
-        result = false;
-    }
-    
-    return result;
-}
-```
-
----
-
-### **7. Always Log Exceptions Before Returning Default**
-
-```csharp
-catch (Exception ex)
-{
-    // dump all the exception info to the log
-    DebugUtils.LogException(ex);
-
-    result = false; // or default(T) for reference types
-}
-```
-
-**Never** call `DebugUtils.LogException(ex)` without the preceding comment.
-
----
-
-### **8. Use `[return: NotLogged]` for Non-Primitive Async Returns**
-
-```csharp
-[return: NotLogged]
-public async Task<Project> GetProjectAsync()
-{
-    var result = default(Project);
-    
-    try
-    {
-        // ...
-        
-        result = await SomeOperationAsync();
-    }
-    catch (Exception ex)
-    {
-        // dump all the exception info to the log
-        DebugUtils.LogException(ex);
-        
-        result = default;
-    }
-    
-    return result;
-}
-```
-
-## **19) Input Parameter Validation in Asynchronous Methods**
-
-### **Core Validation Principles**
-
-All asynchronous methods follow a strict validation pattern that prioritizes **shift-left defensive programming** using **validator objects** and **silent validation methods** wherever possible:
-
-1. **Always validate parameters before any async work**
-2. **Each validation check must be on its own line with its own early return**
-3. **Never use `||` or `&&` in validation statements**
-4. **Use validator objects (e.g., `CloneContextValidator.IsValid()`) for complex types**
-5. **Use silent validation methods (e.g., `PathnameValidator.IsValidFilePathSilent()`) for pathname strings**
-6. **Log all validation failures**
-7. **Return default values on validation failure**
-
----
-
-### **1. Validator-Based Parameter Validation Pattern**
-
-#### **A. Complex Type Validation Using Validator Objects**
-
-For complex types like `ICloneContext`, use the corresponding `*Validator` class:
-
-```csharp
-[return: NotLogged]
-public async Task<bool> MyAsyncMethodAsync(
-    [NotLogged] ICloneContext context
-)
-{
-    var result = false;
-
-    try
-    {
-        DebugUtils.WriteLine(
-            DebugLevel.Info,
-            "MyAsyncMethodAsync: Checking whether the specified cloning setting(s) are valid..."
-        );
-
-        // Check to see whether the specified cloning setting(s) are valid.
-        // If this is not the case, then write an error message to the log file,
-        // and then terminate the execution of this method.
-        if (!CloneContextValidator.IsValid(context))
-        {
-            // The specified cloning setting(s) are NOT valid.  This is not desirable.
-            DebugUtils.WriteLine(
-                DebugLevel.Error,
-                "MyAsyncMethodAsync: *** ERROR *** The specified cloning setting(s) are NOT valid.  Stopping..."
-            );
-
-            DebugUtils.WriteLine(
-                DebugLevel.Debug,
-                $"MyAsyncMethodAsync: Result = {result}"
-            );
-
-            // stop.
-            return await Task.FromResult(result);
-        }
-
-        DebugUtils.WriteLine(
-            DebugLevel.Info,
-            "MyAsyncMethodAsync: *** SUCCESS *** The specified cloning setting(s) are valid.  Proceeding..."
-        );
-
-        // Perform async work...
-        await SomeAsyncOperation(context);
-
-        /*
-         * If we made it this far with no Exception(s) getting caught, then
-         * assume that the operation(s) succeeded.
-         */
-
-        result = true;
-    }
-    catch (Exception ex)
-    {
-        // dump all the exception info to the log
-        DebugUtils.LogException(ex);
-
-        result = false;
-    }
-
-    DebugUtils.WriteLine(
-        DebugLevel.Debug,
-        $"MyAsyncMethodAsync: Result = {result}"
-    );
-
-    return await Task.FromResult(result);
-}
-```
-
-#### **B. Pathname Validation Using Silent Validator Methods**
-
-For `string` parameters representing **file pathnames**, use `PathnameValidator.IsValidFilePathSilent()`:
-
-```csharp
-[return: NotLogged]
-public async Task<bool> ProcessFileAsync(
-    [NotLogged] string pathname
-)
-{
-    var result = false;
-
-    try
-    {
-        DebugUtils.WriteLine(
-            DebugLevel.Info,
-            $"ProcessFileAsync: Checking whether the pathname, '{pathname}', is valid..."
-        );
-
-        // Check to see whether the pathname, 'pathname', is valid.
-        // If this is not the case, then write an error message to the log file,
-        // and then terminate the execution of this method.
-        if (!PathnameValidator.IsValidFilePathSilent(pathname))
-        {
-            // The specified pathname, 'pathname', is not set to a valid path or does not have a valid format.  This is not desirable.
-            DebugUtils.WriteLine(
-                DebugLevel.Error,
-                $"ProcessFileAsync: *** ERROR *** The specified pathname, '{pathname}', is not set to a valid path or does not have a valid format.  Stopping..."
-            );
-
-            DebugUtils.WriteLine(
-                DebugLevel.Debug,
-                $"ProcessFileAsync: Result = {result}"
-            );
-
-            // stop.
-            return await Task.FromResult(result);
-        }
-
-        DebugUtils.WriteLine(
-            DebugLevel.Info,
-            $"ProcessFileAsync: *** SUCCESS *** The pathname, '{pathname}', appears to have a valid value.  Proceeding..."
-        );
-
-        // Perform async work...
-
-        /*
-         * If we made it this far with no Exception(s) getting caught, then
-         * assume that the operation(s) succeeded.
-         */
-
-        result = true;
-    }
-    catch (Exception ex)
-    {
-        // dump all the exception info to the log
-        DebugUtils.LogException(ex);
-
-        result = false;
-    }
-
-    DebugUtils.WriteLine(
-        DebugLevel.Debug,
-        $"ProcessFileAsync: Result = {result}"
-    );
-
-    return await Task.FromResult(result);
-}
-```
-
-For `string` parameters representing **folder pathnames**, use `PathnameValidator.IsValidFolderPathSilent()`:
-
-```csharp
-DebugUtils.WriteLine(
-    DebugLevel.Info,
-    $"MethodName: Checking whether the folder pathname, '{folderPath}', is valid..."
-);
-
-// Check to see whether the folder pathname, 'folderPath', is valid.
-// If this is not the case, then write an error message to the log file,
-// and then terminate the execution of this method.
-if (!PathnameValidator.IsValidFolderPathSilent(folderPath))
-{
-    // The specified folder pathname, 'folderPath', is not set to a valid path or does not have a valid format.  This is not desirable.
-    DebugUtils.WriteLine(
-        DebugLevel.Error,
-        $"MethodName: *** ERROR *** The specified folder pathname, '{folderPath}', is not set to a valid path or does not have a valid format.  Stopping..."
-    );
-
-    DebugUtils.WriteLine(
-        DebugLevel.Debug,
-        $"MethodName: Result = {result}"
-    );
-
-    // stop.
-    return await Task.FromResult(result);
-}
-
-DebugUtils.WriteLine(
-    DebugLevel.Info,
-    $"MethodName: *** SUCCESS *** The folder pathname, '{folderPath}', appears to have a valid value.  Proceeding..."
-);
-```
-
----
-
-### **2. Validation Order and Categories**
-
-Parameters must be validated in this order:
-
-#### **A. Complex Type Validation (Using Validator Objects)**
-
-Always validate complex types first using their corresponding `*Validator` classes:
-
-```csharp
-// Check to see whether the specified cloning setting(s) are valid.
-// If this is not the case, then write an error message to the log file,
-// and then terminate the execution of this method.
-if (!CloneContextValidator.IsValid(context))
-{
-    // The specified cloning setting(s) are NOT valid.  This is not desirable.
-    DebugUtils.WriteLine(
-        DebugLevel.Error,
-        "MethodName: *** ERROR *** The specified cloning setting(s) are NOT valid.  Stopping..."
-    );
-
-    DebugUtils.WriteLine(
-        DebugLevel.Debug,
-        $"MethodName: Result = {result}"
-    );
-
-    // stop.
-    return await Task.FromResult(result);
-}
-```
-
-#### **B. Pathname Validation (Using Silent Validator Methods)**
-
-Check pathname validity **without** checking for `string.IsNullOrWhiteSpace` first:
-
-```csharp
-// Check to see whether the pathname, 'projectFile', is valid.
-// If this is not the case, then write an error message to the log file,
-// and then terminate the execution of this method.
-if (!ProjectPathnameValidator.IsValidSilent(projectFile))
-{
-    // The specified pathname, 'projectFile', is not set to a valid path or does not have a valid format.  This is not desirable.
-    DebugUtils.WriteLine(
-        DebugLevel.Error,
-        $"MethodName: *** ERROR *** The specified pathname, '{projectFile}', is not set to a valid path or does not have a valid format.  Stopping..."
-    );
-
-    DebugUtils.WriteLine(
-        DebugLevel.Debug,
-        $"MethodName: Result = {result}"
-    );
-
-    // stop.
-    return await Task.FromResult(result);
-}
-```
-
-**Do NOT** precede pathname validation with `string.IsNullOrWhiteSpace()` checks—the silent validator methods handle this internally.
-
-#### **C. File System Existence Checks**
-
-Validate file/directory existence **after** validating pathname format:
-
-```csharp
-DebugUtils.WriteLine(
-    DebugLevel.Info,
-    $"MethodName: Checking whether a file having pathname, '{pathname}', exists on the file system..."
-);
-
-// Check to see whether a file having pathname, 'pathname', exists on the file system.
-// If this is not the case, then write an error message to the log file,
-// and then terminate the execution of this method.
-if (!AlphaFsFileSystem.FileExists(pathname))
-{
-    // A file having pathname, 'pathname', does NOT exist on the file system.  This is not desirable.
-    DebugUtils.WriteLine(
-        DebugLevel.Error,
-        $"MethodName: *** ERROR *** The system could not locate the file having pathname, '{pathname}', on the file system.  Stopping..."
-    );
-
-    DebugUtils.WriteLine(
-        DebugLevel.Debug,
-        $"MethodName: Result = {result}"
-    );
-
-    // stop.
-    return await Task.FromResult(result);
-}
-
-DebugUtils.WriteLine(
-    DebugLevel.Info,
-    $"MethodName: *** SUCCESS *** The file having pathname, '{pathname}', was found on the file system.  Proceeding..."
-);
-```
-
----
-
-### **3. Key Validation Rules Summary**
-
-| Rule | Description |
-|------|-------------|
-| **Use validator objects** | Always use `*Validator.IsValid()` for complex types like `ICloneContext`, if one exists in the codebase of the currently-loaded Solution, that is. |
-| **Use silent validators for pathnames** | Use `PathnameValidator.IsValidFilePathSilent()` or `IsValidFolderPathSilent()` for `string` pathnames |
-| **Never check `string.IsNullOrWhiteSpace` for pathnames** | Silent validators already handle this internally |
-| **One check per `if`** | Never combine conditions with `\|\|` or `&&` |
-| **Immediate return** | Each validation failure returns `await Task.FromResult(result)` |
-| **Log before check** | Always log what you're checking before the check |
-| **Log check result** | Always log `*** SUCCESS ***` after passing a check |
-| **Log failure** | Always log `*** ERROR ***` for validation failures |
-| **Comment before `if`** | Explain what is being checked and why |
-| **Comment inside `if`** | Explain that the condition is "not desirable" |
-| **Comment before return** | Use `// stop.` before early returns |
-| **Result logging** | Log `result` value before every early return |
-
----
-
-## **20) Pipeline Architecture Primer**
-
-This section defines the **canonical pipeline pattern** used throughout this codebase to decompose large, multi-step workflows into discrete, testable, single-responsibility units.  When GitHub Copilot is asked to refactor a "God method" into a pipeline in **any** solution that has copied this `copilot-instructions.md`, it must follow every rule in this section exactly.
-
-### Overview
-
-A pipeline transforms a single large method — one with a sequential list of heterogeneous operations — into:
+Use this pattern to decompose a God Method or sequential workflow into testable units.
 
 | Artifact | Project suffix | Role |
 |---|---|---|
-| Step `enum` | `.Constants` | One member per discrete step; `Unknown = -1` last; alphabetical order |
-| Step `interface` | `.Steps.[WorkflowName].Interfaces` | `IXxxStep` — contract for a single step |
-| Abstract base class | `.Steps.[WorkflowName]` | `XxxStepBase` — shared services; Template Method pattern |
-| Concrete step class(es) | `.Steps.[WorkflowName]` | One class per `enum` member |
-| Pipeline `interface` | `.Pipelines.Interfaces` | `IXxxPipeline` — `ExecuteAsync` + `ProgressUpdate` event |
-| Pipeline class | `.Pipelines` | Runs steps in order; stops on first failure |
-| Context `interface` | `.Contexts.Interfaces` | `IXxxContext` — all state the pipeline and steps share |
-| Context class | `.Contexts` | Concrete implementation of `IXxxContext` |
-| Factory | `.Factories` | `MakeNewXxxStep.OfType(XxxStep type)` |
+| Step enum | `.Constants` | One member per step; `Unknown = -1` last. |
+| Step interface | `.Steps.[WorkflowName].Interfaces` | Contract for one step. |
+| Step base class | `.Steps.[WorkflowName]` | Template Method base and shared services. |
+| Concrete step classes | `.Steps.[WorkflowName]` | One class per enum member. |
+| Pipeline interface | `.Pipelines.Interfaces` | `ExecuteAsync` and `ProgressUpdate`. |
+| Pipeline class | `.Pipelines` | Runs steps in fixed order and stops on first failure. |
+| Context interface | `.Contexts.Interfaces` | Shared workflow state. |
+| Context class | `.Contexts` | Concrete state holder. |
+| Step factory | `.Factories` | `MakeNew[WorkflowName]Step.OfType(...)`. |
 
-### Step `enum` rules
+Rules:
 
-- Declared in the `.Constants` project for the module.
-- Members are in **alphabetical order**; `Unknown = -1` is always last.
-- Each member maps 1:1 to one concrete step class.
-- Use `<c>IXxxStep</c>` (not `<see cref="..."/>`) in `<remarks>` to mention the step interface, to avoid circular project references.
+1. The step enum is alphabetized with `Unknown = -1` last.
+2. Mention `IXxxStep` as `<c>IXxxStep</c>` in enum remarks to avoid circular references.
+3. The step interface exposes `Step`, `ExecuteAsync([NotLogged] IXxxContext context)`, and `ProgressUpdate`.
+4. The abstract step base declares static and protected constructors with `[Log(AttributeExclude = true)]`.
+5. Concrete steps are named `[EnumMemberName]Step` and override `Step` with the matching enum value.
+6. Concrete step `ExecuteAsync` methods validate context first, use the async result pattern, and call `context.IncrementCurrent()` at a meaningful point.
+7. The pipeline creates steps through the factory, subscribes to progress, executes, unsubscribes, and stops on first failure.
+8. The fixed step order must be documented and invariant.
+9. Context progress mutation uses `IncrementCurrent()` and `ResetTotalSteps(int)` with thread-safe implementation.
+10. For `ICloneContext`, the correct method is `context.IncrementCurrent()`, not `context.IncrementCurrentStep()`.
 
-```csharp
-/// <summary>Defines the step(s) available in the Xxx workflow.</summary>
-/// <remarks>
-/// Each member corresponds to a concrete implementation of the
-/// <c>IXxxStep</c> interface.
-/// </remarks>
-public enum XxxStep
-{
-    /// <summary>First step.</summary>
-    AlphabeticallyFirst,
+When refactoring into a pipeline, proceed in phases and stop after each phase:
 
-    /// <summary>Second step.</summary>
-    AlphabeticallySecond,
+1. Discovery: identify steps and propose the enum only.
+2. Constants and context.
+3. Step interface and base class.
+4. Concrete steps, one at a time.
+5. Pipeline interface and class.
+6. Factory.
 
-    /// <summary>Unknown or unspecified step type.</summary>
-    Unknown = -1
-}
-```
+Before every phase, check for circular dependencies.
 
-### Step `interface` (`IXxxStep`) rules
+## 15) ProjectCloner-specific reminders
 
-Declared in `.Steps.[WorkflowName].Interfaces`.  Must expose:
+- Preserve current architecture unless explicitly asked to redesign it.
+- For source generation, check `CONTRIBUTING.md` for required headers.
+- Do not replace existing custom GUIDs without explicit instruction.
+- Keep generated snippets small, complete, and in reference order.
+- Do not provide `.patch` files unless explicitly asked; prefer step-by-step drop-in code and explanations.
+- If working with text-editor configuration, build-event XML documentation fixes, or error reporting, inspect current implementations first because migration work may be partially complete.
 
-1. A `Step` property of the step `enum` type, decorated `[DebuggerStepThrough]` on the getter.
-2. A `[return: NotLogged] Task<bool> ExecuteAsync([NotLogged] IXxxContext context)` method.
-3. A `ProgressUpdate` event of the appropriate `EventHandler` delegate type.
+## 16) Documentation file path generator architecture
 
-```csharp
-public interface IXxxStep
-{
-    XxxStep Step { [DebuggerStepThrough] get; }
+For `PC.Generators.Paths.*`, generate `DocumentationFile` values according to Visual Studio convention:
 
-    [return: NotLogged]
-    Task<bool> ExecuteAsync([NotLogged] IXxxContext context);
+| Platform | Configuration | Value |
+|---|---|---|
+| `AnyCPU` | `Debug` | `bin\Debug\{ProjectName}.xml` |
+| `AnyCPU` | `Release` | `bin\Release\{ProjectName}.xml` |
+| `x86` | `Debug` | `bin\x86\Debug\{ProjectName}.xml` |
+| `x86` | `Release` | `bin\x86\Release\{ProjectName}.xml` |
+| `x64` | `Debug` | `bin\x64\Debug\{ProjectName}.xml` |
+| `x64` | `Release` | `bin\x64\Release\{ProjectName}.xml` |
+| `ARM64` | `Debug` | `bin\ARM64\Debug\{ProjectName}.xml` |
+| `ARM64` | `Release` | `bin\ARM64\Release\{ProjectName}.xml` |
 
-    event XxxProgressUpdateEventHandler ProgressUpdate;
-}
-```
+Primary strategy: build configuration. Secondary strategy: platform.
 
-### Abstract base class (`XxxStepBase`) rules
+- `DocumentationFilePlatform`: `AnyCpu`, `Arm64`, `X64`, `X86`, `Unknown = -1`.
+- `DocumentationFileConfiguration`: `Debug`, `Release`, `Unknown = -1`.
+- `IDocumentationFilePathGenerator` exposes `Platform` and `GenerateFor(string projectFileName)`.
+- `IDocumentationFilePathGeneratorFactory` exposes `Configuration` and `AndPlatform(string platform)`.
+- Platform generators compute the final relative path.
+- Configuration factories manufacture platform generators with their configuration string.
+- `MakeNewDocumentationFilePathGenerator.ForConfiguration(configuration).AndPlatform(platform).GenerateFor(projectFileName)` is the intended call chain.
 
-Declared in `.Steps.[WorkflowName]`.  Must:
-
-- Declare both `static` and `protected` constructors, both decorated `[Log(AttributeExclude = true)]`.
-- Implement `IXxxStep` as `abstract`.
-- Expose `Step` as `public abstract XxxStep Step { [DebuggerStepThrough] get; }`.
-- Declare `ExecuteAsync` as `public abstract`.
-- Wire `ProgressUpdate` forwarding if individual steps raise sub-progress events.
-
-```csharp
-public abstract class XxxStepBase : IXxxStep
-{
-    [Log(AttributeExclude = true)]
-    static XxxStepBase() { }
-
-    [Log(AttributeExclude = true)]
-    protected XxxStepBase() { }
-
-    public abstract XxxStep Step { [DebuggerStepThrough] get; }
-
-    [return: NotLogged]
-    public abstract Task<bool> ExecuteAsync([NotLogged] IXxxContext context);
-
-    public event XxxProgressUpdateEventHandler ProgressUpdate;
-
-    protected virtual void OnProgressUpdate(
-        [NotLogged] XxxProgressUpdateEventArgs e
-    ) => ProgressUpdate?.Invoke(this, e);
-}
-```
-
-### Concrete step class rules
-
-- Named `[EnumMemberName]Step` (e.g., `AlphabeticallyFirstStep`).
-- Declares `public override XxxStep Step { [DebuggerStepThrough] get; } = XxxStep.AlphabeticallyFirst;`
-- `ExecuteAsync` wraps all work in `try/catch`, uses the `result` variable pattern, validates `context` first via the corresponding `*Validator` class, and calls `context.IncrementCurrent()` at a semantically meaningful point.
-- Both `static` and `public` constructors are decorated `[Log(AttributeExclude = true)]`.
-- All XML documentation is copied down from the interface and base class for every `override`.
-
-```csharp
-public class AlphabeticallyFirstStep : XxxStepBase
-{
-    [Log(AttributeExclude = true)]
-    static AlphabeticallyFirstStep() { }
-
-    [Log(AttributeExclude = true)]
-    public AlphabeticallyFirstStep() { }
-
-    public override XxxStep Step
-    {
-        [DebuggerStepThrough] get;
-    } = XxxStep.AlphabeticallyFirst;
-
-    [return: NotLogged]
-    public override async Task<bool> ExecuteAsync(
-        [NotLogged] IXxxContext context
-    )
-    {
-        var result = false;
-
-        try
-        {
-            if (!XxxContextValidator.IsValid(context))
-                return await Task.FromResult(result);
-
-            // ... step-specific work ...
-
-            result = true;
-        }
-        catch (Exception ex)
-        {
-            // dump all the exception info to the log
-            DebugUtils.LogException(ex);
-
-            result = false;
-        }
-
-        return await Task.FromResult(result);
-    }
-}
-```
-
-### Pipeline `interface` (`IXxxPipeline`) rules
-
-Declared in `.Pipelines.Interfaces`.  Must expose:
-
-1. `Task<bool> ExecuteAsync([NotLogged] IXxxContext context)` — runs all steps in order.
-2. `event XxxProgressUpdateEventHandler ProgressUpdate` — forwarded from each step.
-
-### Pipeline class (`XxxPipeline`) rules
-
-- Declared in `.Pipelines`.
-- `ExecuteAsync` instantiates each step via `MakeNewXxxStep.OfType(XxxStep.Xxx)`, subscribes to its `ProgressUpdate`, calls `step.ExecuteAsync(context)`, unsubscribes, and returns `false` immediately if any step fails.
-- Steps are executed in a **documented, fixed order** that is invariant across runs.
-- Both `static` and `public` constructors are decorated `[Log(AttributeExclude = true)]`.
-
-### Factory rules
-
-- Declared in `.Factories` as `public static class MakeNewXxxStep`.
-- Exposes `public static IXxxStep OfType(XxxStep type)` — a `switch` on `type` that returns the correct concrete instance.
-- Returns `default(IXxxStep)` (with a log warning) for `XxxStep.Unknown` or any unrecognized value.
-- The `static` constructor is decorated `[Log(AttributeExclude = true)]`.
-
-### Context rules
-
-- `IXxxContext` (in `.Contexts.Interfaces`) exposes all properties and methods that steps and the pipeline need.
-- `XxxContext` (in `.Contexts`) implements `IXxxContext`; `Current` and `TotalSteps` are mutated only through `IncrementCurrent()` and `ResetTotalSteps(int)`, both thread-safe via `Interlocked` and `lock(SyncRoot)`.
-- Both `static` and `public` constructors on `XxxContext` are decorated `[Log(AttributeExclude = true)]`.
-
-### Canonical prompting sequence when refactoring a God method into a pipeline
-
-When asked to perform this refactoring, GitHub Copilot **must** follow these phases in order and **stop after each phase** to await approval:
-
-**Phase 1 — Discovery**
-> "Identify the discrete, single-responsibility steps latent in `[MethodName]`.  Propose a `[WorkflowName]Step` enum with one member per step, alphabetically ordered, `Unknown = -1` last.  Do not write any code yet."
-
-**Phase 2 — Constants & Context**
-> "Scaffold the `[WorkflowName]Step` enum in `[Module].Constants`, the `I[WorkflowName]Context` interface in `[Module].Contexts.Interfaces`, and the `[WorkflowName]Context` class in `[Module].Contexts`.  Stop before writing the step interface, base class, or any concrete steps."
-
-**Phase 3 — Step Interface & Base Class**
-> "Write `I[WorkflowName]Step` in `[Module].Steps.[WorkflowName].Interfaces` and `[WorkflowName]StepBase` in `[Module].Steps.[WorkflowName]`.  Stop before writing any concrete step class."
-
-**Phase 4 — Concrete Steps (one at a time)**
-> "Implement `[EnumMemberName]Step` only.  Extract only the logic that belongs to this step from `[OriginalMethod]`.  Stop after this one step."
-
-Repeat Phase 4 for each step in sequence.
-
-**Phase 5 — Pipeline Interface & Class**
-> "Write `I[WorkflowName]Pipeline` in `[Module].Pipelines.Interfaces` and `[WorkflowName]Pipeline` in `[Module].Pipelines`.  Wire all [N] steps in `ExecuteAsync` in the correct order."
-
-**Phase 6 — Factory**
-> "Write `MakeNew[WorkflowName]Step.OfType([WorkflowName]Step type)` in `[Module].Factories`."
-
-**Circular-dependency check (mandatory before every phase)**
-GitHub Copilot must verify — before suggesting any project reference — that adding it would not create a cycle through the transitive reference graph.  If a cycle would result, a new intermediary library must be proposed instead.
+To add a configuration, update the configuration enum, add a concrete factory, and update the configuration selector. To add a platform, update the platform enum, add a concrete generator, and update each configuration factory's platform switch.
