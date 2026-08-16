@@ -1,15 +1,15 @@
 # The xyLOGIX Software Engineering Manifesto
-Revision: K
-Last Updated: 18 July 2026
+Revision: L
+Last Updated: 16 August 2026
 
 This document outlines the software-development hills we'll die on, here at xyLOGIX.
 
 By Brian C. Hart, Ph.D.
 Copyright © 2026 by xyLOGIX, LLC.  All rights reserved.
 
-## Revision K Scope
+## Revision L Scope
 
-Revision K consolidates the architectural manifesto with the operational C# development rules previously maintained in `copilot-code-instructions.txt`.  The original Revision H material is preserved below.  The new implementation manual that follows it resolves the instruction gaps and turns the combined guidance into a single reference for designing, writing, documenting, reviewing, and maintaining xyLOGIX software.
+Revision L preserves the architectural and implementation guidance consolidated in Revision K and adds the standard conventions for `Pipeline`, `Playbook`, `Chain`, and `FallbackChain` orchestration components.  In particular, Revision L standardizes their class/interface documentation, canonical execution-order arrays, and diagnostic-logging boundaries.  It also clarifies that `Silent` methods remain both log-silent and free of explanatory gate comments added merely to mirror logged methods, while trivial pass-through accessors and factories are not to be expanded with diagnostic ceremony that does not benefit a reader of the log.
 
 ## Why xyLOGIX Must Have SOLID Software
 
@@ -2002,6 +2002,25 @@ A `Playbook`, made up of a collection of `Algorithm`(s), is very similar to a `P
 
 BTW -- if any of a `Pipeline`, `Playbook`, `Chain`, or `FallbackChain` is going to otherwise be designed to only execute a single action step, then don't even bother.  Just create a single, dedicated component object that handles the task.  It's only when the sequence of operations numbers two or more, that one of these construct(s) will be created.
 
+The top-level orchestration class and its corresponding public interface are documentation artifacts as much as they are code.  Their XML documentation should explain what the orchestration component does, identify the ordered units of work, and describe the stopping/success semantics in the same style used by mature xyLOGIX pipeline components.  When the concrete orchestration class has a canonical order, its class-level `<remarks>` should enumerate that order with a numbered XML list.  The interface-level documentation should convey the same operational model without introducing dependency cycles merely for documentation cross-references.
+
+The canonical execution order is always represented by a plain, hard-coded array of the enum that identifies the workflow units.  Use the narrowest conventional declaration for the architecture:
+
+```csharp
+private static readonly SomeWorkflowStepType[] StepOrder =
+{
+    SomeWorkflowStepType.First,
+    SomeWorkflowStepType.Second,
+    SomeWorkflowStepType.Third
+};
+```
+
+Use an architecture-appropriate field name such as `StepOrder`, `AlgorithmExecutionOrder`, `LinkOrder`, or `ApproachOrder`.  Do not wrap the canonical array in `IReadOnlyList<T>`, `Array.AsReadOnly(...)`, or another collection abstraction merely to make the array appear more immutable.  The field itself is `private static readonly`; the array is an internal implementation detail whose purpose is to make the prescribed order explicit and easy to audit.
+
+Document the execution-order field with a `<summary>` explaining that it defines the ordered sequence and a `<remarks>` section that explains why the order is canonical/critical and enumerates the units in the same order as the array.  A later unit may depend on state established by an earlier unit, so reordering must be treated as a behavioral change rather than a formatting preference.
+
+Top-level orchestration methods are diagnostically important.  In non-`Silent` methods, log meaningful precondition gates, the start of each substantial activity, the identity/order of each unit being executed, failure outcomes, early stopping conditions, and successful completion.  Do not add this ceremony to trivial pass-through methods such as `SoleInstance()` accessors, and do not add explanatory gate comments or routine logging to methods whose contract deliberately ends in `Silent`.
+
 ## Depend on the Narrowest Possible Contract
 
 At xyLOGIX, we keep dependencies as narrow as possible.
@@ -2307,7 +2326,9 @@ Extract a helper when the logic is meaningful, reusable, independently nameable,
 
 A normal logged method uses verbose, explicit gates.  Before each gate, write an informational message stating what is being checked.  On failure, write an error or warning message, log the result when the repository pattern requires it, and return the default result.  On success, write a success message and proceed.  Leave a blank source line after each `DebugUtils.WriteLine(...)` call in pre-cleanup generated code.
 
-A method intentionally named with a `Silent` suffix is different.  It should perform the same validation gates without the verbose diagnostic commentary and routine `DebugUtils.WriteLine(...)` calls.  Do not make a silent method noisy in the name of consistency.
+A method intentionally named with a `Silent` suffix is different.  It should perform the same validation gates without the verbose diagnostic commentary and routine `DebugUtils.WriteLine(...)` calls.  Do not make a silent method noisy in the name of consistency.  Do not add explanatory gate comments to `Silent` code merely to parallel the logged implementation; the silent path should remain intentionally terse and mechanically focused on the validation itself.
+
+Likewise, do not expand trivial pass-through methods such as `GetXxx.SoleInstance()` with gate/activity/failure logging when the method only returns an already-established singleton reference.  Diagnostic logging belongs where a reader of the log gains meaningful information about validation, orchestration, state transition, native/enabler work, or a failure mode.
 
 Do not create a helper whose entire responsibility is to write a single logging statement.  Logging supports a user-benefiting responsibility; it is not, by itself, a responsibility that justifies another method or class.
 
@@ -2489,6 +2510,12 @@ Use a Chain of Responsibility when a request should pass through handlers until 
 
 Avoid a deeply nested set of more than one behavioral `if` branch when the branches represent stable, named strategies.  Prefer a strategy family and factory so that each behavior remains independently testable and replaceable.
 
+For every `Pipeline`, `Playbook`, `Chain`, and `FallbackChain`, represent the canonical order with a plain `private static readonly <EnumType>[]` field.  Use `StepOrder` for pipeline steps, an explicit algorithm-order name such as `AlgorithmExecutionOrder` for playbook algorithms, `LinkOrder` for chain links, and `ApproachOrder` for fallback-chain approaches unless the domain provides a clearer equivalent.  The declaration should expose the order directly; do not hide it behind `IReadOnlyList<T>`, `Array.AsReadOnly(...)`, or an allocation whose only purpose is to wrap the array.
+
+The concrete orchestration class should document the ordered units in its class-level `<remarks>` using `<list type="number">`, and the execution-order field should carry parallel documentation explaining the canonical order and why it matters.  The corresponding public interface should describe the same overall orchestration/stopping semantics in the repository's normal interface-documentation style.  When a direct `cref` from the interface project would create or worsen project coupling, use `<c>...</c>` for the unit names instead of adding a documentation-only project reference.
+
+The principal non-`Silent` execution method of the orchestration component should be a high-value diagnostic boundary.  Log the important gates, the start of execution, each unit selected/executed, early termination or fallback conditions, failure outcomes, and final success.  Do not transform trivial `SoleInstance()`/alias methods, and do not add logging or explanatory gate comments to `Silent` methods.
+
 ## Singletons and Factory Naming
 
 A singleton concrete class exposes an interface-typed `Instance` property.  Its constructor is non-public and decorated to suppress unnecessary constructor logging where appropriate.
@@ -2655,12 +2682,21 @@ Before considering a source change complete, verify the following:
 16. Events are raised through protected virtual invocators and are not declared without use.
 17. Enum members follow the ordering and `Unknown = -1` convention unless compatibility requires another layout.
 18. UI code respects MVP and established Windows dialog conventions.
-19. Tests cover critical or regression-prone behavior where necessary.
-20. ReSharper and CodeMaid formatting changes are not mistaken for behavioral changes.
+19. `Pipeline`, `Playbook`, `Chain`, and `FallbackChain` components use a plain private static readonly enum array for their canonical order and document that order consistently.
+20. Tests cover critical or regression-prone behavior where necessary.
+21. ReSharper and CodeMaid formatting changes are not mistaken for behavioral changes.
 
-## Revision K Consolidation Summary
+## Revision L Consolidation Summary
 
-Revision K preserves the architectural principles and examples from Revision H and adds the implementation rules that were previously distributed through coding-assistant instructions.  The principal additions are:
+Revision L preserves the architectural principles, examples, and consolidated implementation rules from Revision K.  The principal additions in Revision L are:
+
+- Standardized class-level and interface-level XML documentation for `Pipeline`, `Playbook`, `Chain`, and `FallbackChain` orchestration components.
+- Standardized canonical execution-order fields as plain `private static readonly <EnumType>[]` arrays, with architecture-appropriate names such as `StepOrder`, `AlgorithmExecutionOrder`, `LinkOrder`, and `ApproachOrder`.
+- Required execution-order field documentation that explains and enumerates the prescribed order.
+- Clarified diagnostic boundaries for top-level non-`Silent` orchestration methods while excluding trivial pass-through methods from unnecessary logging.
+- Clarified that `Silent` methods remain free of both routine diagnostic logging and explanatory gate comments added merely to mirror logged methods.
+
+Revision K's consolidated implementation additions remain in force, including:
 
 - The supported toolchain and compatibility baseline.
 - Source-file ordering, header preservation, comment layout, and cleanup boundaries.
