@@ -1,5 +1,5 @@
 # The xyLOGIX Software Engineering Manifesto
-Revision: M
+Revision: N
 Last Updated: 16 August 2026
 
 This document outlines the software-development hills we'll die on, here at xyLOGIX.
@@ -7,11 +7,13 @@ This document outlines the software-development hills we'll die on, here at xyLO
 By Brian C. Hart, Ph.D.
 Copyright © 2026 by xyLOGIX, LLC.  All rights reserved.
 
-## Revision M Scope
+## Revision N Scope
 
-Revision M preserves the architectural and implementation guidance consolidated through Revision L and adds a general standard for validator design.  In particular, Revision M requires callable validation operations to provide corresponding logged and `Silent` entry points, requires those entry points to begin the validation work directly rather than existing as ceremonial wrappers around one another or around a single catch-all helper, and establishes that silence is transitive across the dependencies invoked by a `Silent` validation path.  Revision M also clarifies when silent validation should be preferred in hot or repetitive paths so that diagnostic logs remain useful rather than noisy.
+Revision N preserves the architectural and implementation guidance consolidated through Revision M and strengthens the standards for developer-facing documentation and incremental source-control delivery.  XML documentation is explicitly defined as a contract and maintenance aid for another developer: it explains what an abstraction represents, when and how to use it, how related entry points differ, what callers may rely upon, and which failure, side-effect, lifetime, concurrency, or external-state concerns matter.  Documentation must not merely narrate the statements in a method body.
 
-The pipeline, playbook, chain, fallback-chain, logging, documentation, and other software-engineering conventions established in Revision L remain in force.
+Revision N also establishes a two-phase delivery model when creating a new project or module: create and commit the standard scaffold first, then add or update the functional implementation within that scaffold and commit the implementation separately.  Commit grouping inside each phase follows the repository's staged-diff/work-item conventions.  Revision N additionally standardizes the classic presentation of intentionally generated or edited `AssemblyInfo.cs` files while preserving project-specific metadata semantics, and reinforces use of repository Live Templates for constructor documentation.
+
+The validator, pipeline, playbook, chain, fallback-chain, logging, concurrency, and other software-engineering conventions established in Revision M remain in force.
 
 ## Why xyLOGIX Must Have SOLID Software
 
@@ -2225,6 +2227,14 @@ Do not add decorative file banners, `File:` banners, `Namespace:` banners, or se
 
 Do not use local functions.  When nested `try`/`catch` blocks or a substantial local algorithm suggest extraction, create a private method or, when the containing class is becoming unfocused, move the responsibility to a separate class or singleton service.  Do not extract a helper whose only purpose is to write one log message.
 
+### `AssemblyInfo.cs` presentation
+
+When a legacy project's `AssemblyInfo.cs` file is intentionally created, regenerated, or standardized, use the classic assembly-metadata presentation established by xyLOGIX: the assembly attributes are grouped beneath concise comment blocks for general assembly information, COM visibility, the type-library GUID, and assembly version information.  Long attribute arguments may be wrapped for readability, but formatting does not change the meaning of the metadata.
+
+A style-only `AssemblyInfo.cs` change must preserve the project's existing active attribute inventory, attribute ordering when it is meaningful to the repository, and the values supplied to those attributes.  Do not add, remove, deduplicate, or reinterpret `AssemblyVersion`, `AssemblyFileVersion`, `Guid`, `AssemblyDescription`, or another metadata attribute merely to make different projects look more alike.  A project-specific description remains project-specific.
+
+Use the actual `©` character when copyright text is represented directly in C# source.  Do not emit the literal six-character text `\u00a9` as though it were the copyright symbol.  Preserve the repository's required source encoding so that the character is represented correctly.
+
 ## Formatting and Code-Cleanup Boundaries
 
 CodeMaid and JetBrains ReSharper are responsible for final wrapping, indentation, member layout, and cleanup.  Generated or handoff code should be syntactically correct and structurally faithful before cleanup; the cleanup tools may then reflow it according to the maintainer's configured rules.
@@ -2375,6 +2385,28 @@ When XML documentation cross-references this method, use the full signature `M:x
 Every code entity must be documented, regardless of accessibility.  This includes public, protected, internal, and private classes, structs, interfaces, enums, enum members, delegates, events, fields, constants, properties, methods, constructors, and parameters.
 
 XML documentation is part of the product.  It is transformed into Markdown and must read like professional Microsoft Learn-style documentation.
+
+### Developer-facing contract documentation
+
+Write XML documentation for the developer who must consume, debug, extend, or maintain the code later.  The primary questions are not "what statements does this method execute?" but rather "what is this abstraction?", "why does it exist?", "when should I use it?", "what can I rely upon?", and "what can go wrong?"
+
+A useful summary identifies the semantic responsibility of the type or member.  Useful remarks explain matters that affect correct use or maintenance, such as:
+
+- The scenario for which the member is intended.
+- Preconditions and meaningful postconditions.
+- The distinction between this member and a related or competing entry point, including when a caller should choose one instead of the other.
+- Safe/default behavior for invalid input or caught failures.
+- Exceptions that intentionally escape the API boundary.
+- Observable side effects or state transitions.
+- Resource ownership, disposal, native-handle lifetime, time-of-check/time-of-use, or external-state assumptions.
+- Concurrency, reentrancy, thread-affinity, synchronization, or snapshot semantics when they affect safe use.
+- Performance or repeated-call considerations when they materially affect the caller's choice.
+
+Do not paraphrase the implementation line by line.  Avoid documentation whose main content is that the method "calls X, then checks Y, then assigns Z" unless one of those implementation details is itself part of the public or maintenance contract.  Source code already tells a maintainer how the implementation is currently written; XML documentation should explain the intent and constraints that must survive a future refactor.
+
+When several public members represent alternative policies or operating modes, document the conceptual difference at the type level when practical and reinforce the caller-selection guidance on the individual members.  A developer should not need to read the implementation to discover which public entry point is appropriate.
+
+Apply this standard on every documentation pass, including documentation written for private/internal members.  Private-member documentation should help a future maintainer preserve invariants and understand why the member exists without exposing irrelevant implementation trivia in public contracts.
 
 ### Tag order
 
@@ -2615,6 +2647,20 @@ Commit messages follow the repository's dedicated commit-message instructions.  
 
 Keep commits scoped to the actual diff.  Do not claim unperformed cleanup, future work, or unrelated changes.
 
+### Scaffold first, implementation second
+
+When a change creates a new project, module, or comparable source-code container, treat the structural scaffold and the functional implementation as two separate source-control phases.
+
+First create the standard scaffold: the project file, standard metadata/resources, required project-level infrastructure, and other ingredients that establish the new project as a valid architectural container.  Commit that scaffold before adding the functional implementation.  The scaffold commit is a real checkpoint that answers the question, "what structure was added to the software system?"
+
+After the scaffold commit, add or update the interfaces, constants, implementations, factories, tests, and other functional source that give the new project its behavior.  Commit that implementation separately.  The implementation commit answers the question, "what behavior was added inside the new structure?"
+
+Within each phase, follow the repository's normal work-item or staged-diff grouping.  If the repository uses a command or tool that creates the intended staged Git diff, let that diff determine the file grouping rather than inventing an unrelated grouping.
+
+Do not mix a completed implementation into the scaffold commit merely because all of the files can be generated at once.  Conversely, do not manufacture an artificial scaffold phase when the change does not create a new project/module or when the repository explicitly defines a different atomic delivery requirement.
+
+This two-phase rule improves reviewability, retryability, and historical clarity: a maintainer can distinguish the architectural skeleton from the flesh and organs added afterward.
+
 ## AI-Assisted Development and Code Handoff
 
 AI assistance is a coding accelerator, not an authority over the repository.  The current source, repository guidance, maintainer instructions, and compiler remain authoritative.
@@ -2647,6 +2693,10 @@ Generate source as though the appropriate Live Template had just been expanded b
 - Distinct patterns for logged and `Silent` methods.
 
 Do not shorten these patterns merely because a compact equivalent would compile.  Consistency with the established template improves maintainability and diagnostic usefulness.
+
+Constructor documentation is included in this rule.  When the repository provides a Live Template for a static constructor, preserve its standard remarks explaining that the constructor runs automatically before the first instance or static-member use and that `[Log(AttributeExclude = true)]` is applied to simplify logging output.  When the repository provides a template for a public fresh-instance constructor, use its established "Creates a new instance..." wording and its logging-suppression remarks.  Do not keep only the attribute while dropping the template's documentation.
+
+Treat cleanup-generated line wrapping and indentation as non-semantic.  The obligation is to preserve the template's content and contract; formatting tools may reflow it afterward.
 
 ## Engineering Judgment and Narrowly Tailored Exceptions
 
@@ -2709,12 +2759,28 @@ Before considering a source change complete, verify the following:
 21. Validator entry points begin validation immediately rather than merely forwarding the whole operation to their twin or to one catch-all helper.
 22. `Silent` validation paths remain silent transitively, including the subordinate validators, providers, resolvers, parsers, and other dependencies they invoke.
 23. Hot or repetitive validation paths use silent validation when per-item diagnostics would create noise without adding useful information.
-24. Tests cover critical or regression-prone behavior where necessary.
-25. ReSharper and CodeMaid formatting changes are not mistaken for behavioral changes.
+24. XML documentation explains semantic purpose, correct usage, alternatives, failure behavior, side effects, lifetime, and concurrency concerns where relevant rather than narrating the implementation body.
+25. Related public entry points document when a caller should choose one policy or mode instead of another.
+26. If a new project or module was created, its standard scaffold was committed before the functional implementation was added and committed.
+27. Intentionally generated or standardized `AssemblyInfo.cs` files preserve project-specific metadata semantics and use the standard comment/presentation conventions.
+28. Applicable constructor documentation follows the repository's Live Template content, not merely its attributes.
+29. Tests cover critical or regression-prone behavior where necessary.
+30. ReSharper and CodeMaid formatting changes are not mistaken for behavioral changes.
 
-## Revision M Consolidation Summary
+## Revision N Consolidation Summary
 
-Revision M preserves the architectural principles, examples, and consolidated implementation rules from Revision L.  The principal additions in Revision M are:
+Revision N preserves the architectural principles, examples, and consolidated implementation rules from Revision M.  The principal additions in Revision N are:
+
+- Defined XML documentation as developer-facing contract and maintenance documentation rather than a narration of implementation statements.
+- Required documentation to explain intended use, alternative entry points, failure/default behavior, side effects, resource/native lifetime, concurrency, and other caller-relevant constraints when applicable.
+- Required related public APIs to explain which entry point or policy a caller should choose without forcing the developer to inspect implementation code.
+- Established the scaffold-first delivery workflow for newly created projects/modules: create and commit the standard architectural scaffold, then add and separately commit the functional implementation.
+- Required repository staged-diff/work-item conventions to determine commit grouping within each scaffold/implementation phase.
+- Standardized the classic comment/layout presentation for intentionally created or edited legacy `AssemblyInfo.cs` files while preserving project-specific metadata semantics.
+- Required the actual `©` source character for copyright text rather than the literal text `\u00a9`.
+- Reinforced that constructor Live Templates include their documentation content as well as their attributes, while cleanup tools remain free to reflow formatting.
+
+Revision M's additions remain in force, including:
 
 - Required logged and `Silent` counterparts for every callable validator operation.
 - Required semantic parity between logged and `Silent` validation paths: they validate the same contract and differ only in diagnostic behavior.
