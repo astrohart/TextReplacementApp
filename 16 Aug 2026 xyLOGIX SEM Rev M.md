@@ -1,5 +1,5 @@
 # The xyLOGIX Software Engineering Manifesto
-Revision: L
+Revision: M
 Last Updated: 16 August 2026
 
 This document outlines the software-development hills we'll die on, here at xyLOGIX.
@@ -7,9 +7,11 @@ This document outlines the software-development hills we'll die on, here at xyLO
 By Brian C. Hart, Ph.D.
 Copyright © 2026 by xyLOGIX, LLC.  All rights reserved.
 
-## Revision L Scope
+## Revision M Scope
 
-Revision L preserves the architectural and implementation guidance consolidated in Revision K and adds the standard conventions for `Pipeline`, `Playbook`, `Chain`, and `FallbackChain` orchestration components.  In particular, Revision L standardizes their class/interface documentation, canonical execution-order arrays, and diagnostic-logging boundaries.  It also clarifies that `Silent` methods remain both log-silent and free of explanatory gate comments added merely to mirror logged methods, while trivial pass-through accessors and factories are not to be expanded with diagnostic ceremony that does not benefit a reader of the log.
+Revision M preserves the architectural and implementation guidance consolidated through Revision L and adds a general standard for validator design.  In particular, Revision M requires callable validation operations to provide corresponding logged and `Silent` entry points, requires those entry points to begin the validation work directly rather than existing as ceremonial wrappers around one another or around a single catch-all helper, and establishes that silence is transitive across the dependencies invoked by a `Silent` validation path.  Revision M also clarifies when silent validation should be preferred in hot or repetitive paths so that diagnostic logs remain useful rather than noisy.
+
+The pipeline, playbook, chain, fallback-chain, logging, documentation, and other software-engineering conventions established in Revision L remain in force.
 
 ## Why xyLOGIX Must Have SOLID Software
 
@@ -1974,7 +1976,13 @@ If there is a way to realistically group related classes, each of which have rel
 
 ### SRP on the Class Level
 
-What SRP on the C# class level looks like, to us, is not necessary "only has one public method."  More, "only does one job."  If overload(s) of methods are necessary to do that job, or if there is more than one manner in which the job can be handled, the class can expose multiple public methods if they all serve the same overall purpose, writ large.  Such as an event bus -- it needs to be connected and disconnected and assist clients in managing the events; that's its "single responsibility."  It should be obvious, to even the most casual of observers, that to do that requires an interface that exposes more than just a single method.  Take validators, also, for example.  A validator object typically exposes an `IsValid` method.  Such methods generally, at xylOGIX, are intended to write messages to the logs as they run rules and validations on the data that they are tasked with accessing.  But, sometimes callers may not want extraneous logging; perhaps they need to call the validation frequently.  At xyLOGIX, we also write an `IsValidSilent` method to go along with the corresponding `IsValid` method; this has the same signature and similar XML documentation.  The exception is that, for an `IsValidSilent` method, neither the call of the method itself, nor anything it does (including trapping of `System.Exception`) writes info to the log file.  However, conceptually, the Single Responsibility Principle is still, in our mindset, being upheld.  This is due to the fact that both the `IsValid` and `IsValidSilent` method(s) carry out the same task, but one is logged and the other is not.  It is also acceptable for validators to have multiple `IsValidXYZ()` methods, where such methods are called for a target data object, such as a pipeline context, that is being filled in to a greater and greater extent, as a pipeline, chain, or playbook proceeds.
+What SRP on the C# class level looks like, to us, is not necessary "only has one public method."  More, "only does one job."  If overload(s) of methods are necessary to do that job, or if there is more than one manner in which the job can be handled, the class can expose multiple public methods if they all serve the same overall purpose, writ large.  Such as an event bus -- it needs to be connected and disconnected and assist clients in managing the events; that's its "single responsibility."  It should be obvious, to even the most casual of observers, that to do that requires an interface that exposes more than just a single method.
+
+Take validators, also, for example.  A validator object typically exposes an `IsValid` method.  Such methods generally are intended to write useful messages to the logs as they run rules and validations on the data that they are tasked with accessing.  Sometimes callers may not want extraneous logging, particularly when validation occurs repeatedly or in a hot loop.  For every callable logged validation operation, provide a corresponding `Silent` operation with the same validation contract, signature shape, and failure semantics.  For example, `IsValidThing(...)` should be paired with `IsValidThingSilent(...)`.
+
+The logged and `Silent` methods still represent one responsibility: validating the same thing.  The difference is observability, not business purpose.  However, neither entry point should be implemented as a ceremonial wrapper whose entire body merely calls the other entry point.  Validation should begin immediately when either entry point is invoked.  It is acceptable to share narrowly-scoped, meaningful predicate helpers when doing so improves clarity or prevents genuinely nontrivial duplication, but a validator entry point must not exist merely to forward all responsibility to one catch-all helper.
+
+It is also acceptable for validators to have multiple `IsValidXYZ()` operations when they validate distinct, meaningful states of the same target object, such as a workflow context that becomes progressively more populated as a pipeline, chain, or playbook proceeds.  Each callable validation operation follows the same logged/`Silent` pairing rule.
 
 ## Pipelines, Chains, Playbooks, Links, Steps, and Algorithms, Oh My!
 
@@ -2328,7 +2336,13 @@ A normal logged method uses verbose, explicit gates.  Before each gate, write an
 
 A method intentionally named with a `Silent` suffix is different.  It should perform the same validation gates without the verbose diagnostic commentary and routine `DebugUtils.WriteLine(...)` calls.  Do not make a silent method noisy in the name of consistency.  Do not add explanatory gate comments to `Silent` code merely to parallel the logged implementation; the silent path should remain intentionally terse and mechanically focused on the validation itself.
 
+Silence is transitive.  A `Silent` method must not call a dependency whose ordinary implementation writes diagnostic output merely because the `Silent` method itself contains no logging statements.  If a silent validation path must invoke another operation that is ordinarily logged, then use or provide an appropriate silent counterpart for that dependency.  Exception handling on a silent path likewise must not send exception information to the log merely because the corresponding logged path does so.
+
+For validators, do not implement a logged entry point as a one-line call to its `Silent` twin, and do not implement the `Silent` entry point as a one-line call to the logged method.  Both entry points should begin evaluating the validation contract immediately.  This keeps the logged path diagnostically explicit and keeps the silent path genuinely independent from logging behavior.
+
 Likewise, do not expand trivial pass-through methods such as `GetXxx.SoleInstance()` with gate/activity/failure logging when the method only returns an already-established singleton reference.  Diagnostic logging belongs where a reader of the log gains meaningful information about validation, orchestration, state transition, native/enabler work, or a failure mode.
+
+When a validator is called repeatedly inside a hot loop, search, enumeration, or candidate scan, prefer its `Silent` operation when an enclosing algorithm or orchestrator already logs the meaningful high-level activity and outcome.  Logging every rejected candidate can obscure the useful diagnostic narrative and impose unnecessary overhead.  Use the logged operation when the individual validation decision itself is diagnostically significant.
 
 Do not create a helper whose entire responsibility is to write a single logging statement.  Logging supports a user-benefiting responsibility; it is not, by itself, a responsibility that justifies another method or class.
 
@@ -2477,6 +2491,14 @@ Unless protocol compatibility or persisted numeric values require otherwise:
 Do not decorate an enum with PostSharp logging attributes.
 
 Validate enum inputs through the module's validator service rather than relying only on a cast or assuming that the value is defined.  A value can be outside the declared set.  A validator should normally reject `Unknown` for operations that require a concrete strategy.
+
+A validator's callable validation surface should be symmetrical: every logged validation operation has a corresponding `Silent` operation that validates the same contract.  This applies not only to a generic `IsValid(...)` entry point, but also to meaningful specialized operations such as `IsValidConfiguration(...)`, `IsValidCandidate(...)`, or `IsValidForExecution(...)`.
+
+The logged and `Silent` versions must agree on validation semantics, including accepted inputs, rejected inputs, default return values, and exception/failure behavior.  They differ only in diagnostics.  The logged version should provide useful gate/activity/failure reporting; the `Silent` version should perform the equivalent validation without routine logging, exception logging, or explanatory gate commentary.
+
+Do not make one validation entry point a ceremonial alias for another.  A public or otherwise callable validator method should begin carrying out its advertised validation immediately when invoked.  In particular, avoid implementations such as `IsValid(...) => IsValidSilent(...)`, `IsValidSilent(...) => IsValid(...)`, or an entry point whose only substantive statement is a call to a single broad helper that performs the entire validation.  Narrow helpers remain appropriate for cohesive sub-rules or reusable predicates, but the entry point itself must remain a real validation boundary.
+
+When silent validation depends on another component, preserve silence across that dependency graph.  A silent validator must not indirectly emit diagnostics by calling a logged snapshot provider, parser, resolver, or subordinate validator.  Provide and use a silent counterpart when the dependency participates in the validation path and its ordinary form is noisy.
 
 ## Collections, Enumeration, LINQ, and Concurrency
 
@@ -2683,12 +2705,25 @@ Before considering a source change complete, verify the following:
 17. Enum members follow the ordering and `Unknown = -1` convention unless compatibility requires another layout.
 18. UI code respects MVP and established Windows dialog conventions.
 19. `Pipeline`, `Playbook`, `Chain`, and `FallbackChain` components use a plain private static readonly enum array for their canonical order and document that order consistently.
-20. Tests cover critical or regression-prone behavior where necessary.
-21. ReSharper and CodeMaid formatting changes are not mistaken for behavioral changes.
+20. Every callable validator operation has a corresponding logged/`Silent` pair with equivalent validation semantics.
+21. Validator entry points begin validation immediately rather than merely forwarding the whole operation to their twin or to one catch-all helper.
+22. `Silent` validation paths remain silent transitively, including the subordinate validators, providers, resolvers, parsers, and other dependencies they invoke.
+23. Hot or repetitive validation paths use silent validation when per-item diagnostics would create noise without adding useful information.
+24. Tests cover critical or regression-prone behavior where necessary.
+25. ReSharper and CodeMaid formatting changes are not mistaken for behavioral changes.
 
-## Revision L Consolidation Summary
+## Revision M Consolidation Summary
 
-Revision L preserves the architectural principles, examples, and consolidated implementation rules from Revision K.  The principal additions in Revision L are:
+Revision M preserves the architectural principles, examples, and consolidated implementation rules from Revision L.  The principal additions in Revision M are:
+
+- Required logged and `Silent` counterparts for every callable validator operation.
+- Required semantic parity between logged and `Silent` validation paths: they validate the same contract and differ only in diagnostic behavior.
+- Prohibited ceremonial validator entry points whose entire purpose is to call their logged/`Silent` twin or one broad catch-all validation helper.
+- Required validation to begin directly at each validator entry point, while still permitting narrowly-scoped reusable predicates and cohesive sub-rule helpers.
+- Defined silence as transitive across the dependency graph of a `Silent` validation path, including exception handling and subordinate service calls.
+- Clarified that hot loops, candidate scans, searches, and other repetitive validation paths should prefer `Silent` validation when the enclosing operation already supplies the useful diagnostic narrative.
+
+Revision L's additions remain in force, including:
 
 - Standardized class-level and interface-level XML documentation for `Pipeline`, `Playbook`, `Chain`, and `FallbackChain` orchestration components.
 - Standardized canonical execution-order fields as plain `private static readonly <EnumType>[]` arrays, with architecture-appropriate names such as `StepOrder`, `AlgorithmExecutionOrder`, `LinkOrder`, and `ApproachOrder`.
