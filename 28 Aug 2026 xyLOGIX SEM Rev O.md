@@ -1,19 +1,23 @@
 # The xyLOGIX Software Engineering Manifesto
-Revision: N
-Last Updated: 16 August 2026
+Revision: O
+Last Updated: 28 August 2026
 
 This document outlines the software-development hills we'll die on, here at xyLOGIX.
 
 By Brian C. Hart, Ph.D.
 Copyright © 2026 by xyLOGIX, LLC.  All rights reserved.
 
-## Revision N Scope
+## Revision O Scope
 
-Revision N preserves the architectural and implementation guidance consolidated through Revision M and strengthens the standards for developer-facing documentation and incremental source-control delivery.  XML documentation is explicitly defined as a contract and maintenance aid for another developer: it explains what an abstraction represents, when and how to use it, how related entry points differ, what callers may rely upon, and which failure, side-effect, lifetime, concurrency, or external-state concerns matter.  Documentation must not merely narrate the statements in a method body.
+Revision O preserves the architectural, documentation, source-control, validation, logging, concurrency, and implementation guidance consolidated through Revision N and strengthens the standards for collection gating, loop control, validator delegation, ReSharper Live Template use, and PostSharp diagnostic-noise suppression.
 
-Revision N also establishes a two-phase delivery model when creating a new project or module: create and commit the standard scaffold first, then add or update the functional implementation within that scaffold and commit the implementation separately.  Commit grouping inside each phase follows the repository's staged-diff/work-item conventions.  Revision N additionally standardizes the classic presentation of intentionally generated or edited `AssemblyInfo.cs` files while preserving project-specific metadata semantics, and reinforces use of repository Live Templates for constructor documentation.
+Revision O requires explicit semantic gates before collection iteration or search when an empty collection cannot yield a useful result, with integer lengths and counts tested using `<= 0` rather than `== 0`.  It favors `params` array parameters when a variadic call shape is natural, prohibits redundant element checks that merely repeat validation already owned by the validator immediately invoked afterward, and standardizes all-items-pass `foreach` loops around `result = true`, negative/failure gates, `result = false`, and `break` rather than method-level `return` statements from inside the loop body.
 
-The validator, pipeline, playbook, chain, fallback-chain, logging, concurrency, and other software-engineering conventions established in Revision M remain in force.
+Revision O also formalizes diagnostic-boundary rules.  Every class uses the repository's `staticctorpssl` Live Template shape for an explicit logging-suppressed static constructor when no substantive static-constructor work is otherwise required.  Methods whose names end in `Core` are internal implementation boundaries and suppress PostSharp entry/exit logging.  Conversely, a method that remains normally logged must provide useful internal gate/activity/failure/success diagnostics rather than relying solely on PostSharp method-entry/method-exit records.  ReSharper analyzer suppressions are permitted narrowly when the analyzer cannot understand an intentional synchronization design that is otherwise demonstrably thread-safe.
+
+Revision O also makes validator dependency closure explicit.  xyLOGIX `IXXXValidator` interfaces derive from `IDataValidator`; therefore, any class-library project that consumes an `IXXXValidator` singleton dependency must also reference the `xyLOGIX.Validators.Data.Interfaces` project that defines `IDataValidator`.  This is a required dependency, not optional reference cleanup.
+
+Revision N's developer-facing XML-documentation and scaffold-first delivery standards, along with all earlier Strategy, Template Method, pipeline, playbook, chain, fallback-chain, concurrency, and engineering-judgment rules, remain in force.
 
 ## Why xyLOGIX Must Have SOLID Software
 
@@ -2289,6 +2293,14 @@ Avoid constructor injection as a universal default.  xyLOGIX usually expresses D
 
 Constructor arguments are appropriate when an object's identity or immutable state genuinely depends on the supplied values, as with many `EventArgs` classes.  They should not be used merely to push a large dependency graph through every constructor in a system.
 
+### Validator-interface dependency closure
+
+All xyLOGIX validator interfaces follow the shared validator contract and derive, directly or through the validator hierarchy, from `IDataValidator`, which is declared in the `xyLOGIX.Validators.Data.Interfaces` project.
+
+Whenever a class-library project consumes an `IXXXValidator` abstraction as a reusable/singleton dependency property, that project must also carry a project reference to `xyLOGIX.Validators.Data.Interfaces`.  Do not assume that a reference to the more-specific validator-interface assembly is sufficient merely because the C# source names only `IXXXValidator`; the inherited `IDataValidator` contract is part of the dependency closure.
+
+When adding such a dependency, add the required project reference positively.  Do not use this rule as an excuse to remove or police unrelated references.
+
 ## Method Design: Result Variables, Fault Tolerance, and Early Gates
 
 A method should have a clear default result.  Declare a local variable named `result` at the beginning of a non-void method and initialize it to the method's safe failure value.  Typical defaults include:
@@ -2321,6 +2333,32 @@ Bounds-check values before use.  Validate indexes, lengths, dimensions, counts, 
 
 Check that files and folders exist before opening, deleting, enumerating, or searching them.  Use AlphaFS when it is already the solution's file-system abstraction.  Validate that a path is of the required kind and, when required, that it is absolute.
 
+### Collection gates, validator delegation, and `foreach` control flow
+
+When a method is designed to iterate, search, filter, or otherwise inspect a collection, validate the collection reference before beginning the operation.  If an empty collection cannot possibly produce a useful result for that method's contract, gate it explicitly before entering the loop or search.  Do not rely on the fact that `foreach` simply executes zero iterations for an empty collection; make the semantic no-work condition visible in the code.
+
+When the collection exposes an integer `Length` or `Count`, use `<= 0` for the empty/useless gate rather than `== 0`.  This is the standard xyLOGIX defensive shape for integer cardinality values.  For an arbitrary `IEnumerable<T>`, do not enumerate it merely to obtain a count unless a stable snapshot, repeated access, or another real requirement already justifies materialization.
+
+Use the `params` keyword for an array parameter when the operation is naturally variadic and callers should be able to supply zero, one, or many values through the normal C# calling syntax.  Whether a zero-element array is semantically accepted is still determined by the method's contract; `params` affects the call shape, not validation policy.
+
+Do not duplicate a validation gate that is already the responsibility of the validator invoked immediately afterward.  If `IFileWildcardValidator.IsValidSilent(...)`, for example, already rejects a null, blank, whitespace-only, or otherwise malformed wildcard, the caller should not repeat those exact element-level checks immediately before invoking that validator unless the caller must protect some separate operation that occurs first.  Validation ownership should remain centralized and DRY.
+
+For an all-elements-must-pass `foreach` validation loop, use this shape:
+
+```csharp
+result = true;
+
+foreach (var item in items)
+{
+    if (Validator.IsValidSilent(item)) continue;
+
+    result = false;
+    break;
+}
+```
+
+Do not use `return` from inside such a `foreach` body.  Prefer `continue` for the accepted case and `result = false; break;` for the first rejected element.  A method-wide lifetime/cancellation condition may justify terminating the loop, but even then prefer `break` when leaving the loop and allowing the method's normal completion path expresses the same result.
+
 ### Boolean-result pattern
 
 Do not initialize a Boolean `result` from a complex Boolean expression.  Perform the logged gates first, then affirmatively set `result` to `true` when the operation has succeeded.  Use the standard comment:
@@ -2344,6 +2382,8 @@ Extract a helper when the logic is meaningful, reusable, independently nameable,
 
 A normal logged method uses verbose, explicit gates.  Before each gate, write an informational message stating what is being checked.  On failure, write an error or warning message, log the result when the repository pattern requires it, and return the default result.  On success, write a success message and proceed.  Leave a blank source line after each `DebugUtils.WriteLine(...)` call in pre-cleanup generated code.
 
+PostSharp method-entry and method-exit records are not a substitute for method-body diagnostics.  If a method remains normally logged because its invocation is diagnostically valuable, then its meaningful input/dependency gates, major activities, failure paths, and successful completion should be visible through the established `DebugUtils.WriteLine(...)` patterns and explanatory gate comments.  A method that is too hot, too trivial, or too low-level for useful internal log-file diagnostics should normally suppress PostSharp entry/exit logging instead of contributing empty call/return noise.
+
 A method intentionally named with a `Silent` suffix is different.  It should perform the same validation gates without the verbose diagnostic commentary and routine `DebugUtils.WriteLine(...)` calls.  Do not make a silent method noisy in the name of consistency.  Do not add explanatory gate comments to `Silent` code merely to parallel the logged implementation; the silent path should remain intentionally terse and mechanically focused on the validation itself.
 
 Silence is transitive.  A `Silent` method must not call a dependency whose ordinary implementation writes diagnostic output merely because the `Silent` method itself contains no logging statements.  If a silent validation path must invoke another operation that is ordinarily logged, then use or provide an appropriate silent counterpart for that dependency.  Exception handling on a silent path likewise must not send exception information to the log merely because the corresponding logged path does so.
@@ -2361,7 +2401,9 @@ Do not create a helper whose entire responsibility is to write a single logging 
 Use PostSharp logging attributes consistently with the existing project.
 
 - Apply `[Log(AttributeExclude = true)]` to constructors whose invocation would add noise.
-- Static classes should define an explicit static constructor decorated with `[Log(AttributeExclude = true)]` so that `.cctor` calls are not logged.
+- Every class, including ordinary, abstract, sealed, static, internal, and nested classes, should define the explicit logging-suppressed static constructor produced by the repository's `staticctorpssl` ReSharper Live Template when no substantive static-constructor work is otherwise required.  This prevents otherwise-useless `.cctor` entry/exit records from polluting the log.
+- Every method whose name ends in `Core` is an internal implementation boundary and must be decorated with `[Log(AttributeExclude = true)]`.  The public/logged wrapper owns the diagnostic narrative.  A `Core` method should not emit routine log-file diagnostics merely to compensate for the exclusion; use debugger-only output for exceptional low-level visibility when necessary.
+- As a default, do not add `[Log(AttributeExclude = true)]` to a method that already contains useful `DebugUtils.WriteLine(...)` diagnostics.  `*Core` methods are the explicit naming-based exception and should not contain routine log-file diagnostics.
 - Never apply `[Log(AttributeExclude = true)]` to an enum.
 - Global aspects already suppress logging of property getters and setters and event adders and removers; do not add `[return: NotLogged]` to properties merely because their type is complex.
 - Apply `[NotLogged]` to method parameters that contain strings, objects, structs, collection references, XML nodes, framework objects, and other complex or non-scalar data.
@@ -2542,7 +2584,7 @@ LINQ is acceptable in single-threaded, clear, non-critical code.  When optimizin
 
 Avoid materialization that provides no benefit.  `ToArray()` and `ToList()` themselves enumerate and allocate.  Use them when a snapshot, stable count, index-based access, or protection against concurrent mutation justifies the cost.
 
-Validate collection references, counts, and individual elements.  Skip unusable elements when the operation can produce a meaningful partial result.  If no useful elements remain, return the documented empty/default value.
+Validate collection references, counts, and individual elements.  When the method requires at least one element to do useful work and a `Length` or `Count` is directly available, reject `<= 0` before iteration.  Skip unusable elements when the operation can produce a meaningful partial result.  If no useful elements remain, return the documented empty/default value.
 
 ## Strategy, Template Method, Chain, Pipeline, and Playbook Patterns
 
@@ -2683,7 +2725,7 @@ The assistant should consult repository-level `CONTRIBUTING.md`, code instructio
 
 When repository Live Template guidance exists, treat it as the canonical shape for generated logged methods, validators, result variables, guard clauses, collection checks, console output, Debug output, and exception paths.
 
-Generate source as though the appropriate Live Template had just been expanded before ReSharper cleanup.  This commonly means:
+Generate source as though the appropriate Live Template had just been expanded before ReSharper cleanup.  In particular, use the `staticctorpssl` template for an otherwise-empty static constructor and the applicable `reqCond...` templates for logged guard conditions rather than inventing abbreviated substitutes.  This commonly means:
 
 - Verbose pre-gate informational logging.
 - Comprehensive one-line comments describing the gate and failure path.
@@ -2715,6 +2757,8 @@ Thread safety must be evaluated according to the actual behavior of the data str
 When code is expressly required to be thread-safe, the implementation must use the mechanism that correctly addresses the actual concurrency problem. Depending on the circumstances, this may require an appropriate concurrent collection, immutable state, copy-on-write behavior, atomic operations through `Interlocked`, synchronization primitives, controlled ownership, message passing, thread confinement, or another narrowly selected mechanism. The mechanism should be no broader or more intrusive than necessary.
 
 Likewise, use of `Interlocked` does not automatically make an entire method, object, or collection thread-safe. `Interlocked` protects only the specific atomic operation to which it is applied. Compound operations, check-then-act sequences, enumeration, updates involving multiple fields, and invariants spanning multiple values may require a different design.
+
+When ReSharper reports `InconsistentlySynchronizedField` for a field that is intentionally accessed through a combination of a synchronization lock and `Volatile`/`Interlocked` operations, first verify that the actual invariant is thread-safe.  If the design is correct and the warning exists only because the analyzer cannot model that mixed synchronization strategy, a narrowly-scoped `[SuppressMessage("ReSharper", "InconsistentlySynchronizedField")]` may be applied to the affected class or member.  Do not change a correct synchronization design merely to silence the analyzer, and do not use the suppression to hide a genuine race.
 
 Fault tolerance must not be implemented in a manner that conceals data corruption, violates an invariant, produces a misleading result, or allows an unsafe operation to continue. Returning a default value is preferred when doing so is meaningful and safe. When continuing would be more dangerous than failing, the implementation may reject the operation, surface the failure through an appropriate contract, or use another behavior justified by the circumstances.
 
@@ -2766,10 +2810,31 @@ Before considering a source change complete, verify the following:
 28. Applicable constructor documentation follows the repository's Live Template content, not merely its attributes.
 29. Tests cover critical or regression-prone behavior where necessary.
 30. ReSharper and CodeMaid formatting changes are not mistaken for behavioral changes.
+31. Every class that does not require substantive static-constructor work still has the `staticctorpssl` logging-suppressed static constructor.
+32. Every method whose name ends in `Core` suppresses PostSharp entry/exit logging and does not emit routine log-file diagnostics.
+33. Normally logged methods contain meaningful internal gate/activity/failure/success diagnostics rather than relying solely on PostSharp call tracing.
+34. Collection operations that require at least one element gate `Length <= 0` or `Count <= 0` before iteration when that cardinality is directly available.
+35. All-elements-pass `foreach` loops use `continue`/`break` and accumulator state rather than returning from inside the loop body.
+36. Callers do not duplicate element validation that is already owned by the validator immediately invoked afterward.
+37. Projects that consume an `IXXXValidator` singleton dependency also reference `xyLOGIX.Validators.Data.Interfaces`.
+37. ReSharper synchronization suppressions are used only for verified analyzer false positives, never to conceal an actual race.
 
-## Revision N Consolidation Summary
+## Revision O Consolidation Summary
 
-Revision N preserves the architectural principles, examples, and consolidated implementation rules from Revision M.  The principal additions in Revision N are:
+Revision O preserves the architectural principles, examples, and consolidated implementation rules from Revision N.  The principal additions in Revision O are:
+
+- Required the repository `staticctorpssl` Live Template shape for an explicit logging-suppressed static constructor in every class when no substantive static-constructor work is otherwise required.
+- Required every method whose name ends in `Core` to suppress PostSharp entry/exit logging so wrapper/orchestrator methods remain the diagnostic boundary.
+- Required methods that remain normally logged to provide meaningful internal gate/activity/failure/success diagnostics instead of relying on empty PostSharp entry/exit records.
+- Standardized collection pre-gates using `Length <= 0` or `Count <= 0` when an empty collection cannot produce useful work.
+- Clarified that `foreach` over an empty collection does not throw, while still requiring an explicit semantic no-work gate when emptiness invalidates the operation.
+- Standardized all-elements-pass `foreach` validation loops around `result = true`, negative/failure tests, `result = false`, and `break` rather than method-level returns from inside the loop.
+- Encouraged `params` for natural variadic array parameters while keeping zero-element acceptance a separate validation-contract decision.
+- Prohibited redundant caller-side checks that duplicate the validation already owned by the validator immediately invoked afterward.
+- Required class-library projects that consume an `IXXXValidator` singleton dependency to reference `xyLOGIX.Validators.Data.Interfaces`, which supplies the inherited `IDataValidator` contract.
+- Authorized narrowly-scoped `InconsistentlySynchronizedField` suppression only after verifying that a mixed lock/`Volatile`/`Interlocked` synchronization design is actually correct.
+
+Revision N's additions remain in force, including:
 
 - Defined XML documentation as developer-facing contract and maintenance documentation rather than a narration of implementation statements.
 - Required documentation to explain intended use, alternative entry points, failure/default behavior, side effects, resource/native lifetime, concurrency, and other caller-relevant constraints when applicable.
