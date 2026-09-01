@@ -1,11 +1,23 @@
 # The xyLOGIX Software Engineering Manifesto
-Revision: O
-Last Updated: 28 August 2026
+Revision: P
+Last Updated: 1 September 2026
 
 This document outlines the software-development hills we'll die on, here at xyLOGIX.
 
 By Brian C. Hart, Ph.D.
 Copyright © 2026 by xyLOGIX, LLC.  All rights reserved.
+
+## Revision P Scope
+
+Revision P preserves the architectural, documentation, source-control, validation, logging, concurrency, and implementation guidance consolidated through Revision O and strengthens the standards for validator events, corrective user feedback, focus recovery, and platform-owned font selection.
+
+Revision P requires every xyLOGIX `IXXXValidator` interface to derive from `IDataValidator`.  A logged validation failure raises the inherited `ValidationFailed` event with a specific, corrective message.  UI clients subscribe only for the synchronous validation operation they initiate, detach deterministically, and treat the event as the authoritative path for telling the user why validation failed.
+
+Revision P prohibits using an inline `Label` as the validation-error surface in an Options dialog or property sheet.  The View displays an owner-parented stop-error message, identifies the exact invalid setting and its valid range or format, selects the page containing that setting, and transfers focus to the control the user must correct.  Persistence and unexpected application errors use the same owner-parented stop-error convention but do not masquerade as validation failures.
+
+Revision P also requires applications that delegate font selection to the standard Windows `FontDialog` to honor the picker as the platform authority.  Do not impose a narrower product-specific minimum or maximum unless an actual renderer or protocol constraint requires it.  A selected font remains subject to substantive validation: its family and style must be constructible, the point size must be finite and greater than zero, and any documented fixed-pitch requirement remains in force.
+
+Revision O's collection gating, loop control, validator dependency closure, ReSharper Live Template, and PostSharp diagnostic-boundary standards, along with all earlier Strategy, Template Method, pipeline, playbook, chain, fallback-chain, concurrency, and engineering-judgment rules, remain in force.
 
 ## Revision O Scope
 
@@ -2547,6 +2559,10 @@ protected virtual void OnChanged(EventArgs e)
 
 An event invocator is one of the narrow cases where a concise expression body may be retained when it matches current project style.  A class that exposes a protected virtual invocator cannot remain `sealed`.
 
+Every xyLOGIX validator interface whose name follows the `IXXXValidator` pattern derives from `IDataValidator`.  Logged validation entry points raise the inherited `ValidationFailed` event when substantive validation fails and supply a `ValidationFailedEventArgs` message that tells the caller what must be corrected.  The message identifies the invalid setting and states its permitted range, set, or format whenever one exists.  Silent validation entry points remain silent and do not raise user-facing validation notifications.
+
+A UI presenter that initiates synchronous validation subscribes to `ValidationFailed` immediately before the logged validation call and detaches in a `finally` block immediately afterward.  Do not leave a short-lived View or Presenter subscribed to a singleton validator, because the subscription would extend the UI object's lifetime and could route unrelated validation activity to a stale window.
+
 For a property-sheet Apply operation, `DoApplyChanges` is an accepted special-case name when the method communicates an action rather than a conventional event notification.
 
 Event delegates and `EventArgs`-derived classes belong in the module's `.Events` project.  Event-handler delegate names normally end with `EventHandler`.
@@ -2664,6 +2680,18 @@ Tab order follows visual reading order from upper-left to lower-right and top to
 Expose controls to a presenter only when the presenter must interact with them, and place those exposure properties in the form's main source file rather than `.Designer.cs`.  Keep generated designer code focused on control construction and layout.
 
 Do not place business rules in the form.  The presenter gathers user choices, a policy validates them, an applicator updates the context, and an orchestrator coordinates the workflow.
+
+### Validation errors and focus recovery
+
+Do not add a `Label` to an Options dialog or property sheet merely to display validation failures.  The validator's `ValidationFailed` event supplies the corrective message, the Presenter translates the failed rule into a View action, and the View calls the established owner-parented `Messages.ShowStopError(...)` overload.
+
+The error message names the invalid setting and states the valid range, supported values, or required format.  After the user dismisses the message, select the page that owns the invalid setting and transfer focus to the editable control or command that can correct it.  A generic message such as "one or more values are invalid" is only an emergency fallback when no specific event was raised; it is not the normal validation experience.
+
+Configuration-persistence failures and unexpected application errors also use an owner-parented stop-error message, but they remain distinct from rule validation.  They do not raise `ValidationFailed` merely to reuse UI plumbing.
+
+### Platform-owned font selection
+
+When an Options dialog uses the standard Windows `FontDialog`, treat the platform picker as the authority for selectable installed fonts and point sizes.  Do not set product-specific `MinSize` or `MaxSize` values unless a real downstream renderer or protocol limit requires them.  Continue to apply substantive validation after selection: the requested font must be constructible, any required fixed-pitch policy must pass, and the point size must be finite and greater than zero.
 
 ## Testing Standard
 
@@ -2817,9 +2845,25 @@ Before considering a source change complete, verify the following:
 35. All-elements-pass `foreach` loops use `continue`/`break` and accumulator state rather than returning from inside the loop body.
 36. Callers do not duplicate element validation that is already owned by the validator immediately invoked afterward.
 37. Projects that consume an `IXXXValidator` singleton dependency also reference `xyLOGIX.Validators.Data.Interfaces`.
-37. ReSharper synchronization suppressions are used only for verified analyzer false positives, never to conceal an actual race.
+38. ReSharper synchronization suppressions are used only for verified analyzer false positives, never to conceal an actual race.
+39. Every `IXXXValidator` interface derives from `IDataValidator`, and logged failures raise `ValidationFailed` with a specific corrective message.
+40. Options dialogs present validation failures with owner-parented stop-error messages rather than inline validation labels, then focus the setting that must be corrected.
+41. Standard Windows font selection is not narrowed by arbitrary product-specific point-size limits; selected sizes need only satisfy real renderer constraints and remain finite and positive.
 
-## Revision O Consolidation Summary
+## Revision P Consolidation Summary
+
+Revision P preserves the architectural principles, examples, and consolidated implementation rules from Revision O.  The principal additions in Revision P are:
+
+- Required every xyLOGIX `IXXXValidator` interface to derive from `IDataValidator`.
+- Required logged validation failures to raise `ValidationFailed` with a specific message that identifies the invalid setting and its permitted range, set, or format.
+- Required UI clients to scope singleton-validator event subscriptions to the synchronous validation call and detach them deterministically.
+- Prohibited inline validation-message labels in Options dialogs and property sheets.
+- Required owner-parented `Messages.ShowStopError(...)` feedback followed by page selection and focus transfer to the setting that must be corrected.
+- Kept persistence and unexpected application failures distinct from rule-validation events while applying the same owner-parented stop-error convention.
+- Required standard Windows `FontDialog` selections to remain free of arbitrary product-specific size bounds unless an actual renderer or protocol constraint requires them.
+- Defined substantive font validation around a constructible family/style and a finite, positive point size while preserving documented fixed-pitch requirements.
+
+Revision O's additions remain in force, including:
 
 Revision O preserves the architectural principles, examples, and consolidated implementation rules from Revision N.  The principal additions in Revision O are:
 
