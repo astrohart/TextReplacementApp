@@ -15,7 +15,7 @@ Typical use cases include:
 - creating complete repository-standard project/module scaffolds and adding them to the loaded Solution through DTE;
 - performing project/Solution topology operations such as renames when the task genuinely requires them;
 - retrying a prior partially completed transaction without treating harmless source divergence, formatting changes, or an orphaned empty transaction boundary as a reason to fail;
-- opening the complete changed text/source set, running the established VCmd cleanup pass, and saving the IDE state before Git capture; and
+- opening the complete changed text/source set, supplying the one-run noninteractive/Git-disabled configuration for `VCmd.CCommandStripLineBreaksFromAllComments`, running that cleanup pass without modal prompts or VCmd-owned Git activity, and saving the IDE state before the script's own Git capture; and
 - staging, committing, synchronizing, and pushing transaction-owned work without allowing unrelated paths to hitchhike.
 
 These scripts are **not** intended to be general-purpose CI/CD pipelines, substitute compilers, build validators, test harnesses, source analyzers, or autonomous architectural reviewers. They are controlled maintainer-side change vehicles: the AI performs the source/code reasoning before delivery; the script performs the mechanical transaction inside the maintainer's current Visual Studio session.
@@ -397,11 +397,12 @@ This is the critical final flush:
 2. Run `File.SaveAll` after those mutations.
 3. Resolve the complete transaction-created changed-path set.
 4. Open all changed text/source-editable files in the Visual Studio source-code/text editor; never activate the WinForms Designer.
-5. After the opening pass is complete, attempt `VCmd.CCommandStripLineBreaksFromAllComments` once so it can strip comment line breaks and format the files that are open. If the VCmd command is unavailable or throws, report `*** WARNING ***` and preserve forward progress; cleanup-tool failure is not a reason to erase otherwise-successful source mutations.
-6. Run `File.SaveAll` **unconditionally**, whether VCmd succeeded, was skipped, or reported a warning.
-7. Close script-owned documents if the workflow requires isolation and documents are open.
-8. Refresh Git status/dirty-scope state as required.
-9. Only then allow Git staging/committing.
+5. After the opening pass is complete, write the mandatory one-run JSON sidecar described in Section 9 so `VCmd.CCommandStripLineBreaksFromAllComments` is noninteractive and its Git awareness/check-in behavior is disabled for this invocation.
+6. Invoke `VCmd.CCommandStripLineBreaksFromAllComments` **without command arguments** only when the sidecar write succeeded. If the sidecar cannot be prepared, emit `*** WARNING ***` and skip VCmd rather than risking a modal prompt or VCmd-owned Git activity. If the VCmd command itself is unavailable or throws, report `*** WARNING ***` and preserve forward progress; cleanup-tool failure is not a reason to erase otherwise-successful source mutations.
+7. Run `File.SaveAll` **unconditionally**, whether VCmd succeeded, was skipped, or reported a warning.
+8. Close script-owned documents if the workflow requires isolation and documents are open.
+9. Refresh Git status/dirty-scope state as required.
+10. Only then allow Git staging/committing.
 
 The final `File.SaveAll` must not depend on document dirty state or document count.
 
@@ -512,6 +513,66 @@ For each changed-path candidate:
 
 Do not open unrelated files and do not open an arbitrary document merely to test whether VCmd is registered or executable.
 
+### Mandatory noninteractive/Git-disabled VCmd configuration
+
+Every Change Transaction Script that invokes `VCmd.CCommandStripLineBreaksFromAllComments` must supply the command's one-run JSON sidecar immediately before that invocation. This keeps VCmd in the formatting/cleanup-only role: no confirmation message box(es), no VCmd-owned Git pull/check-in/push behavior, and no competition with the Change Transaction Script's own staged-diff commit workflow.
+
+The canonical configuration pathname is:
+
+```text
+%LOCALAPPDATA%\xyLOGIX, LLC\Visual Commander\Commands\Strip Line Breaks from All Comments\Config\.config.json
+```
+
+The filename is exactly `.config.json`.
+
+For Change Transaction Scripts, the required schema/version and values are exactly:
+
+```json
+{
+  "SchemaVersion": 2,
+  "SuppressPrompts": true,
+  "EnableGitAwareness": false,
+  "AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed": false
+}
+```
+
+These values have specific transaction semantics:
+
+- `SuppressPrompts: true` prevents the selected-project/Solution-wide processing confirmation and the late Git check-in confirmation from becoming modal UI.
+- `EnableGitAwareness: false` prevents VCmd from running its pre-formatting Git workflow. The Change Transaction Script remains solely responsible for pull/rebase, staging, commit-message generation, commits, and push.
+- `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed: false` prevents VCmd from performing a late automatic Git check-in after cleanup.
+- `SchemaVersion: 2` uses the command's one-run configuration contract. When the command's `Run` invocation exits normally through .NET control flow, VCmd itself clobbers `.config.json` back to its default configuration, so a scripted noninteractive invocation does not intentionally make prompt suppression persistent.
+
+A PowerShell 5.1-compatible preparation/invocation shape is:
+
+```powershell
+$configPath = Join-Path $env:LOCALAPPDATA 'xyLOGIX, LLC\Visual Commander\Commands\Strip Line Breaks from All Comments\Config\.config.json'
+New-Item -ItemType Directory -Force -Path (Split-Path -Parent $configPath) | Out-Null
+
+@'
+{
+  "SchemaVersion": 2,
+  "SuppressPrompts": true,
+  "EnableGitAwareness": false,
+  "AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed": false
+}
+'@ | Set-Content -LiteralPath $configPath -Encoding UTF8
+
+$dte.ExecuteCommand('VCmd.CCommandStripLineBreaksFromAllComments')
+```
+
+The command must be invoked argumentlessly. Do **not** use a command-argument workaround such as:
+
+```powershell
+$dte.ExecuteCommand('VCmd.CCommandStripLineBreaksFromAllComments', 'NoPrompt')
+```
+
+Visual Commander does not expose this command as accepting command arguments; the JSON sidecar is the supported runtime handoff.
+
+Treat successful sidecar preparation as an immediate mechanical precondition **only for invoking VCmd**, not for the source transaction as a whole. If the directory or `.config.json` cannot be written, emit `*** WARNING ***`, skip VCmd, perform the unconditional final `File.SaveAll`, and continue to the script-controlled Git phase. Never invoke VCmd without the known noninteractive/Git-disabled sidecar merely because formatting cleanup is desirable.
+
+Because the sidecar is a one-run input and VCmd resets it at the end of each normal invocation, write these values again **before every VCmd invocation**. Do not write configuration intended for a later invocation while an earlier invocation is still running.
+
 ### Execute VCmd only after the opening pass completes
 
 If zero changed text/source-editable files can be opened, skip VCmd and report the legitimate no-op through `Write-Host`.
@@ -523,14 +584,15 @@ If one or more changed text/source-editable files are open:
 3. Resolve the complete transaction-created changed-file set.
 4. Open **all** changed text/source-editable files in the source-code/text editor, never the WinForms Designer.
 5. Confirm the opening pass itself completed mechanically; do not semantically inspect the source.
-6. Emit a `Write-Host` diagnostic that VCmd is about to run against the already-open changed files.
-7. Attempt `VCmd.CCommandStripLineBreaksFromAllComments` once. If the command is unavailable or throws, catch that cleanup failure, emit `*** WARNING ***`, and continue.
-8. Process pending IDE events if useful.
-9. Run `File.SaveAll` again unconditionally.
-10. Close only transaction-owned documents when the workflow requires it; do not indiscriminately close unrelated documents.
-11. Continue without any post-VCmd semantic source verification.
+6. Write the mandatory one-run `.config.json` sidecar with the exact Section 9 noninteractive/Git-disabled values.
+7. If the sidecar write succeeded, emit a `Write-Host` diagnostic that VCmd is about to run noninteractively against the already-open changed files with VCmd Git behavior disabled. If the sidecar write failed, emit `*** WARNING ***` and skip VCmd.
+8. When configured successfully, attempt the **argumentless** `VCmd.CCommandStripLineBreaksFromAllComments` invocation once. If the command is unavailable or throws, catch that cleanup failure, emit `*** WARNING ***`, and continue.
+9. Process pending IDE events if useful.
+10. Run `File.SaveAll` again unconditionally.
+11. Close only transaction-owned documents when the workflow requires it; do not indiscriminately close unrelated documents.
+12. Continue without any post-VCmd semantic source verification.
 
-VCmd is trusted when it executes successfully, but **VCmd availability is not a source-mutation correctness gate**. After a successful VCmd invocation and the required final `File.SaveAll`, do not re-read the source to validate identifiers, signatures, comments, markers, regular-expression matches, hashes, formatting, or other semantic/textual expectations. If VCmd itself fails, report the warning, perform the final `File.SaveAll`, preserve the changed source, and continue to Git capture rather than rolling back the transaction.
+VCmd is trusted when it executes successfully, but **VCmd availability is not a source-mutation correctness gate**. The mandatory sidecar keeps VCmd noninteractive and disables both its pre-formatting Git awareness and its late automatic check-in path, so all Git synchronization, staging, custom commit-message generation, commits, and push operations remain owned by the Change Transaction Script. After a successful VCmd invocation and the required final `File.SaveAll`, do not re-read the source to validate identifiers, signatures, comments, markers, regular-expression matches, hashes, formatting, or other semantic/textual expectations. If sidecar preparation or VCmd itself fails, report the warning, perform the final `File.SaveAll`, preserve the changed source, and continue to Git capture rather than rolling back the transaction.
 
 Do not use a Visual Studio build, MSBuild invocation, compilation result, or test run as a post-VCmd transaction gate. A build/test failure must never, by itself, cause the transaction to throw, die, roll back source/project changes, remove commits, or reset the repository. If the current prompt expressly asks for a build or test to be run, treat it as informational only and continue the transaction after reporting the result.
 
@@ -551,7 +613,7 @@ Do **not** invoke any of the following merely to validate the transaction:
 - compiler executables.
 - NUnit or other test runners.
 
-The transaction's fatal runtime gates are limited to conditions required to continue mechanically and safely: authoritative Solution/repository/path identity, required Git availability for a Git-integrated transaction, clean initial Git scope, ability to issue the authorized mutation, and exact Git staging/commit postconditions. Changed-file source-editor opening and VCmd cleanup are **best-effort cleanup operations**: failures are diagnosed as warnings and do not invalidate successful source/project mutations. Source-byte/hash/layout/semantic equivalence and lint/style/static-analysis results are not runtime gates.
+The transaction's fatal runtime gates are limited to conditions required to continue mechanically and safely: authoritative Solution/repository/path identity, required Git availability for a Git-integrated transaction, clean initial Git scope, ability to issue the authorized mutation, and exact Git staging/commit postconditions. Changed-file source-editor opening, preparation of the noninteractive/Git-disabled VCmd sidecar, and VCmd cleanup are **best-effort cleanup operations**: failures are diagnosed as warnings and do not invalidate successful source/project mutations. A sidecar-preparation failure means **skip VCmd**, not invoke it interactively. Source-byte/hash/layout/semantic equivalence and lint/style/static-analysis results are not runtime gates.
 
 ### If a build or test is explicitly requested
 
@@ -1147,7 +1209,7 @@ Therefore:
 - positive source/project mutations are presumed correct once their underlying operations return normally;
 - source hashes, regexes, marker checks, declaration checks, method-body locators, old-block searches, AST/source-shape checks, reference checks, API checks, and similar semantic inspections are not fatal runtime gates;
 - the changed-file editor-opening pass is a mechanical preparation step, not a source-validation step;
-- VCmd cleanup is trusted completely once invoked successfully;
+- VCmd is invoked only after the exact one-run noninteractive/Git-disabled sidecar has been written successfully, and VCmd cleanup is trusted completely once invoked successfully;
 - no semantic/textual source verification occurs after VCmd;
 - no build, compile, or test gate occurs after VCmd or elsewhere by default; and
 - Git capture should preserve the transaction's resulting state so the maintainer can inspect it in the IDE.
@@ -1158,7 +1220,9 @@ Runtime diagnostics should use `Write-Host` to report useful progress and warnin
 
 ## 22. Ordered Git Commit Phase
 
-Change Transaction Scripts must reproduce the supplied Visual Commander/CreateStagedGitDiff work-item behavior for commit selection and ordering. The default for existing-source implementation work is **file-by-file granularity**, subject only to explicit selector/source-family/rename/topology exceptions. Architectural conceptual grouping by itself is not a reason to batch files.
+Change Transaction Scripts must reproduce the supplied Visual Commander/CreateStagedGitDiff work-item behavior for commit selection and ordering. The mandatory VCmd sidecar sets `EnableGitAwareness` and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed` to `false`, so VCmd performs formatting/cleanup only; it must not pull, stage, generate commit messages, commit, or push on behalf of the transaction. The Change Transaction Script remains the sole owner of Git synchronization and capture.
+
+The default for existing-source implementation work is **file-by-file granularity**, subject only to explicit selector/source-family/rename/topology exceptions. Architectural conceptual grouping by itself is not a reason to batch files.
 
 ### 22.1 Repository traversal
 
@@ -1271,7 +1335,7 @@ Useful diagnostics normally include, when applicable:
 - changed-file discovery after mutation;
 - each changed text/source file being opened in the Visual Studio source-code editor, and legitimate skips such as deleted or non-text/binary files;
 - confirmation that the complete changed-file opening pass finished before VCmd;
-- VCmd invocation and completion;
+- VCmd sidecar preparation, confirmation that the invocation is noninteractive/Git-disabled, and VCmd invocation/completion or warning-only skip/failure;
 - Git work-item selection, staging, commit completion, and repository transitions;
 - final pull/rebase/push progress when applicable;
 - warnings that do not block forward progress; and
@@ -1319,7 +1383,10 @@ Bad examples:
 - Reading/parsing an authorized source file at runtime solely to prove that a method still has the generation-time signature/body before replacing it.
 - Using a regex/marker/old-code search helper that throws when harmless source formatting or method shape differs, when an exact desired-state file could simply be clobbered into place.
 - Treating one changed file's source-editor open failure as fatal to otherwise-successful source mutation.
-- Treating VCmd unavailability/cleanup failure as a reason to roll back source or suppress Git capture.
+- Invoking `VCmd.CCommandStripLineBreaksFromAllComments` without first writing the required one-run noninteractive/Git-disabled `.config.json` sidecar.
+- Passing a `NoPrompt` or other command argument to `VCmd.CCommandStripLineBreaksFromAllComments` instead of using its JSON sidecar.
+- Enabling VCmd Git awareness or automatic late check-in during a Change Transaction Script, which would compete with the script's own staged-diff/custom-commit workflow.
+- Treating VCmd sidecar-preparation/unavailability/cleanup failure as a reason to roll back source or suppress Git capture; sidecar-preparation failure should instead skip VCmd.
 - Rejecting a script because a DTE debugger enum string does not spell the enum member name.
 - Requiring the Git canonical path string to equal the DTE Solution path string.
 - Opening a document solely to test whether a cleanup command might work later.
@@ -1334,6 +1401,8 @@ Good examples:
 - Transporting large/complex audited payloads as exact Base64-encoded bytes and writing them with `WriteAllBytes` to avoid PowerShell text-encoding/quoting hazards.
 - Tracking whether the first meaningful positive mutation has succeeded so a pre-mutation failure can clean up only the transaction-owned empty boundary.
 - Warning and continuing when one source file cannot be opened for VCmd, while running cleanup against the files that did open.
+- Writing the exact schema-version-2 noninteractive/Git-disabled VCmd sidecar immediately before invocation so the command cannot display its confirmation message box(es) or perform Git work.
+- Warning and skipping VCmd when its sidecar cannot be prepared, rather than invoking the command with default interactive/Git-aware behavior.
 - Warning and continuing when VCmd itself is unavailable, followed by the unconditional final `File.SaveAll`.
 - Checking document count before a close-all operation that is actually required.
 - Verifying that a changed path exists before trying to open it as source text.
@@ -1396,11 +1465,12 @@ If not, do not make it a hard gate.
 6. Refresh the complete transaction-created changed-path set.
 7. Attempt to open **all changed text/source-editable files** in Visual Studio's source-code/text editor, explicitly preventing WinForms Designer activation. Include changed `GlobalAspects.cs`, `AssemblyInfo.cs`, and `*.Designer.cs` files rather than excluding them by name.
 8. Report changed-file opening progress through `Write-Host`; deleted/non-text/binary paths and individual source-editor open failures are warning/no-op skips, not transaction-fatal errors.
-9. Only after the complete opening pass finishes, attempt `VCmd.CCommandStripLineBreaksFromAllComments` once against the successfully opened set. If VCmd fails, warn and continue.
-10. Final unconditional `File.SaveAll` regardless of VCmd outcome.
-11. Close only transaction-owned documents when required; do not indiscriminately close unrelated documents.
-12. Do **not** semantically verify source after VCmd.
-13. Refresh Git status for capture; do not convert source/project diagnostics into blockers.
+9. Only after the complete opening pass finishes, write the exact Section 9 one-run `.config.json` values that suppress prompts and disable both VCmd Git paths. If the sidecar cannot be prepared, warn and skip VCmd.
+10. When sidecar preparation succeeded, attempt the **argumentless** `VCmd.CCommandStripLineBreaksFromAllComments` invocation once against the successfully opened set. If VCmd fails, warn and continue.
+11. Final unconditional `File.SaveAll` regardless of sidecar/VCmd outcome.
+12. Close only transaction-owned documents when required; do not indiscriminately close unrelated documents.
+13. Do **not** semantically verify source after VCmd.
+14. Refresh Git status for capture; do not convert source/project diagnostics into blockers.
 
 ### Phase 5 — Git capture
 
@@ -1440,7 +1510,8 @@ After meaningful positive mutation, do not automatically roll back source/projec
 | Rename project/folder | Solution closed + rollback state captured | old absent/new present; topology updated; same Solution reopened | bounded retry/rollback |
 | Discover changed files for editor cleanup | source/project mutations saved | complete transaction-created changed-path set resolved | no changed paths: successful no-op |
 | Open changed file for VCmd | authorized changed path + existing text/source-editable file | successful opens use source-code/text editor, not WinForms Designer | deleted/non-text/binary/unopenable path: warn/skip; already open as text: reuse; never roll back source |
-| VCmd cleanup | complete opening pass finished + at least one changed text/source file opened | one VCmd attempt + unconditional final SaveAll; successful cleanup trusted with no post-VCmd semantic check | zero opened files: skip; VCmd failure: warn and continue |
+| Prepare VCmd one-run sidecar | complete opening pass finished + at least one changed text/source file opened | canonical `.config.json` written with schema `2`, prompt suppression enabled, both VCmd Git behaviors disabled | preparation failure: warn, skip VCmd, continue to unconditional SaveAll/Git capture |
+| VCmd cleanup | sidecar preparation succeeded + at least one changed text/source file opened | one **argumentless** VCmd attempt + unconditional final SaveAll; successful cleanup trusted with no post-VCmd semantic check | zero opened files: skip; VCmd failure: warn and continue; command resets sidecar defaults on normal `Run` exit |
 | Optional informational lint/style/static analysis | explicitly requested by current prompt | outcome captured/reported | findings and nonzero exit are warning-only; continue |
 | Optional informational build/test | explicitly requested by current prompt | outcome captured/reported | failure is non-fatal and never triggers rollback |
 | Select implementation work item | fresh repo status | CreateStagedGitDiff-compatible next path set selected | no transaction changes: repo complete |
@@ -1526,7 +1597,11 @@ After meaningful positive mutation, do not automatically roll back source/projec
 - [ ] No changed text/source file is excluded merely because it is `GlobalAspects.cs`, `AssemblyInfo.cs`, `*.Designer.cs`, `*.g.cs`, or `*.i.cs`.
 - [ ] WinForms files are explicitly opened as source text; the transaction never activates the WinForms Designer for cleanup.
 - [ ] Deleted and non-text/binary changed paths are treated as legitimate non-openable skips rather than editor failures.
-- [ ] VCmd is attempted only after the complete changed-file opening pass has finished, and normally once for the successfully opened set; VCmd failure is warning-only and final `File.SaveAll` still occurs.
+- [ ] Immediately before every VCmd invocation, the script writes `%LOCALAPPDATA%\xyLOGIX, LLC\Visual Commander\Commands\Strip Line Breaks from All Comments\Config\.config.json` using schema `2` with `SuppressPrompts = true`, `EnableGitAwareness = false`, and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed = false`.
+- [ ] VCmd is never invoked when that sidecar preparation fails; the failure is warning-only, VCmd is skipped, and final `File.SaveAll`/script-owned Git capture continue.
+- [ ] `VCmd.CCommandStripLineBreaksFromAllComments` is invoked without command arguments; no `NoPrompt` argument or equivalent is used.
+- [ ] The VCmd sidecar disables all VCmd-owned Git behavior so the Change Transaction Script remains solely responsible for synchronization, staging, custom commit-message generation, commits, and push.
+- [ ] VCmd is attempted only after the complete changed-file opening pass has finished and successful sidecar preparation, and normally once for the successfully opened set; VCmd failure is warning-only and final `File.SaveAll` still occurs.
 - [ ] No source-byte/hash/layout/semantic match is required before overwriting an authorized target or before VCmd.
 - [ ] No semantic/textual source verification is performed after successful VCmd cleanup.
 - [ ] No build, compilation, or test operation is used as a fatal transaction gate.
@@ -1552,7 +1627,7 @@ Audit the planned transaction against the current authoritative workspace and cu
 - source/project payloads are generation-time audited for correctness/style/documentation/reference requirements;
 - commit messages are scoped to their intended staged work items and obey repository rules;
 - boundary/retry/no-op behavior is coherent;
-- editor-opening/VCmd cleanup is best-effort and cannot erase source progress;
+- editor-opening/VCmd cleanup is best-effort and cannot erase source progress, while every VCmd invocation is preceded by the exact noninteractive/Git-disabled one-run sidecar so no modal prompt or VCmd-owned Git workflow can occur;
 - Git synchronization respects actual upstream state; and
 - unrelated post-baseline dirty paths cannot hitchhike or be reset.
 
@@ -1572,12 +1647,15 @@ After writing the final GUID-named `.ps1` file, reopen **that exact file** and a
 10. verify meaningful-mutation tracking and pre-mutation empty-boundary cleanup are present when a boundary is used;
 11. verify successful no-op boundary cleanup is present when a boundary is used;
 12. verify changed text/source paths are opened/attempted before VCmd with an explicit source/text view and cannot activate the WinForms Designer;
-13. verify per-file editor-open failure and VCmd failure are warning-only and the final `File.SaveAll` is unconditional;
-14. verify no post-VCmd semantic source verification or fatal lint/style/static-analysis/build/compile/test gate exists;
-15. verify reference handling is positive-only unless the current prompt explicitly authorizes removal;
-16. verify public WinForms `*.Designer.cs` payloads use the required explicit `public partial class` declaration when applicable;
-17. verify top-level exception handling reports message/position/stack, performs safe transaction cleanup, preserves meaningful progress, and normally does not rethrow redundantly; and
-18. verify the script's final success/no-op/error paths all leave the repository and PMC session in a state the maintainer can understand from `Write-Host` output.
+13. verify every VCmd invocation is immediately preceded by a write to the canonical `.config.json` path with **exactly** schema `2`, `SuppressPrompts: true`, `EnableGitAwareness: false`, and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed: false`;
+14. verify the script skips VCmd rather than invoking it when sidecar preparation fails, and verify the VCmd call is argumentless (no `NoPrompt` or other command argument);
+15. verify VCmd cannot perform Git synchronization/check-in/push and therefore cannot compete with the script's own custom commit-message/staging workflow;
+16. verify per-file editor-open failure, sidecar-preparation failure, and VCmd failure are warning-only and the final `File.SaveAll` is unconditional;
+17. verify no post-VCmd semantic source verification or fatal lint/style/static-analysis/build/compile/test gate exists;
+18. verify reference handling is positive-only unless the current prompt explicitly authorizes removal;
+19. verify public WinForms `*.Designer.cs` payloads use the required explicit `public partial class` declaration when applicable;
+20. verify top-level exception handling reports message/position/stack, performs safe transaction cleanup, preserves meaningful progress, and normally does not rethrow redundantly; and
+21. verify the script's final success/no-op/error paths all leave the repository and PMC session in a state the maintainer can understand from `Write-Host` output.
 
 Only after both passes succeed should the artifact be delivered.
 
@@ -1587,7 +1665,7 @@ Only after both passes succeed should the artifact be delivered.
 
 > A Change Transaction Script is a **clobbering, progress-first, in-IDE transaction whose primary runtime goal is to impose the audited change and keep moving rather than invent reasons to die**. Use the host-provided `$dte`; never assign or bind to it. Audit source/project shape before delivery against the current authoritative workspace/tarball and current-prompt corrections. Generate complete exact desired-state file payloads whenever feasible. For large/complex payloads, transport the exact audited bytes safely (prefer Base64 plus `WriteAllBytes`) so PowerShell quoting, interpolation, encoding, BOM handling, or newline conversion cannot corrupt the desired file. At runtime, once the correct Solution/repository and authorized target path are established, assume the live file is the transaction input already audited by the generator and overwrite/clobber it directly. Do not reread, parse, regex-match, search for methods/markers/old code blocks, hash-check, AST-compare, compare formatting/layout, or otherwise mechanically verify existing source text merely to decide whether an authorized write may occur. Structural edits are exceptional and exist only when preserving genuinely unmodeled live content makes full-file replacement impractical. Once a positive write/project/reference/topology mutation returns normally, assume it succeeded, mark that meaningful positive mutation has occurred, and keep moving.
 >
-> Emit useful, concise `Write-Host` diagnostics so the maintainer can follow meaningful transaction progress without being flooded by raw tool chatter. Git runs quietly through `System.Diagnostics.Process`, with stdout/stderr drained concurrently and waits bounded. Flush at the defined synchronization boundaries. After mutations are saved, resolve the complete transaction-created changed-file set and **attempt** to open every changed text/source-editable file in Visual Studio's source-code/text editor before running VCmd; never activate the WinForms Designer for this cleanup pass, including for WinForms primary `.cs` or `*.Designer.cs` files. Individual editor-open failures are warnings, not reasons to erase source progress. Do not exclude changed source files merely because they are named `GlobalAspects.cs`, `AssemblyInfo.cs`, `*.Designer.cs`, `*.g.cs`, or `*.i.cs`. Once the opening pass is complete, attempt `VCmd.CCommandStripLineBreaksFromAllComments` once against the successfully opened set. VCmd failure is warning-only. Perform the final unconditional `File.SaveAll` whether VCmd succeeded, failed, or was skipped.
+> Emit useful, concise `Write-Host` diagnostics so the maintainer can follow meaningful transaction progress without being flooded by raw tool chatter. Git runs quietly through `System.Diagnostics.Process`, with stdout/stderr drained concurrently and waits bounded. Flush at the defined synchronization boundaries. After mutations are saved, resolve the complete transaction-created changed-file set and **attempt** to open every changed text/source-editable file in Visual Studio's source-code/text editor before running VCmd; never activate the WinForms Designer for this cleanup pass, including for WinForms primary `.cs` or `*.Designer.cs` files. Individual editor-open failures are warnings, not reasons to erase source progress. Do not exclude changed source files merely because they are named `GlobalAspects.cs`, `AssemblyInfo.cs`, `*.Designer.cs`, `*.g.cs`, or `*.i.cs`. Once the opening pass is complete, write the canonical one-run VCmd `.config.json` with schema `2`, `SuppressPrompts: true`, `EnableGitAwareness: false`, and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed: false`. This sidecar is mandatory: it keeps cleanup noninteractive and keeps all Git synchronization, staging, custom commit-message generation, commits, and push under Change Transaction Script control. If the sidecar cannot be prepared, warn and skip VCmd rather than risking modal UI or VCmd-owned Git behavior. Otherwise invoke `VCmd.CCommandStripLineBreaksFromAllComments` once **without arguments** against the successfully opened set. VCmd failure is warning-only. Perform the final unconditional `File.SaveAll` whether sidecar preparation/VCmd succeeded, failed, or was skipped. VCmd normally resets its schema-version-2 sidecar to defaults when its `Run` invocation exits, so the script must rewrite the required one-run values before each future VCmd invocation.
 >
 > Do not use source hashes, semantic checks, linting, style/formatting diagnostics, static analysis, reference analysis, builds, compilation, tests, cleanup expectations, or architectural diagnostics as fatal runtime gates. Trust successful VCmd cleanup completely and never semantically revalidate its output. Do not police references. Start from a clean Git baseline unless explicitly authorized otherwise; if unrelated dirt appears afterward, never stage/reset it, continue capturing exact authorized work when safe, and skip final synchronization while that unrelated dirt remains. Key pull/rebase/push behavior to the current branch's configured upstream, not merely to the existence of a remote. If the script encounters a recognized orphaned empty boundary from an earlier failed iteration, remove it only under strict ownership/empty/clean checks. If the script terminates after creating/adopting its transaction-owned boundary but before any meaningful positive mutation succeeds, clean up that bookkeeping-only boundary back to the captured pre-boundary anchor when the baseline is still clean. If the transaction finishes as a legitimate no-op with no implementation commit, remove its bookkeeping-only boundary as well. After meaningful positive mutation, preserve forward source/project/Git progress rather than automatically restoring files, deleting commits, or hard-resetting history because an advisory check disagrees with the generated state.
 >
