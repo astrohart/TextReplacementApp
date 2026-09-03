@@ -1,5 +1,20 @@
 # Robust Visual Studio Package Manager Console Automation Script Guidelines
 
+Revision: D  
+Last Updated: 2 September 2026
+
+## Revision D Scope
+
+Revision D corrects the Visual Commander preparation policy so a Change Transaction Script no longer confuses the transaction's **complete Git changed-path set** with the much narrower set of files that `VCmd.CCommandStripLineBreaksFromAllComments` is intended to process.
+
+The transaction must still discover and preserve every authorized changed path for Git capture, but VCmd preparation is now limited to **changed VCmd-eligible C# source files**. Ordinary hand-authored `.cs` files are eligible. `AssemblyInfo.cs` is also explicitly eligible because the VCmd command has special processing rules for that file. Files that are generated, designer-owned, fixed-format, project/scaffold metadata, documentation, resources, configuration, signing material, or otherwise outside the command's intended source-cleanup domain must not be opened merely so VCmd can see them.
+
+Accordingly, Revision D explicitly excludes `Global*.cs`, `*.Designer.cs`, `*.g.cs`, `*.i.cs`, `*.generated.cs`, and other known generated/fixed-format C# artifacts from the VCmd processing set, while retaining `AssemblyInfo.cs` as the named exception. All non-C# artifacts are excluded from VCmd preparation, including `.csproj`, `.sln`, `.resx`, `.config`, `.json`, `.xml`, `.props`, `.targets`, `.md`, `.txt`, `.snk`, icons, and other binary/resource/scaffold files.
+
+The VCmd selection decision is pathname/classification based. It must not become a new runtime source-content parser or semantic gate. Transaction-specific generated/fixed-format exclusions should be identified during generation-time audit and encoded directly into the script's VCmd eligibility logic.
+
+All prior requirements concerning exact-payload clobbering, progress-first failure handling, `$dte`, PowerShell 5.1 compatibility, scaffold-first project creation, VCmd schema-version-2 noninteractive/Git-disabled sidecar configuration, positive-only reference handling, granular Git capture, and the two-pass exact-artifact audit remain in force.
+
 ## Purpose
 
 This document is a reusable engineering specification for an AI system that generates **agentic PowerShell Change Transaction Scripts intended to be dot-sourced from the Visual Studio Package Manager Console (PMC)**.
@@ -10,12 +25,12 @@ Typical use cases include:
 
 - clobbering one or more existing source/project files with audited desired-state replacements for a bug fix, behavioral correction, refactor, logging change, documentation change, UI adjustment, or configuration change;
 - applying a coordinated multi-file change while keeping ordinary implementation commits file-by-file unless an explicit source-family, rename, scaffold, or topology exception applies;
-- updating WinForms source and `*.Designer.cs` files while ensuring cleanup opens them as source text rather than activating the WinForms Designer;
+- updating WinForms source and `*.Designer.cs` files while ensuring that only VCmd-eligible C# source is opened for cleanup, with `*.Designer.cs` remaining a mutation/Git artifact rather than a VCmd processing target;
 - adding required project/assembly/package references without policing unrelated existing references;
 - creating complete repository-standard project/module scaffolds and adding them to the loaded Solution through DTE;
 - performing project/Solution topology operations such as renames when the task genuinely requires them;
 - retrying a prior partially completed transaction without treating harmless source divergence, formatting changes, or an orphaned empty transaction boundary as a reason to fail;
-- opening the complete changed text/source set, supplying the one-run noninteractive/Git-disabled configuration for `VCmd.CCommandStripLineBreaksFromAllComments`, running that cleanup pass without modal prompts or VCmd-owned Git activity, and saving the IDE state before the script's own Git capture; and
+- deriving the narrow VCmd-eligible C# processing set from the complete transaction-created changed-path set, supplying the one-run noninteractive/Git-disabled configuration for `VCmd.CCommandStripLineBreaksFromAllComments`, running that cleanup pass without modal prompts or VCmd-owned Git activity, and saving the IDE state before the script's own Git capture; and
 - staging, committing, synchronizing, and pushing transaction-owned work without allowing unrelated paths to hitchhike.
 
 These scripts are **not** intended to be general-purpose CI/CD pipelines, substitute compilers, build validators, test harnesses, source analyzers, or autonomous architectural reviewers. They are controlled maintainer-side change vehicles: the AI performs the source/code reasoning before delivery; the script performs the mechanical transaction inside the maintainer's current Visual Studio session.
@@ -387,7 +402,7 @@ Reason:
 
 After the script writes source files or changes project references, run `File.SaveAll` so Visual Studio/project-system state is flushed before editor cleanup and Git capture continue.
 
-After this checkpoint, refresh the transaction-created changed-path set. Before executing VCmd, open every changed text/source-editable file in Visual Studio's **source-code/text editor**, explicitly avoiding the WinForms Designer or any other designer surface. The complete changed-file opening pass must finish before VCmd is invoked.
+After this checkpoint, refresh the complete transaction-created changed-path set for Git/scope purposes, then derive the narrower VCmd-eligible C# processing set described in Section 9. Before executing VCmd, open only those VCmd-eligible files in Visual Studio's **source-code/text editor**, explicitly avoiding the WinForms Designer or any other designer surface. The complete VCmd-eligible opening pass must finish before VCmd is invoked.
 
 ### Required checkpoint C: after VCmd and immediately before post-change Git capture
 
@@ -395,9 +410,9 @@ This is the critical final flush:
 
 1. Perform the requested source/project changes.
 2. Run `File.SaveAll` after those mutations.
-3. Resolve the complete transaction-created changed-path set.
-4. Open all changed text/source-editable files in the Visual Studio source-code/text editor; never activate the WinForms Designer.
-5. After the opening pass is complete, write the mandatory one-run JSON sidecar described in Section 9 so `VCmd.CCommandStripLineBreaksFromAllComments` is noninteractive and its Git awareness/check-in behavior is disabled for this invocation.
+3. Resolve the complete transaction-created changed-path set for Git/scope purposes.
+4. Derive the VCmd-eligible C# processing set from those changed paths using the Section 9 inclusion/exclusion rules, then open only that eligible set in the Visual Studio source-code/text editor; never activate the WinForms Designer.
+5. After the VCmd-eligible opening pass is complete, write the mandatory one-run JSON sidecar described in Section 9 so `VCmd.CCommandStripLineBreaksFromAllComments` is noninteractive and its Git awareness/check-in behavior is disabled for this invocation.
 6. Invoke `VCmd.CCommandStripLineBreaksFromAllComments` **without command arguments** only when the sidecar write succeeded. If the sidecar cannot be prepared, emit `*** WARNING ***` and skip VCmd rather than risking a modal prompt or VCmd-owned Git activity. If the VCmd command itself is unavailable or throws, report `*** WARNING ***` and preserve forward progress; cleanup-tool failure is not a reason to erase otherwise-successful source mutations.
 7. Run `File.SaveAll` **unconditionally**, whether VCmd succeeded, was skipped, or reported a warning.
 8. Close script-owned documents if the workflow requires isolation and documents are open.
@@ -452,7 +467,7 @@ If required transaction-owned documents remain open when isolation is necessary,
 
 If the script opens documents specifically for cleanup and later fails, cleanup should focus on the documents/state the script took ownership of. Do not casually destroy unrelated user editor state during exception handling.
 
-The fact that changed files are intentionally opened before VCmd does not authorize a blanket close of documents that were already open before the transaction.
+The fact that VCmd-eligible changed files are intentionally opened before VCmd does not authorize a blanket close of documents that were already open before the transaction.
 
 ---
 ## 9. Changed-File Editor Opening and VCmd / Visual Commander Cleanup
@@ -465,27 +480,59 @@ VCmd.CCommandStripLineBreaksFromAllComments
 
 use the following discipline.
 
-### Open the complete changed-file set first
+### Derive the VCmd processing set from the complete changed-path set
 
-After source/project mutations and the required `File.SaveAll`, resolve the complete set of files changed by the transaction. For every changed file that Visual Studio can meaningfully open as text/source, open it **before** executing VCmd.
+After source/project mutations and the required `File.SaveAll`, first resolve the **complete set of paths changed by the transaction**. That complete set belongs to Git/scope accounting and must not be narrowed merely because VCmd will ignore some of it.
 
-The purpose of this opening pass is deliberate: VCmd automatically strips line breaks from comments and formats the files it sees open in the editor. Therefore the transaction must finish opening the changed files first and invoke VCmd only afterward.
+Then derive a separate **VCmd-eligible C# processing set**. The two sets serve different purposes:
 
-Do not restrict the opening set merely because a file is:
+- the complete changed-path set answers **what the transaction changed and Git must capture**; and
+- the VCmd processing set answers **which changed files the comment-cleanup/formatting command is intentionally designed to rewrite**.
 
-- named `GlobalAspects.cs` or otherwise begins with `Global`;
-- named `AssemblyInfo.cs`;
-- a `*.Designer.cs` source file;
-- a generated/derived C# text file such as `*.g.cs` or `*.i.cs`; or
-- another changed text/source artifact that is part of the authorized transaction.
+Never treat "text file", "source-editable file", or "Visual Studio can open it" as sufficient VCmd eligibility. A file can be textual and still be completely inappropriate for comment stripping or formatting.
 
-If the transaction changed such a text/source file, it belongs in the editor-opening pass unless Visual Studio cannot mechanically open it as text.
+### VCmd eligibility rules
 
-Binary artifacts such as signing keys, icons, compiled outputs, or other non-text files cannot be meaningfully opened in the source-code editor. Treat those as informational skips, report the skip through `Write-Host` when useful, and continue. Do not manufacture an editor failure merely to satisfy an impossible text-view operation.
+A changed file is eligible for `VCmd.CCommandStripLineBreaksFromAllComments` only when all applicable rules below are satisfied.
 
-### Always force the source-code/text editor; never the WinForms Designer
+#### Include
 
-Opening a changed file must not activate the WinForms Designer or another designer surface. This is especially important for a WinForms form/control primary `.cs` file and its `*.Designer.cs` companion, because the default project-item view can otherwise select a designer.
+Include:
+
+- ordinary changed, hand-authored C# source files whose leaf name ends in `.cs`; and
+- changed `AssemblyInfo.cs` files.
+
+`AssemblyInfo.cs` is an explicit supported exception. Even though it is convention/fixed-format infrastructure, the VCmd command has special processing rules for `AssemblyInfo.cs`, so a changed `AssemblyInfo.cs` belongs in the VCmd processing set.
+
+#### Exclude
+
+Exclude changed files from VCmd preparation when they are:
+
+- named `Global*.cs`, including `GlobalAspects.cs` and other global generated/fixed-format source;
+- `*.Designer.cs`, including `Resources.Designer.cs` and WinForms designer partials;
+- generated/derived source such as `*.g.cs`, `*.i.cs`, `*.generated.cs`, or another transaction-known generated C# artifact;
+- located in build-output/intermediate areas such as `bin` or `obj`;
+- project/Solution/build metadata such as `.csproj`, `.sln`, `.props`, or `.targets`;
+- resource/configuration/data files such as `.resx`, `.config`, `.json`, or `.xml`;
+- documentation/text artifacts such as `.md` or `.txt`;
+- signing/binary/resource artifacts such as `.snk`, `.ico`, images, compiled outputs, or other binary files; or
+- any other scaffold/generated/fixed-format artifact that the generation-time audit identifies as outside VCmd's intended cleanup domain.
+
+The `AssemblyInfo.cs` inclusion rule takes precedence over a generic "infrastructure/fixed-format" classification. Do not accidentally exclude it merely because other infrastructure files are excluded.
+
+Do not inspect source contents at runtime to determine these categories. Use pathname/leaf-name/extension rules and transaction-specific classification established during generation-time audit. VCmd selection must remain a simple mechanical filtering step, not a source parser or semantic validator.
+
+### Scaffold phases normally have no VCmd work
+
+A new-project scaffold commonly changes `.csproj`, `GlobalAspects.cs`, `Properties\AssemblyInfo.cs`, `Properties\Resources.Designer.cs`, `Properties\Resources.resx`, `README.md`, `packages.config`, `key.snk`, `app.config`, icons, and Solution membership.
+
+Most of those files are deliberately excluded from VCmd. `Properties\AssemblyInfo.cs` is the normal exception because `AssemblyInfo.cs` is explicitly supported by the command.
+
+Therefore a scaffold phase must **not** open every scaffold artifact merely because it changed. If the scaffold's only VCmd-eligible path is `AssemblyInfo.cs`, open only that file. If no VCmd-eligible file changed, skip VCmd for that phase and continue normally.
+
+### Always force the source-code/text editor for VCmd-eligible files
+
+Opening a VCmd-eligible changed file must not activate the WinForms Designer or another designer surface. This matters particularly for an ordinary hand-authored WinForms primary `.cs` file, because the default project-item view can otherwise select the designer.
 
 Use an explicit source/text/code view through DTE, such as the text-view kind or another verified mechanism that opens the file as text, rather than relying on the default project-item view. A DTE text-view kind that has been proven reliable in this workflow is:
 
@@ -493,25 +540,25 @@ Use an explicit source/text/code view through DTE, such as the text-view kind or
 {7651a700-06e5-11d1-8ebd-00a0c90f26ea}
 ```
 
-When using `$dte.ItemOperations.OpenFile(...)`, pass an explicit text/source view kind rather than a default view for WinForms-related paths.
+When using `$dte.ItemOperations.OpenFile(...)`, pass an explicit text/source view kind rather than a default view for VCmd-eligible paths.
 
 The rule is:
 
-> Changed files are opened for VCmd in the source-code/text editor only. The transaction must never open the WinForms Designer merely to prepare editor cleanup.
+> Only VCmd-eligible changed C# files are opened for VCmd, and they are opened in the source-code/text editor only. The transaction must never activate the WinForms Designer merely to prepare editor cleanup.
 
-### Only open real changed files
+### Only open real VCmd-eligible changed files
 
-For each changed-path candidate:
+For each candidate in the derived VCmd processing set:
 
 1. Verify the path belongs to the transaction's authorized changed set.
 2. Verify the file exists when the status represents an existing file rather than a deletion/rename-away path.
-3. Determine whether it is text/source-editable in Visual Studio.
+3. Reconfirm the pathname-based VCmd eligibility rule without inspecting source contents.
 4. Attempt to open it explicitly in the source-code/text editor.
-5. Count only the files that actually opened successfully.
-6. If one file cannot be opened mechanically, emit `*** WARNING ***` with the filename/error and continue opening the rest; do not make one editor-open failure fatal to the source transaction.
-7. Emit useful `Write-Host` diagnostics identifying each file opened or explaining a legitimate non-text/deleted/unopenable skip.
+5. Count only the VCmd-eligible files that actually opened successfully.
+6. If one eligible file cannot be opened mechanically, emit `*** WARNING ***` with the filename/error and continue opening the rest; do not make one editor-open failure fatal to the source transaction.
+7. Emit useful `Write-Host` diagnostics identifying each eligible file opened and, when useful, summarizing excluded changed paths by category.
 
-Do not open unrelated files and do not open an arbitrary document merely to test whether VCmd is registered or executable.
+Do not open excluded files merely to make them visible to VCmd. Do not open unrelated files and do not open an arbitrary document merely to test whether VCmd is registered or executable.
 
 ### Mandatory noninteractive/Git-disabled VCmd configuration
 
@@ -575,17 +622,17 @@ Because the sidecar is a one-run input and VCmd resets it at the end of each nor
 
 ### Execute VCmd only after the opening pass completes
 
-If zero changed text/source-editable files can be opened, skip VCmd and report the legitimate no-op through `Write-Host`.
+If zero VCmd-eligible changed C# files can be opened, skip VCmd and report the legitimate no-op through `Write-Host`.
 
-If one or more changed text/source-editable files are open:
+If one or more VCmd-eligible changed C# files are open:
 
 1. Complete the requested source/project mutations without runtime semantic/hash/layout verification.
 2. Run `File.SaveAll`.
-3. Resolve the complete transaction-created changed-file set.
-4. Open **all** changed text/source-editable files in the source-code/text editor, never the WinForms Designer.
-5. Confirm the opening pass itself completed mechanically; do not semantically inspect the source.
+3. Resolve the complete transaction-created changed-file set for Git/scope purposes.
+4. Derive the VCmd-eligible C# processing set and open **only** those eligible files in the source-code/text editor, never the WinForms Designer.
+5. Confirm the VCmd-eligible opening pass itself completed mechanically; do not semantically inspect the source.
 6. Write the mandatory one-run `.config.json` sidecar with the exact Section 9 noninteractive/Git-disabled values.
-7. If the sidecar write succeeded, emit a `Write-Host` diagnostic that VCmd is about to run noninteractively against the already-open changed files with VCmd Git behavior disabled. If the sidecar write failed, emit `*** WARNING ***` and skip VCmd.
+7. If the sidecar write succeeded, emit a `Write-Host` diagnostic that VCmd is about to run noninteractively against the already-open eligible C# files with VCmd Git behavior disabled. If the sidecar write failed, emit `*** WARNING ***` and skip VCmd.
 8. When configured successfully, attempt the **argumentless** `VCmd.CCommandStripLineBreaksFromAllComments` invocation once. If the command is unavailable or throws, catch that cleanup failure, emit `*** WARNING ***`, and continue.
 9. Process pending IDE events if useful.
 10. Run `File.SaveAll` again unconditionally.
@@ -619,7 +666,7 @@ The transaction's fatal runtime gates are limited to conditions required to cont
 
 A current prompt may expressly ask the script to invoke a build, compilation, or test operation. In that case:
 
-1. Run it only after the source/project mutation and required changed-file editor-opening/VCmd/SaveAll work are complete.
+1. Run it only after the source/project mutation and required VCmd-eligible editor-opening/VCmd/SaveAll work are complete.
 2. Capture and report the outcome.
 3. Do not throw merely because it failed.
 4. Do not abort the transaction merely because it failed.
@@ -640,7 +687,7 @@ Linting, formatting/style diagnostics, ReSharper/CodeMaid analysis, compiler-lik
 
 Do not invoke a linter, formatter verifier, style checker, or static analyzer merely to prove that generated source is acceptable. Source quality is a generation-time responsibility and the maintainer's IDE remains the authoritative review environment.
 
-The required VCmd pass is not a speculative formatting verifier. It is an intentional editor-cleanup action performed after the transaction opens the complete changed text/source file set in the source-code editor.
+The required VCmd pass is not a speculative formatting verifier. It is an intentional editor-cleanup action performed after the transaction derives and opens only the VCmd-eligible changed C# source set in the source-code editor.
 
 ### If explicitly requested for information
 
@@ -1012,7 +1059,7 @@ Assume a prior run may have failed after any of these points:
 - boundary commit;
 - one or more file writes;
 - project-reference modification;
-- changed-file editor opening;
+- VCmd-eligible changed-file editor opening;
 - VCmd cleanup;
 - staging;
 - one or more per-file commits;
@@ -1035,8 +1082,8 @@ Examples:
 - Overwrite/clobber an authorized source payload regardless of whether a prior run reformatted, partially changed, or otherwise reshaped it; do not rediscover old method bodies or markers first.
 - Skip a work-item commit if its path is no longer dirty.
 - Add a project/assembly reference only if the current implementation needs it.
-- Reopen the current transaction-created changed text/source files in the source-code editor before VCmd even when some are already open from an earlier attempt; opening an already-open document is a harmless retry condition.
-- Skip VCmd only when no changed text/source-editable files can be opened.
+- Re-derive the current transaction's VCmd-eligible changed C# set and open those eligible files in the source-code editor before VCmd even when some are already open from an earlier attempt; opening an already-open eligible document is a harmless retry condition.
+- Skip VCmd when no VCmd-eligible changed C# files can be opened.
 - Preserve partial forward progress after advisory/runtime correctness concerns and fix those concerns in the next transaction rather than automatically erasing the work.
 
 ---
@@ -1162,7 +1209,7 @@ Rollback in reverse order on failure when feasible and surface rollback failures
 
 A rename is normally one logical work item. Keep old/new paths together. Include directly coupled topology files only when splitting them would leave an invalid intermediate project/Solution state. Temporary scoped staging may be used for Git rename detection, but it must be reset immediately before final granular staging.
 
-### 20.5 WinForms `*.Designer.cs` partial-class accessibility and editor handling
+### 20.5 WinForms `*.Designer.cs` partial-class accessibility and VCmd exclusion
 
 When a Change Transaction Script creates or modifies a WinForms `*.Designer.cs` file for a public `Form`, `UserControl`, or other public partial WinForms type, explicitly declare the designer-side type part with `public` before `partial`.
 
@@ -1190,10 +1237,11 @@ During **generation-time audit** for a WinForms designer payload:
 At runtime:
 
 5. Clobber the authorized designer source file with the pre-audited payload without rechecking the old declaration shape.
-6. If the `*.Designer.cs` file changed, include it in the changed-file opening set and force it into the source-code/text editor.
-7. Never activate the WinForms Designer for that file as part of cleanup.
+6. Preserve and capture the changed `*.Designer.cs` path through the normal Git workflow.
+7. Exclude the `*.Designer.cs` path from the VCmd processing set. Do **not** open it merely so `VCmd.CCommandStripLineBreaksFromAllComments` can process it.
+8. If some other explicit transaction operation genuinely requires opening the designer source file, force the source-code/text editor and never activate the WinForms Designer.
 
-The prohibition is against opening the **WinForms Designer surface**, not against opening a changed `*.Designer.cs` file as source text.
+A changed `*.Designer.cs` file remains an authorized source/Git artifact, but it is **not** a VCmd cleanup target. The complete Git changed-path set and the VCmd processing set must remain distinct.
 
 ---
 ## 21. Source Correctness Is a Generation-Time Responsibility
@@ -1208,7 +1256,7 @@ Therefore:
 - exact desired-state full-file payloads are the default mutation mechanism whenever feasible;
 - positive source/project mutations are presumed correct once their underlying operations return normally;
 - source hashes, regexes, marker checks, declaration checks, method-body locators, old-block searches, AST/source-shape checks, reference checks, API checks, and similar semantic inspections are not fatal runtime gates;
-- the changed-file editor-opening pass is a mechanical preparation step, not a source-validation step;
+- the VCmd-eligible editor-opening pass is a mechanical preparation step over a deliberately filtered C# subset, not a source-validation step and not a proxy for the complete Git changed-path set;
 - VCmd is invoked only after the exact one-run noninteractive/Git-disabled sidecar has been written successfully, and VCmd cleanup is trusted completely once invoked successfully;
 - no semantic/textual source verification occurs after VCmd;
 - no build, compile, or test gate occurs after VCmd or elsewhere by default; and
@@ -1332,9 +1380,10 @@ Useful diagnostics normally include, when applicable:
 - boundary/scaffold/implementation phase transitions;
 - meaningful source/project mutation progress;
 - legitimate no-op decisions;
-- changed-file discovery after mutation;
-- each changed text/source file being opened in the Visual Studio source-code editor, and legitimate skips such as deleted or non-text/binary files;
-- confirmation that the complete changed-file opening pass finished before VCmd;
+- complete changed-path discovery after mutation for Git/scope accounting;
+- derivation of the narrower VCmd-eligible C# set, including useful summary diagnostics for excluded categories when applicable;
+- each VCmd-eligible changed C# file being opened in the Visual Studio source-code editor;
+- confirmation that the complete VCmd-eligible opening pass finished before VCmd;
 - VCmd sidecar preparation, confirmation that the invocation is noninteractive/Git-disabled, and VCmd invocation/completion or warning-only skip/failure;
 - Git work-item selection, staging, commit completion, and repository transitions;
 - final pull/rebase/push progress when applicable;
@@ -1393,21 +1442,25 @@ Bad examples:
 - Requiring an exact XML documentation layout when ReSharper is allowed to reflow it.
 - Rejecting a project because it contains additional references that the transaction did not add or does not currently use.
 - Removing a preexisting reference merely because the script believes it is unnecessary.
-- Excluding a changed source file from the VCmd opening pass merely because it is named `GlobalAspects.cs`, `AssemblyInfo.cs`, or `*.Designer.cs`.
+- Opening `.csproj`, `.sln`, `.resx`, `.config`, `.json`, `.xml`, `.props`, `.targets`, `.md`, `.txt`, `.snk`, resource, or other non-C# artifacts merely because Visual Studio can open some of them as text.
+- Opening `Global*.cs`, `*.Designer.cs`, `*.g.cs`, `*.i.cs`, `*.generated.cs`, or another known generated/fixed-format C# artifact merely because its extension is `.cs`.
+- Excluding a changed `AssemblyInfo.cs` from VCmd merely because it is infrastructure/fixed-format source; `AssemblyInfo.cs` is the explicit supported exception.
 
 Good examples:
 
 - Resolving the authorized target pathname and then clobbering it with the pre-audited exact desired-state payload without inspecting old source contents.
 - Transporting large/complex audited payloads as exact Base64-encoded bytes and writing them with `WriteAllBytes` to avoid PowerShell text-encoding/quoting hazards.
 - Tracking whether the first meaningful positive mutation has succeeded so a pre-mutation failure can clean up only the transaction-owned empty boundary.
-- Warning and continuing when one source file cannot be opened for VCmd, while running cleanup against the files that did open.
+- Resolving the complete transaction-created changed-path set for Git, then deriving a separate VCmd set containing only ordinary hand-authored changed `.cs` files plus changed `AssemblyInfo.cs`.
+- Excluding `Global*.cs`, `*.Designer.cs`, generated C# source, project/scaffold metadata, resources, configuration, documentation, signing material, and binary artifacts from VCmd preparation.
+- Warning and continuing when one VCmd-eligible source file cannot be opened, while running cleanup against the eligible files that did open.
 - Writing the exact schema-version-2 noninteractive/Git-disabled VCmd sidecar immediately before invocation so the command cannot display its confirmation message box(es) or perform Git work.
 - Warning and skipping VCmd when its sidecar cannot be prepared, rather than invoking the command with default interactive/Git-aware behavior.
 - Warning and continuing when VCmd itself is unavailable, followed by the unconditional final `File.SaveAll`.
 - Checking document count before a close-all operation that is actually required.
-- Verifying that a changed path exists before trying to open it as source text.
-- Determining whether a changed file is text/source-editable before asking Visual Studio to open it in a text view.
-- Explicitly requesting the source-code/text editor so a WinForms file cannot default to the Designer.
+- Verifying that a VCmd-eligible changed path exists before trying to open it as source text.
+- Applying simple pathname/classification eligibility rules before asking Visual Studio to open a changed file for VCmd, without inspecting source contents.
+- Explicitly requesting the source-code/text editor so an eligible WinForms primary `.cs` file cannot default to the Designer.
 - Verifying Git staging contains exactly the intended path before commit.
 - Confirming that the required DTE reference-add operation returned normally and then flushing with `File.SaveAll`, without making a `.csproj` reread a fatal gate.
 - Re-resolving authorized target paths after `git pull` when repository topology may have changed.
@@ -1462,15 +1515,16 @@ If not, do not make it a hard gate.
 3. Assume successful positive mutation operations produced the intended state.
 4. Do not run lint/style/static-analysis gates; if explicitly requested for information, report findings as warnings and continue.
 5. `File.SaveAll`.
-6. Refresh the complete transaction-created changed-path set.
-7. Attempt to open **all changed text/source-editable files** in Visual Studio's source-code/text editor, explicitly preventing WinForms Designer activation. Include changed `GlobalAspects.cs`, `AssemblyInfo.cs`, and `*.Designer.cs` files rather than excluding them by name.
-8. Report changed-file opening progress through `Write-Host`; deleted/non-text/binary paths and individual source-editor open failures are warning/no-op skips, not transaction-fatal errors.
-9. Only after the complete opening pass finishes, write the exact Section 9 one-run `.config.json` values that suppress prompts and disable both VCmd Git paths. If the sidecar cannot be prepared, warn and skip VCmd.
-10. When sidecar preparation succeeded, attempt the **argumentless** `VCmd.CCommandStripLineBreaksFromAllComments` invocation once against the successfully opened set. If VCmd fails, warn and continue.
-11. Final unconditional `File.SaveAll` regardless of sidecar/VCmd outcome.
-12. Close only transaction-owned documents when required; do not indiscriminately close unrelated documents.
-13. Do **not** semantically verify source after VCmd.
-14. Refresh Git status for capture; do not convert source/project diagnostics into blockers.
+6. Refresh the complete transaction-created changed-path set for Git/scope accounting.
+7. Derive the separate VCmd-eligible C# processing set: ordinary changed hand-authored `.cs` files plus changed `AssemblyInfo.cs`; exclude `Global*.cs`, `*.Designer.cs`, generated/derived C# source, all non-C# project/scaffold/resource/config/documentation/signing/binary artifacts, and any additional generated/fixed-format paths identified during generation-time audit.
+8. Attempt to open **only the VCmd-eligible set** in Visual Studio's source-code/text editor, explicitly preventing WinForms Designer activation.
+9. Report VCmd-eligible opening progress through `Write-Host`; individual eligible source-editor open failures are warning/no-op skips, not transaction-fatal errors. Excluded paths remain part of Git capture and are not editor failures.
+10. Only after the complete VCmd-eligible opening pass finishes, write the exact Section 9 one-run `.config.json` values that suppress prompts and disable both VCmd Git paths. If the sidecar cannot be prepared, warn and skip VCmd.
+11. When sidecar preparation succeeded, attempt the **argumentless** `VCmd.CCommandStripLineBreaksFromAllComments` invocation once against the successfully opened eligible set. If VCmd fails, warn and continue.
+12. Final unconditional `File.SaveAll` regardless of sidecar/VCmd outcome.
+13. Close only transaction-owned documents when required; do not indiscriminately close unrelated documents.
+14. Do **not** semantically verify source after VCmd.
+15. Refresh Git status for capture; do not convert source/project diagnostics into blockers.
 
 ### Phase 5 — Git capture
 
@@ -1508,10 +1562,11 @@ After meaningful positive mutation, do not automatically roll back source/projec
 | Scaffold commit | Complete verified scaffold(s) + Solution membership; clean index | Entire project/module-family scaffold committed as one atomic add | Existing verified scaffold commit: reuse/skip |
 | Add required reference | Target loaded + required reference absent | DTE reference-add returns normally + `File.SaveAll` completes | Already present: skip; unrelated extra references: ignore |
 | Rename project/folder | Solution closed + rollback state captured | old absent/new present; topology updated; same Solution reopened | bounded retry/rollback |
-| Discover changed files for editor cleanup | source/project mutations saved | complete transaction-created changed-path set resolved | no changed paths: successful no-op |
-| Open changed file for VCmd | authorized changed path + existing text/source-editable file | successful opens use source-code/text editor, not WinForms Designer | deleted/non-text/binary/unopenable path: warn/skip; already open as text: reuse; never roll back source |
-| Prepare VCmd one-run sidecar | complete opening pass finished + at least one changed text/source file opened | canonical `.config.json` written with schema `2`, prompt suppression enabled, both VCmd Git behaviors disabled | preparation failure: warn, skip VCmd, continue to unconditional SaveAll/Git capture |
-| VCmd cleanup | sidecar preparation succeeded + at least one changed text/source file opened | one **argumentless** VCmd attempt + unconditional final SaveAll; successful cleanup trusted with no post-VCmd semantic check | zero opened files: skip; VCmd failure: warn and continue; command resets sidecar defaults on normal `Run` exit |
+| Discover changed files for Git/scope accounting | source/project mutations saved | complete transaction-created changed-path set resolved | no changed paths: successful no-op |
+| Derive VCmd processing set | complete changed-path set resolved | pathname/classification filter yields only eligible changed C# files; `AssemblyInfo.cs` included; generated/fixed-format/non-C# artifacts excluded | zero eligible paths: skip VCmd |
+| Open eligible file for VCmd | authorized changed path + VCmd-eligible existing C# file | successful opens use source-code/text editor, not WinForms Designer | unopenable eligible path: warn/skip; already open as text: reuse; excluded paths are not opening candidates |
+| Prepare VCmd one-run sidecar | complete VCmd-eligible opening pass finished + at least one eligible C# file opened | canonical `.config.json` written with schema `2`, prompt suppression enabled, both VCmd Git behaviors disabled | preparation failure: warn, skip VCmd, continue to unconditional SaveAll/Git capture |
+| VCmd cleanup | sidecar preparation succeeded + at least one VCmd-eligible C# file opened | one **argumentless** VCmd attempt + unconditional final SaveAll; successful cleanup trusted with no post-VCmd semantic check | zero eligible/opened files: skip; VCmd failure: warn and continue; command resets sidecar defaults on normal `Run` exit |
 | Optional informational lint/style/static analysis | explicitly requested by current prompt | outcome captured/reported | findings and nonzero exit are warning-only; continue |
 | Optional informational build/test | explicitly requested by current prompt | outcome captured/reported | failure is non-fatal and never triggers rollback |
 | Select implementation work item | fresh repo status | CreateStagedGitDiff-compatible next path set selected | no transaction changes: repo complete |
@@ -1591,17 +1646,21 @@ After meaningful positive mutation, do not automatically roll back source/projec
 - [ ] No existing project/assembly/package reference is rejected, removed, or treated as an error merely because it appears unused or unnecessary.
 - [ ] Existing references are removed only when the current task explicitly requires removal of the specific reference.
 - [ ] Project renames occur only while the Solution is closed and use finite retries/rollback.
-- [ ] After mutations and `File.SaveAll`, the script resolves the complete transaction-created changed-file set.
-- [ ] Every changed text/source-editable file is **attempted** before VCmd in the Visual Studio source-code/text editor.
-- [ ] Individual source-editor open failures are warning-only and do not roll back successful source/project mutations.
-- [ ] No changed text/source file is excluded merely because it is `GlobalAspects.cs`, `AssemblyInfo.cs`, `*.Designer.cs`, `*.g.cs`, or `*.i.cs`.
-- [ ] WinForms files are explicitly opened as source text; the transaction never activates the WinForms Designer for cleanup.
-- [ ] Deleted and non-text/binary changed paths are treated as legitimate non-openable skips rather than editor failures.
+- [ ] After mutations and `File.SaveAll`, the script resolves the complete transaction-created changed-path set for Git/scope accounting.
+- [ ] The script derives a separate VCmd processing set rather than equating "changed" or "text/source-editable" with VCmd eligibility.
+- [ ] The VCmd processing set contains ordinary changed hand-authored `.cs` files and explicitly includes changed `AssemblyInfo.cs`.
+- [ ] The VCmd processing set excludes `Global*.cs`, `*.Designer.cs`, `*.g.cs`, `*.i.cs`, `*.generated.cs`, other known generated/fixed-format C# artifacts, and build-output/intermediate source.
+- [ ] The VCmd processing set excludes all non-C# artifacts, including project/Solution/build metadata, resources, configuration/data files, documentation/text files, signing keys, icons, and other binary/scaffold artifacts.
+- [ ] Every VCmd-eligible changed C# file is **attempted** before VCmd in the Visual Studio source-code/text editor.
+- [ ] Individual eligible source-editor open failures are warning-only and do not roll back successful source/project mutations.
+- [ ] Excluded changed paths remain part of the transaction/Git changed set and are not opened merely for VCmd.
+- [ ] Eligible WinForms primary `.cs` files are explicitly opened as source text; the transaction never activates the WinForms Designer for cleanup.
+- [ ] VCmd eligibility is determined mechanically from path/classification rules established during generation-time audit; runtime source contents are not parsed to decide eligibility.
 - [ ] Immediately before every VCmd invocation, the script writes `%LOCALAPPDATA%\xyLOGIX, LLC\Visual Commander\Commands\Strip Line Breaks from All Comments\Config\.config.json` using schema `2` with `SuppressPrompts = true`, `EnableGitAwareness = false`, and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed = false`.
 - [ ] VCmd is never invoked when that sidecar preparation fails; the failure is warning-only, VCmd is skipped, and final `File.SaveAll`/script-owned Git capture continue.
 - [ ] `VCmd.CCommandStripLineBreaksFromAllComments` is invoked without command arguments; no `NoPrompt` argument or equivalent is used.
 - [ ] The VCmd sidecar disables all VCmd-owned Git behavior so the Change Transaction Script remains solely responsible for synchronization, staging, custom commit-message generation, commits, and push.
-- [ ] VCmd is attempted only after the complete changed-file opening pass has finished and successful sidecar preparation, and normally once for the successfully opened set; VCmd failure is warning-only and final `File.SaveAll` still occurs.
+- [ ] VCmd is attempted only after the complete VCmd-eligible opening pass has finished and successful sidecar preparation, and normally once for the successfully opened eligible set; VCmd failure is warning-only and final `File.SaveAll` still occurs.
 - [ ] No source-byte/hash/layout/semantic match is required before overwriting an authorized target or before VCmd.
 - [ ] No semantic/textual source verification is performed after successful VCmd cleanup.
 - [ ] No build, compilation, or test operation is used as a fatal transaction gate.
@@ -1627,7 +1686,7 @@ Audit the planned transaction against the current authoritative workspace and cu
 - source/project payloads are generation-time audited for correctness/style/documentation/reference requirements;
 - commit messages are scoped to their intended staged work items and obey repository rules;
 - boundary/retry/no-op behavior is coherent;
-- editor-opening/VCmd cleanup is best-effort and cannot erase source progress, while every VCmd invocation is preceded by the exact noninteractive/Git-disabled one-run sidecar so no modal prompt or VCmd-owned Git workflow can occur;
+- the complete changed-path set and narrower VCmd-eligible C# set are distinguished correctly; VCmd eligibility includes `AssemblyInfo.cs`, excludes generated/fixed-format/non-C# artifacts, and editor-opening/VCmd cleanup remains best-effort and unable to erase source progress, while every VCmd invocation is preceded by the exact noninteractive/Git-disabled one-run sidecar so no modal prompt or VCmd-owned Git workflow can occur;
 - Git synchronization respects actual upstream state; and
 - unrelated post-baseline dirty paths cannot hitchhike or be reset.
 
@@ -1646,11 +1705,11 @@ After writing the final GUID-named `.ps1` file, reopen **that exact file** and a
 9. verify no runtime method-body/marker/regex/old-code/hash/source-shape discovery can unnecessarily kill an exact-payload transaction;
 10. verify meaningful-mutation tracking and pre-mutation empty-boundary cleanup are present when a boundary is used;
 11. verify successful no-op boundary cleanup is present when a boundary is used;
-12. verify changed text/source paths are opened/attempted before VCmd with an explicit source/text view and cannot activate the WinForms Designer;
+12. verify the script resolves the complete transaction-created changed-path set separately from the VCmd set, then opens/attempts only VCmd-eligible changed C# files with an explicit source/text view; verify `AssemblyInfo.cs` is included and `Global*.cs`, `*.Designer.cs`, generated/derived C# source, and all non-C# artifacts are excluded from VCmd preparation;
 13. verify every VCmd invocation is immediately preceded by a write to the canonical `.config.json` path with **exactly** schema `2`, `SuppressPrompts: true`, `EnableGitAwareness: false`, and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed: false`;
 14. verify the script skips VCmd rather than invoking it when sidecar preparation fails, and verify the VCmd call is argumentless (no `NoPrompt` or other command argument);
 15. verify VCmd cannot perform Git synchronization/check-in/push and therefore cannot compete with the script's own custom commit-message/staging workflow;
-16. verify per-file editor-open failure, sidecar-preparation failure, and VCmd failure are warning-only and the final `File.SaveAll` is unconditional;
+16. verify eligible-file editor-open failure, sidecar-preparation failure, and VCmd failure are warning-only, excluded files are never opened merely for VCmd, and the final `File.SaveAll` is unconditional;
 17. verify no post-VCmd semantic source verification or fatal lint/style/static-analysis/build/compile/test gate exists;
 18. verify reference handling is positive-only unless the current prompt explicitly authorizes removal;
 19. verify public WinForms `*.Designer.cs` payloads use the required explicit `public partial class` declaration when applicable;
@@ -1665,7 +1724,7 @@ Only after both passes succeed should the artifact be delivered.
 
 > A Change Transaction Script is a **clobbering, progress-first, in-IDE transaction whose primary runtime goal is to impose the audited change and keep moving rather than invent reasons to die**. Use the host-provided `$dte`; never assign or bind to it. Audit source/project shape before delivery against the current authoritative workspace/tarball and current-prompt corrections. Generate complete exact desired-state file payloads whenever feasible. For large/complex payloads, transport the exact audited bytes safely (prefer Base64 plus `WriteAllBytes`) so PowerShell quoting, interpolation, encoding, BOM handling, or newline conversion cannot corrupt the desired file. At runtime, once the correct Solution/repository and authorized target path are established, assume the live file is the transaction input already audited by the generator and overwrite/clobber it directly. Do not reread, parse, regex-match, search for methods/markers/old code blocks, hash-check, AST-compare, compare formatting/layout, or otherwise mechanically verify existing source text merely to decide whether an authorized write may occur. Structural edits are exceptional and exist only when preserving genuinely unmodeled live content makes full-file replacement impractical. Once a positive write/project/reference/topology mutation returns normally, assume it succeeded, mark that meaningful positive mutation has occurred, and keep moving.
 >
-> Emit useful, concise `Write-Host` diagnostics so the maintainer can follow meaningful transaction progress without being flooded by raw tool chatter. Git runs quietly through `System.Diagnostics.Process`, with stdout/stderr drained concurrently and waits bounded. Flush at the defined synchronization boundaries. After mutations are saved, resolve the complete transaction-created changed-file set and **attempt** to open every changed text/source-editable file in Visual Studio's source-code/text editor before running VCmd; never activate the WinForms Designer for this cleanup pass, including for WinForms primary `.cs` or `*.Designer.cs` files. Individual editor-open failures are warnings, not reasons to erase source progress. Do not exclude changed source files merely because they are named `GlobalAspects.cs`, `AssemblyInfo.cs`, `*.Designer.cs`, `*.g.cs`, or `*.i.cs`. Once the opening pass is complete, write the canonical one-run VCmd `.config.json` with schema `2`, `SuppressPrompts: true`, `EnableGitAwareness: false`, and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed: false`. This sidecar is mandatory: it keeps cleanup noninteractive and keeps all Git synchronization, staging, custom commit-message generation, commits, and push under Change Transaction Script control. If the sidecar cannot be prepared, warn and skip VCmd rather than risking modal UI or VCmd-owned Git behavior. Otherwise invoke `VCmd.CCommandStripLineBreaksFromAllComments` once **without arguments** against the successfully opened set. VCmd failure is warning-only. Perform the final unconditional `File.SaveAll` whether sidecar preparation/VCmd succeeded, failed, or was skipped. VCmd normally resets its schema-version-2 sidecar to defaults when its `Run` invocation exits, so the script must rewrite the required one-run values before each future VCmd invocation.
+> Emit useful, concise `Write-Host` diagnostics so the maintainer can follow meaningful transaction progress without being flooded by raw tool chatter. Git runs quietly through `System.Diagnostics.Process`, with stdout/stderr drained concurrently and waits bounded. Flush at the defined synchronization boundaries. After mutations are saved, resolve the **complete** transaction-created changed-path set for Git/scope accounting, then derive a **separate, narrower VCmd processing set**. Open only ordinary changed hand-authored `.cs` files plus changed `AssemblyInfo.cs`; `AssemblyInfo.cs` is explicitly eligible because the command has special processing rules for it. Exclude `Global*.cs`, `*.Designer.cs`, `*.g.cs`, `*.i.cs`, `*.generated.cs`, other generated/fixed-format C# artifacts, build-output/intermediate source, and every non-C# project/scaffold/resource/configuration/documentation/signing/binary artifact. Do not inspect source contents at runtime to make this eligibility decision. Open the eligible set in Visual Studio's source-code/text editor and never activate the WinForms Designer. Individual eligible editor-open failures are warnings, not reasons to erase source progress; excluded changed paths remain fully subject to Git capture and are simply not VCmd targets. Once the VCmd-eligible opening pass is complete, write the canonical one-run VCmd `.config.json` with schema `2`, `SuppressPrompts: true`, `EnableGitAwareness: false`, and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed: false`. This sidecar is mandatory: it keeps cleanup noninteractive and keeps all Git synchronization, staging, custom commit-message generation, commits, and push under Change Transaction Script control. If the sidecar cannot be prepared, warn and skip VCmd rather than risking modal UI or VCmd-owned Git behavior. Otherwise invoke `VCmd.CCommandStripLineBreaksFromAllComments` once **without arguments** against the successfully opened eligible set. VCmd failure is warning-only. Perform the final unconditional `File.SaveAll` whether sidecar preparation/VCmd succeeded, failed, or was skipped. VCmd normally resets its schema-version-2 sidecar to defaults when its `Run` invocation exits, so the script must rewrite the required one-run values before each future VCmd invocation.
 >
 > Do not use source hashes, semantic checks, linting, style/formatting diagnostics, static analysis, reference analysis, builds, compilation, tests, cleanup expectations, or architectural diagnostics as fatal runtime gates. Trust successful VCmd cleanup completely and never semantically revalidate its output. Do not police references. Start from a clean Git baseline unless explicitly authorized otherwise; if unrelated dirt appears afterward, never stage/reset it, continue capturing exact authorized work when safe, and skip final synchronization while that unrelated dirt remains. Key pull/rebase/push behavior to the current branch's configured upstream, not merely to the existence of a remote. If the script encounters a recognized orphaned empty boundary from an earlier failed iteration, remove it only under strict ownership/empty/clean checks. If the script terminates after creating/adopting its transaction-owned boundary but before any meaningful positive mutation succeeds, clean up that bookkeeping-only boundary back to the captured pre-boundary anchor when the baseline is still clean. If the transaction finishes as a legitimate no-op with no implementation commit, remove its bookkeeping-only boundary as well. After meaningful positive mutation, preserve forward source/project/Git progress rather than automatically restoring files, deleting commits, or hard-resetting history because an advisory check disagrees with the generated state.
 >
