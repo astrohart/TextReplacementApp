@@ -1,13 +1,13 @@
 # Robust Visual Studio Package Manager Console Automation Script Guidelines
 
-Revision: G 
+Revision: H
 Last Updated: 3 September 2026
 
-## Revision F Scope
+## Revision H Scope
 
-Revision F incorporates the transaction behavior learned from the first full Revision E repair run and supersedes Revision E where the rules below differ.
+Revision H supersedes Revision G where the rules below differ. It retains Revision G's maintainer-source authority, exact-payload clobbering discipline, DTE-owned Solution/project topology, junction-aware path identity, preexisting-work preservation, ReSharper suspension, one transaction-wide VCmd opening round, post-VCmd cleanup convergence, positive-only dependency handling, and two-pass exact-artifact audit.
 
-Revision F retains Revision E's DTE-owned Solution/project topology, junction-aware path identity, ReSharper suspension, one transaction-wide VCmd opening round, paced project-owned source opening, ReSharper resumption before VCmd, and generation-time source-quality acceptance rules. It adds and clarifies the following mandatory requirements:
+Revision H also formalizes the standing distinction between **transaction-owned implementation work** and **maintainer-applied Solution-level governance/documentation deliverables**. The mandatory requirements are:
 
 - **VCmd return is not the end of IDE cleanup.** `VCmd.CCommandStripLineBreaksFromAllComments` can trigger a downstream `ReSharper_SilentCleanupOpenCode` execution that continues modifying open source after the VCmd command call itself returns. A Change Transaction Script must therefore establish a bounded **post-VCmd cleanup-convergence barrier** before any Git staging or commit begins.
 - **The post-VCmd barrier is state-based, not a fixed sleep.** Pump the WinForms/Visual Studio message loop, allow ReSharper cleanup to run, invoke `File.SaveAll` at bounded intervals, and observe the transaction-owned files until their mechanical filesystem state remains unchanged for a meaningful quiet interval. A short unconditional sleep by itself is insufficient. If convergence cannot be established within the finite maximum wait, stop before Git capture while preserving the source/project progress already made.
@@ -19,6 +19,10 @@ Revision F retains Revision E's DTE-owned Solution/project topology, junction-aw
 - **Generation-time acceptance must honor these dependency exceptions.** Audits must reject both missing required dependencies and unnecessary blanket dependency additions to `.Constants`/`.Interfaces` projects.
 - **Maintainer-authored source edits are generation-time authority.** When the maintainer changes a file after an earlier AI-generated transaction, tarball, desired-state payload, or assistant response, that newer maintainer-authored file state supersedes the older AI state for that path. The next transaction must preserve those edits and merge only the newly requested difference(s); never recreate a full-file payload from an earlier AI version merely because doing so is convenient.
 - **Full-file clobbering is not permission to roll back maintainer work.** The clobbering rule applies only after the generator has constructed the complete desired file from the latest authoritative maintainer-edited state. If the generator knows a target has changed since its available snapshot and does not possess the current file contents, it must obtain the current file before producing a full-file replacement rather than guessing from stale source.
+- **Solution-level governance documents are manual deliverables, never transaction-owned mutations.** A Change Transaction Script must never overwrite, create, remove, add through DTE, or otherwise mutate the Solution-level xyLOGIX Software Engineering Manifesto, the Solution-level `CONTRIBUTING.md`, or the Solution-level `README.md`. When updated versions are requested, generate them as separate downloadable artifacts for the maintainer to apply manually.
+- **Solution Items membership does not change that ownership rule.** The fact that one of those Solution-level governance documents appears beneath Visual Studio's **Solution Items** node does not authorize a transaction script to treat it as a source/project payload, topology mutation, VCmd target, or transaction-owned Git work item.
+- **Preexisting manual governance-document edits are preserved, not adopted.** If one of those files is already dirty before the transaction begins because the maintainer manually updated it, the general pre-transaction preservation-checkpoint rule may capture that preexisting repository dirt, but the script must not modify the file or reclassify it as transaction-owned implementation work.
+- **Post-baseline governance-document edits remain unrelated work.** If the maintainer changes one of those files after the clean transaction baseline is established, leave it untouched, never stage/reset it as transaction-owned work, and apply the normal unrelated-post-baseline-dirt rule for final synchronization.
 
 All prior requirements concerning exact-payload clobbering, progress-first failure handling, `$dte`, Windows PowerShell 5.1 compatibility, DTE-owned Visual Studio topology, junction-safe identity, the schema-version-2 noninteractive/Git-disabled VCmd sidecar, positive-only reference handling, exact staged-diff Git capture, and the two-pass exact-artifact audit remain in force.
 
@@ -41,6 +45,8 @@ Typical use cases include:
 - staging, committing, synchronizing, and pushing transaction-owned work without allowing unrelated paths to hitchhike.
 
 These scripts are **not** intended to be general-purpose CI/CD pipelines, substitute compilers, build validators, test harnesses, source analyzers, or autonomous architectural reviewers. They are controlled maintainer-side change vehicles: the AI performs the source/code reasoning before delivery; the script performs the mechanical transaction inside the maintainer's current Visual Studio session.
+
+They are also **not** the delivery mechanism for the Solution-level xyLOGIX Software Engineering Manifesto, Solution-level `CONTRIBUTING.md`, or Solution-level `README.md`. Those three governance/documentation files are maintained through separate downloadable artifacts and are manually applied by the maintainer. This exclusion is role- and location-specific: project/module-level README files and other documentation may still be legitimate transaction targets when the current task explicitly requires them.
 
 The design target is deliberately operational rather than theoretical. A successful script should normally be something the maintainer runs once, watches through concise `Write-Host` progress messages, and then reviews in Visual Studio/Git. It should not require the maintainer to become the human debugger of generated PowerShell.
 
@@ -66,6 +72,12 @@ Maintainer-authored source is stronger authority than AI-authored history. If th
 If a target is known to have been edited after the newest source snapshot available to the generator, do not generate an exact full-file replacement from the stale snapshot. Obtain the current authoritative file contents first. If the current task genuinely cannot obtain the file and preserving unmodeled live content is essential, use the exceptional narrow structural-edit model from Section 18 only when it can preserve the unknown content safely.
 
 Repository-specific commit-message instructions govern commit-message formatting. Current repository engineering guidance and the current xyLOGIX Software Engineering Manifesto govern source architecture and coding conventions.
+
+### Manual Solution-level governance/documentation deliverables
+
+The Solution-level xyLOGIX Software Engineering Manifesto, Solution-level `CONTRIBUTING.md`, and Solution-level `README.md` are **maintainer-applied documents**. Even when Visual Studio lists them under **Solution Items**, exclude them from every transaction-owned mutation/payload/topology/staging/commit map. If the user asks for updated versions alongside a Change Transaction Script, produce the documents separately as downloadable artifacts; the `.ps1` must not install them.
+
+This exclusion does not cancel the preexisting-work preservation rule. If the maintainer has already modified one of these files before the transaction baseline, that existing dirt may be included in the repository-wide preservation checkpoint because it is preexisting maintainer work. The script must not alter the file. If such a file becomes dirty only after the baseline, it is unrelated post-baseline work and must remain unstaged and untouched.
 
 ### Generation-time audit and runtime clobbering rule
 
@@ -405,6 +417,8 @@ When Visual Studio exposes a project-system operation, use it instead of writing
 - use DTE/Solution Items operations for Solution-item membership.
 
 Do not hand-edit `.sln` project entries or `<ProjectReference>` XML merely because they are text. The IDE is the authority for those relationships and is responsible for writing the correct relative path representation. Exact-payload clobbering remains the default for authored source/project content, but topology operations are not ordinary text-payload mutations.
+
+Do not infer transaction ownership merely from Solution membership. In particular, the Solution-level SEM, `CONTRIBUTING.md`, and `README.md` remain manual maintainer deliverables even when exposed as **Solution Items**. A Change Transaction Script must not add/remove/update those documents through DTE.
 
 When adding a file already located under a project directory, construct the file pathname from the directory spelling exposed by that loaded project's project file. This reduces junction-spelling mismatches that can cause legacy project systems to persist an absolute `Compile Include` path.
 
@@ -830,6 +844,8 @@ After the initial `File.SaveAll` and before initial pull/rebase or transaction-o
 
 The preservation checkpoint is not a transaction-owned empty boundary and is not an implementation commit. It protects work that existed before the Change Transaction began. Never erase, reset, amend away, or roll it back merely because the later transaction fails, becomes a no-op, or requires a follow-up correction.
 
+This includes preexisting maintainer edits to the Solution-level SEM, `CONTRIBUTING.md`, or `README.md`. Such files may be captured by the preservation checkpoint only because they were already dirty when the transaction began; they remain maintainer-owned and must not be included in the transaction's authorized mutation set or later implementation commits.
+
 If the preexisting state cannot be committed mechanically—for example because Git author identity is unavailable, the staging set cannot be proven, a Git hook prevents the commit, or the repository is in an unresolved merge/rebase/conflict state—stop **before transaction-owned mutation** with an actionable diagnostic. Do not discard the preexisting work.
 
 After the preservation checkpoint, and again after any initial pull/rebase, verify that the repository is clean. That clean point is the transaction baseline used to distinguish later transaction-owned changes from unrelated changes that appear concurrently.
@@ -976,7 +992,13 @@ Do not allow a temp-file deletion failure to mask a more important Git/source fa
 
 ## 17. File Mutation: Target, Clobber, Continue
 
-Before writing a file:
+### Solution-level governance-document exclusion
+
+Under the standing maintainer workflow, the Solution-level xyLOGIX Software Engineering Manifesto, Solution-level `CONTRIBUTING.md`, and Solution-level `README.md` are never authorized Change Transaction mutation targets. Do not embed them as exact payloads, overwrite them, add/remove them through DTE, or create transaction-owned Git work items for them. If updated versions are requested, deliver them separately for manual application. Their presence under **Solution Items** does not alter this rule.
+
+This exclusion applies to the Solution-level governance documents specifically. A project/module-level README or other documentation file may still be an authorized transaction target when the current task requires it.
+
+Before writing any transaction-owned file:
 
 1. Resolve it from the intended Solution/repository-relative path.
 2. Ensure the target path is authorized for the transaction.
@@ -1339,6 +1361,8 @@ Change Transaction Scripts must reproduce the supplied Visual Commander/CreateSt
 
 The default for existing-source implementation work is **file-by-file granularity**, subject only to explicit selector/source-family/rename/topology exceptions. Architectural conceptual grouping by itself is not a reason to batch files.
 
+The Solution-level SEM, Solution-level `CONTRIBUTING.md`, and Solution-level `README.md` are never transaction-owned work items. Do not select, stage, or commit them during the ordered implementation phase merely because they are repository files or Solution Items. A preexisting preservation checkpoint may contain prior maintainer edits to them, but that is preservation history rather than transaction-owned capture.
+
 ### 22.1 Repository traversal
 
 Process the active Solution repository first, then affected sibling Solution repositories in deterministic order unless a known cross-repository dependency requires otherwise. Git mutation is sequential. Refresh status/index/branch/remote/path state whenever switching repositories.
@@ -1514,6 +1538,7 @@ Bad examples:
 - Rejecting a project because it contains additional references that the transaction did not add or does not currently use.
 - Removing a preexisting reference merely because the script believes it is unnecessary.
 - Opening `.csproj`, `.sln`, `.resx`, `.config`, `.json`, `.xml`, `.props`, `.targets`, `.md`, `.txt`, `.snk`, resource, or other non-C# artifacts merely because Visual Studio can open some of them as text.
+- Treating the Solution-level SEM, Solution-level `CONTRIBUTING.md`, or Solution-level `README.md` as transaction-owned merely because the file is present in the repository or under **Solution Items**.
 - Opening `Global*.cs`, `*.Designer.cs`, `*.g.cs`, `*.i.cs`, `*.generated.cs`, or another known generated/fixed-format C# artifact merely because its extension is `.cs`.
 - Excluding a changed `AssemblyInfo.cs` from VCmd merely because it is infrastructure/fixed-format source; `AssemblyInfo.cs` is the explicit supported exception.
 
@@ -1538,6 +1563,7 @@ Good examples:
 - Verifying Git staging contains exactly the intended path before commit.
 - Confirming that the required DTE reference-add operation returned normally and then flushing with `File.SaveAll`, without making a `.csproj` reread a fatal gate.
 - Re-resolving authorized target paths after `git pull` when repository topology may have changed.
+- Generating updated Solution-level SEM/`CONTRIBUTING.md`/`README.md` artifacts separately for manual application while keeping those paths out of the Change Transaction payload/staging maps.
 
 The question to ask before every gate is:
 
@@ -1568,7 +1594,7 @@ If not, do not make it a hard gate.
 2. Add new projects with `$dte.Solution.AddFromFile(...)`; never hand-edit `.sln` project entries.
 3. Add/remove source project items through the loaded project system when membership changes.
 4. Add project references with DTE/VSProject `References.AddProject(...)` and assembly references through DTE.
-5. Apply exact audited source payloads in reference/dependency order.
+5. Apply exact audited source payloads in reference/dependency order, excluding the Solution-level SEM, Solution-level `CONTRIBUTING.md`, and Solution-level `README.md`, which are manual deliverables.
 6. Record each VCmd-eligible affected path into the transaction-wide registry as mutations occur.
 7. Mark meaningful positive mutation immediately after the first successful positive operation.
 8. Do not run phase-local VCmd/editor-opening passes.
@@ -1611,6 +1637,7 @@ If not, do not make it a hard gate.
 | `File.SaveAll` | Valid host DTE + loaded Solution | Command completes | Execute at defined checkpoints |
 | Preserve preexisting Git dirt | affected repository identified + initial `File.SaveAll` complete + preexisting dirt present | all preexisting tracked/untracked state committed with repository-compliant message; repository clean | already clean: no-op; commit failure: stop before transaction mutation without discarding work |
 | Clobber authorized source/project file | authorized target path + pre-audited desired-state payload + writable target | exact payload bytes written; mark meaningful mutation | do not inspect old source shape; exact-byte/Base64 transport is preferred for complex payloads |
+| Deliver Solution-level SEM / `CONTRIBUTING.md` / `README.md` | updated governance/documentation content requested | separate downloadable artifact produced; Change Transaction payload/staging maps exclude the Solution-level path | maintainer applies manually; preexisting dirty copies may be preservation-checkpoint content only |
 | Pre-mutation failure after empty boundary | transaction-owned boundary exists + no meaningful positive mutation succeeded + baseline still clean | `HEAD` returned to pre-boundary anchor; boundary removed | preserve/report unexpected dirty work instead of discarding it |
 | Successful no-op transaction | transaction-owned boundary exists + zero implementation commits + repo clean | `HEAD` returned to pre-boundary anchor; bookkeeping-only boundary removed | report no-op as success |
 | Create project scaffold | Correct repo + analogous scaffold identified | Full expected scaffold exists and metadata is coherent | Empty dir: populate; known partial scaffold: complete; unexpected ownership ambiguity: stop |
@@ -1683,6 +1710,7 @@ If not, do not make it a hard gate.
 - [ ] The generator audited the current authoritative source and produced complete exact desired-state payloads wherever feasible.
 - [ ] Large/complex exact payloads use a transport that preserves exact audited bytes (prefer Base64 + `WriteAllBytes`); every embedded payload was decoded and compared with the generation-time desired bytes before delivery.
 - [ ] Authorized target/payload/commit-message maps are internally consistent before delivery.
+- [ ] The Solution-level SEM, Solution-level `CONTRIBUTING.md`, and Solution-level `README.md` are absent from transaction-owned target/payload/staging/commit maps even when they are Solution Items; requested updates are separate manual-download artifacts.
 - [ ] The runtime script treats authorized source/project targets as clobber targets and does not reread/parse/regex-match/hash/AST-compare old source merely to authorize a write.
 - [ ] No runtime helper can fail solely because an expected method body/signature/marker/old code block/formatting shape is absent when exact full-file replacement was feasible.
 - [ ] Structural edits are used only where preserving genuinely unmodeled live content makes full-file clobbering impractical.
@@ -1746,6 +1774,8 @@ If not, do not make it a hard gate.
 
 Use a fresh unique lowercase 32-character hexadecimal GUID-style basename with `.ps1` for every iteration. Deliver the script as a downloadable file intended to be dot-sourced from PMC. Do not create branches/issues/PRs unless explicitly requested.
 
+When the same request also asks for an updated Solution-level xyLOGIX Software Engineering Manifesto, Solution-level `CONTRIBUTING.md`, or Solution-level `README.md`, deliver those documents as **separate downloadable artifacts**. Do not embed them into the `.ps1`, do not make them DTE mutation targets, and do not make them transaction-owned Git work items. The maintainer installs/replaces those files manually.
+
 ### Required two-pass pre-delivery audit
 
 Do not stop at reviewing the generator's in-memory representation. **Double-check the exact artifact that will be delivered.** The user should not discover basic PowerShell, payload, or transaction-shape defects by running the script.
@@ -1755,6 +1785,7 @@ Do not stop at reviewing the generator's in-memory representation. **Double-chec
 Audit the planned transaction against the current authoritative workspace and current instructions:
 
 - every authorized target is intentional and repository-correct;
+- the Solution-level SEM, Solution-level `CONTRIBUTING.md`, and Solution-level `README.md` are excluded from transaction-owned targets and, when requested, exist only as separate manual-download deliverables;
 - every existing-file target is based on the newest authoritative maintainer-authored source available for that path; earlier AI payloads/tarballs are not used to roll back later maintainer edits;
 - the generation-time diff from authoritative source to desired payload contains only transaction-owned changes and necessary direct consequences, with unrelated implementation/logging/comments/XML documentation preserved;
 - exact full-file desired-state payloads are used wherever feasible after that preservation audit succeeds;
@@ -1777,29 +1808,30 @@ After writing the final GUID-named `.ps1` file, reopen **that exact file** and a
 3. verify there is no assignment/binding/shadowing/removal of `$dte` in any casing;
 4. verify all exact-byte/Base64 payloads decode successfully and exactly match the generation-time audited desired bytes;
 5. verify the authorized path set, payload map, commit-message map, and any per-path metadata agree with one another;
-6. verify all retries/timeouts are bounded;
-7. verify Git stdout/stderr are drained safely and native output is not dumped directly into PMC;
-8. verify no cross-repository staging or stale repository-relative state exists;
-9. verify no runtime method-body/marker/regex/old-code/hash/source-shape discovery can unnecessarily kill an exact-payload transaction;
-10. verify meaningful-mutation tracking and pre-mutation empty-boundary cleanup are present when a boundary is used;
-11. verify successful no-op boundary cleanup is present when a boundary is used;
-12. verify ReSharper is suspended before any mutation, the suspension state is tracked, and early-failure cleanup can resume it;
-13. verify new projects/references/source memberships use DTE/project-system operations rather than hand-authored `.sln`/`ProjectReference` topology, and no junction-canonicalized absolute path is persisted;
-14. verify the script maintains a transaction-wide eligible-path registry and performs exactly one paced source-file opening pass after all mutations; verify `AssemblyInfo.cs` is included and `Global*.cs`, `*.Designer.cs`, generated/derived C# source, and all non-C# artifacts are excluded;
-15. verify `ReSharper_Resume` plus bounded wait/message pumping occurs after that opening pass and before VCmd;
-16. verify the single VCmd invocation is immediately preceded by a write to the canonical `.config.json` path with **exactly** schema `2`, `SuppressPrompts: true`, `EnableGitAwareness: false`, and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed: false`;
-17. verify the script skips VCmd rather than invoking it when sidecar preparation fails, and verify the VCmd call is argumentless (no `NoPrompt` or other command argument);
-18. verify VCmd cannot perform Git synchronization/check-in/push and therefore cannot compete with the script's own custom commit-message/staging workflow;
-19. verify eligible-file editor-open failure, sidecar-preparation failure, and VCmd failure are warning-only, excluded files are never opened merely for VCmd, and the final `File.SaveAll` is unconditional;
-20. verify any preexisting repository dirt is committed in a repository-compliant preservation checkpoint before transaction-owned mutation and that this checkpoint cannot be removed by transaction rollback/no-op cleanup;
-21. verify the post-VCmd convergence barrier explicitly accounts for downstream `ReSharper_SilentCleanupOpenCode`, pumps the message loop, periodically saves, uses a continuous quiet interval rather than one fixed sleep, and prevents Git capture on timeout;
-22. verify `.Constants`/`.Interfaces` projects are exempt from blanket `xyLOGIX.Core.Debug`/`xyLOGIX.Core.Extensions*` additions while genuine interface dependency closure is still satisfied;
-23. verify no post-VCmd semantic source verification or fatal lint/style/static-analysis/build/compile/test gate exists;
-24. verify reference handling is positive-only unless the current prompt explicitly authorizes removal;
-25. verify public WinForms `*.Designer.cs` payloads use the required explicit `public partial class` declaration when applicable;
-26. verify top-level exception handling reports message/position/stack, performs safe transaction cleanup, preserves meaningful progress, and normally does not rethrow redundantly;
-27. verify the script's final success/no-op/error paths all leave the repository and PMC session in a state the maintainer can understand from `Write-Host` output; and
-28. verify the artifact's payload manifest corresponds to the generation-time desired files that were produced from the newest authoritative maintainer-authored baselines, not from an older AI-generated snapshot.
+6. verify the Solution-level SEM, Solution-level `CONTRIBUTING.md`, and Solution-level `README.md` are absent from transaction-owned payload/staging/implementation-commit maps; if separate updated artifacts were requested, verify those exist independently of the `.ps1`;
+7. verify all retries/timeouts are bounded;
+8. verify Git stdout/stderr are drained safely and native output is not dumped directly into PMC;
+9. verify no cross-repository staging or stale repository-relative state exists;
+10. verify no runtime method-body/marker/regex/old-code/hash/source-shape discovery can unnecessarily kill an exact-payload transaction;
+11. verify meaningful-mutation tracking and pre-mutation empty-boundary cleanup are present when a boundary is used;
+12. verify successful no-op boundary cleanup is present when a boundary is used;
+13. verify ReSharper is suspended before any mutation, the suspension state is tracked, and early-failure cleanup can resume it;
+14. verify new projects/references/source memberships use DTE/project-system operations rather than hand-authored `.sln`/`ProjectReference` topology, and no junction-canonicalized absolute path is persisted;
+15. verify the script maintains a transaction-wide eligible-path registry and performs exactly one paced source-file opening pass after all mutations; verify `AssemblyInfo.cs` is included and `Global*.cs`, `*.Designer.cs`, generated/derived C# source, and all non-C# artifacts are excluded;
+16. verify `ReSharper_Resume` plus bounded wait/message pumping occurs after that opening pass and before VCmd;
+17. verify the single VCmd invocation is immediately preceded by a write to the canonical `.config.json` path with **exactly** schema `2`, `SuppressPrompts: true`, `EnableGitAwareness: false`, and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed: false`;
+18. verify the script skips VCmd rather than invoking it when sidecar preparation fails, and verify the VCmd call is argumentless (no `NoPrompt` or other command argument);
+19. verify VCmd cannot perform Git synchronization/check-in/push and therefore cannot compete with the script's own custom commit-message/staging workflow;
+20. verify eligible-file editor-open failure, sidecar-preparation failure, and VCmd failure are warning-only, excluded files are never opened merely for VCmd, and the final `File.SaveAll` is unconditional;
+21. verify any preexisting repository dirt is committed in a repository-compliant preservation checkpoint before transaction-owned mutation and that this checkpoint cannot be removed by transaction rollback/no-op cleanup;
+22. verify the post-VCmd convergence barrier explicitly accounts for downstream `ReSharper_SilentCleanupOpenCode`, pumps the message loop, periodically saves, uses a continuous quiet interval rather than one fixed sleep, and prevents Git capture on timeout;
+23. verify `.Constants`/`.Interfaces` projects are exempt from blanket `xyLOGIX.Core.Debug`/`xyLOGIX.Core.Extensions*` additions while genuine interface dependency closure is still satisfied;
+24. verify no post-VCmd semantic source verification or fatal lint/style/static-analysis/build/compile/test gate exists;
+25. verify reference handling is positive-only unless the current prompt explicitly authorizes removal;
+26. verify public WinForms `*.Designer.cs` payloads use the required explicit `public partial class` declaration when applicable;
+27. verify top-level exception handling reports message/position/stack, performs safe transaction cleanup, preserves meaningful progress, and normally does not rethrow redundantly;
+28. verify the script's final success/no-op/error paths all leave the repository and PMC session in a state the maintainer can understand from `Write-Host` output; and
+29. verify the artifact's payload manifest corresponds to the generation-time desired files that were produced from the newest authoritative maintainer-authored baselines, not from an older AI-generated snapshot.
 
 Only after both passes succeed should the artifact be delivered.
 
@@ -1812,6 +1844,8 @@ Only after both passes succeed should the artifact be delivered.
 > **Clobbering is a runtime mechanism, not a source-precedence rule.** A maintainer-authored edit made after an earlier AI transaction becomes the authoritative baseline for that path. Never use an older tarball, earlier generated payload, previous assistant response, or prior script to silently restore the AI's former version. Before producing an exact full-file payload, start from the newest maintainer-authored file, merge only the currently requested change(s), and generation-time-audit the diff so unrelated maintainer code, logging, comments, XML documentation, formatting-sensitive content, and implementation choices remain intact. If the generator knows a file changed but does not have its current contents, obtain them before generating a full-file replacement.
 >
 > The current development environment is junction-sensitive: `%USERPROFILE%` is `C:\Users\Brian Hart`, while `%USERPROFILE%\source` resolves through a directory junction to `D:\Users\Brian Hart\source`. Those `C:` and `D:` spellings can identify the same physical repository/project/file. Never infer duplicate repositories from path-string inequality, and never leak a canonicalized physical path back into `.sln`/`.csproj` topology merely because a filesystem or IDE API exposed it.
+>
+> **Solution-level governance/documentation remains outside the transaction.** The Solution-level xyLOGIX Software Engineering Manifesto, Solution-level `CONTRIBUTING.md`, and Solution-level `README.md` are separate maintainer-applied deliverables, even when they are members of **Solution Items**. A Change Transaction Script must not mutate them, add/remove them through DTE, open them for cleanup, or capture them as transaction-owned Git work. Preexisting manual edits to those files are still protected by the preservation checkpoint; post-baseline edits remain unrelated dirt. Project/module-level documentation is not covered by this standing exclusion unless the current prompt says otherwise.
 >
 > After the initial `File.SaveAll`, inspect every affected Git work tree. If preexisting tracked/untracked dirt exists, do **not** abort. Intentionally stage that preexisting state, generate a repository-compliant commit message from the actual staged diff, commit it as a pre-transaction preservation checkpoint, and verify that the repository is clean before synchronization and transaction-owned mutation. This preservation checkpoint is maintainer history, not transaction-owned bookkeeping, and must never be erased by later boundary/no-op/failure cleanup. Dirt that appears only after the baseline is established remains unrelated work and must never hitchhike into transaction commits.
 >
