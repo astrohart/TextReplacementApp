@@ -1,6 +1,6 @@
 # Robust Visual Studio Package Manager Console Automation Script Guidelines
 
-Revision: F  
+Revision: G 
 Last Updated: 3 September 2026
 
 ## Revision F Scope
