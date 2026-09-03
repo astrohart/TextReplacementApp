@@ -1,11 +1,23 @@
 # The xyLOGIX Software Engineering Manifesto
-Revision: P
-Last Updated: 1 September 2026
+Revision: Q
+Last Updated: 3 September 2026
 
 This document outlines the software-development hills we'll die on, here at xyLOGIX.
 
 By Brian C. Hart, Ph.D.
 Copyright © 2026 by xyLOGIX, LLC.  All rights reserved.
+
+## Revision Q Scope
+
+Revision Q preserves the architectural, documentation, source-control, validation, logging, concurrency, implementation, and user-interface guidance consolidated through Revision P and strengthens two cross-cutting rules learned from active Visual Studio/Windows desktop development: **maintainer-authored source is authoritative** and **modern folder selection uses the Vista-style Windows shell experience**.
+
+Revision Q requires AI-assisted changes, generated patches, and Change Transaction Scripts to treat the maintainer's newest known file contents as the authoritative starting state for each affected path. A later human edit supersedes an earlier AI payload, tarball copy, desired-state file, or proposed transaction for that path. Full-file replacement is permitted only after the complete replacement has been constructed from the latest authoritative source; if the current file is known to have changed but its new contents are unavailable, obtain the current file rather than guessing from a stale snapshot. This rule protects unrelated in-between edits while still permitting exact desired-state clobbering of the newly requested delta.
+
+Revision Q also requires modern Windows desktop folder-selection UX. When the user is selecting a directory rather than a file, prefer the Vista-style shell folder picker exposed by the applicable xyLOGIX folder-selection abstraction (for example, the `xyLOGIX.Core.Dialogs.FolderSelect*` family) over the legacy `FolderBrowserDialog`. Preserve the owner window, title, and useful initial directory; cancellation is a no-mutation outcome. Use a legacy folder browser only when a real compatibility requirement calls for that older interaction model.
+
+Revision Q further clarifies that a first-run configuration default should be operational when the platform can provide a safe, deterministic value. Do not deliberately initialize a required path setting to a value that immediately fails the product's own validator when a suitable environment-derived default is available.
+
+Revision P's validator-event, corrective-feedback, focus-recovery, and platform-owned font-selection standards, together with all earlier Strategy, Template Method, pipeline, playbook, chain, fallback-chain, concurrency, documentation, and engineering-judgment rules, remain in force.
 
 ## Revision P Scope
 
@@ -2693,6 +2705,20 @@ Configuration-persistence failures and unexpected application errors also use an
 
 When an Options dialog uses the standard Windows `FontDialog`, treat the platform picker as the authority for selectable installed fonts and point sizes.  Do not set product-specific `MinSize` or `MaxSize` values unless a real downstream renderer or protocol limit requires them.  Continue to apply substantive validation after selection: the requested font must be constructible, any required fixed-pitch policy must pass, and the point size must be finite and greater than zero.
 
+### Platform-owned folder selection
+
+When a Windows desktop workflow asks the user to select a folder, use the modern Vista-style Windows shell folder-selection experience through the repository's established abstraction when one is available. In xyLOGIX code, prefer the `xyLOGIX.Core.Dialogs.FolderSelect*` family instead of introducing `System.Windows.Forms.FolderBrowserDialog` merely because it is convenient.
+
+The folder-selection boundary should:
+
+- be owner-parented whenever an owner exists;
+- carry a concise task-specific title;
+- initialize to the current valid folder when that improves continuity;
+- treat Cancel as “leave the existing value alone”; and
+- return/copy only a usable selected pathname.
+
+Do not replace a working Vista-style picker with the legacy folder-browser tree unless an explicit compatibility constraint requires the old control.
+
 ## Testing Standard
 
 Use NUnit for unit testing.  A concrete fixture normally corresponds to a concrete production class.  Share common test setup and behavior through abstract test base classes when multiple fixtures genuinely need the same service.
@@ -2748,6 +2774,19 @@ When an AI assistant supplies C# source changes:
 - When a large change is naturally incremental, deliver it in coherent reference-ordered steps without abandoning completion of the current task.
 
 The assistant should consult repository-level `CONTRIBUTING.md`, code instructions, current source, and ReSharper Live Template guidance before generating logged gates, validators, factories, result-variable methods, or exception paths.
+
+### Maintainer-authored source is authoritative
+
+AI-generated source, a transaction payload, a tarball snapshot, and an earlier assistant response are never permission to erase later maintainer edits. For every affected path, start from the newest authoritative file contents known to exist and merge only the requested change.
+
+If the maintainer edits a file between transactions:
+
+1. preserve those edits unless the current request explicitly changes them;
+2. treat the maintainer-edited file as the new base for any exact desired-state payload;
+3. never recreate the file from an older AI-authored copy simply because that copy is easier to retrieve; and
+4. if the current contents are unavailable, obtain them before generating a whole-file clobber.
+
+This rule is compatible with progress-first clobbering: the transaction may still overwrite the authorized target with an exact audited payload, but that payload must already include every maintainer-authored change that remains in scope.
 
 ## ReSharper Live Templates and Pre-Cleanup Code Shape
 
@@ -2849,6 +2888,16 @@ Before considering a source change complete, verify the following:
 39. Every `IXXXValidator` interface derives from `IDataValidator`, and logged failures raise `ValidationFailed` with a specific corrective message.
 40. Options dialogs present validation failures with owner-parented stop-error messages rather than inline validation labels, then focus the setting that must be corrected.
 41. Standard Windows font selection is not narrowed by arbitrary product-specific point-size limits; selected sizes need only satisfy real renderer constraints and remain finite and positive.
+
+## Revision Q Consolidation Summary
+
+Revision Q makes three principles explicit across xyLOGIX development:
+
+- the maintainer's newest file state wins over stale AI/source snapshots;
+- folder-selection UX uses the Vista-style Windows shell picker by default; and
+- required first-run path settings should receive safe operational defaults when the platform already exposes them.
+
+These rules reduce accidental source rollback, improve Windows desktop UX consistency, and keep fresh installations from starting in knowingly invalid configuration states.
 
 ## Revision P Consolidation Summary
 
