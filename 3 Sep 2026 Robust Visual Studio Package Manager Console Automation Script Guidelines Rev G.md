@@ -17,6 +17,8 @@ Revision F retains Revision E's DTE-owned Solution/project topology, junction-aw
 - **`.Interfaces` dependency closure is still real.** An `.Interfaces` project may legitimately require `xyLOGIX.Core.Extensions` or another specific `xyLOGIX.Core.Extensions*` project when an interface inheritance/member-type dependency requires it—for example, when an interface extends `IForm`, `IControl`, or another contract whose assembly dependency makes that reference necessary. Determine the dependency from the actual inherited/member type closure rather than from the `.Interfaces` suffix alone.
 - **`xyLOGIX.Core.Debug` is likewise demand-driven for `.Constants` and `.Interfaces`.** Do not add it to those project families merely to satisfy a blanket DBR-wide rule. If code in one of those projects actually calls `DebugUtils` or otherwise consumes that assembly, then the concrete dependency is legitimate and must be added through DTE.
 - **Generation-time acceptance must honor these dependency exceptions.** Audits must reject both missing required dependencies and unnecessary blanket dependency additions to `.Constants`/`.Interfaces` projects.
+- **Maintainer-authored source edits are generation-time authority.** When the maintainer changes a file after an earlier AI-generated transaction, tarball, desired-state payload, or assistant response, that newer maintainer-authored file state supersedes the older AI state for that path. The next transaction must preserve those edits and merge only the newly requested difference(s); never recreate a full-file payload from an earlier AI version merely because doing so is convenient.
+- **Full-file clobbering is not permission to roll back maintainer work.** The clobbering rule applies only after the generator has constructed the complete desired file from the latest authoritative maintainer-edited state. If the generator knows a target has changed since its available snapshot and does not possess the current file contents, it must obtain the current file before producing a full-file replacement rather than guessing from stale source.
 
 All prior requirements concerning exact-payload clobbering, progress-first failure handling, `$dte`, Windows PowerShell 5.1 compatibility, DTE-owned Visual Studio topology, junction-safe identity, the schema-version-2 noninteractive/Git-disabled VCmd sidecar, positive-only reference handling, exact staged-diff Git capture, and the two-pass exact-artifact audit remain in force.
 
@@ -59,6 +61,10 @@ Use this precedence for transaction behavior:
 
 When a current tarball or workspace snapshot is supplied, treat it as authoritative over earlier tarballs. Explicit user corrections to live workspace state after that tarball supersede the tarball for the specifically identified paths.
 
+Maintainer-authored source is stronger authority than AI-authored history. If the maintainer edits a file after an AI-generated transaction, those edits are an explicit live-state correction and become authoritative immediately for that path. An earlier tarball, earlier generated payload, prior Change Transaction Script, prior assistant response, or reconstruction of what the file "should" look like must never override newer maintainer-authored source.
+
+If a target is known to have been edited after the newest source snapshot available to the generator, do not generate an exact full-file replacement from the stale snapshot. Obtain the current authoritative file contents first. If the current task genuinely cannot obtain the file and preserving unmodeled live content is essential, use the exceptional narrow structural-edit model from Section 18 only when it can preserve the unknown content safely.
+
 Repository-specific commit-message instructions govern commit-message formatting. Current repository engineering guidance and the current xyLOGIX Software Engineering Manifesto govern source architecture and coding conventions.
 
 ### Generation-time audit and runtime clobbering rule
@@ -66,6 +72,21 @@ Repository-specific commit-message instructions govern commit-message formatting
 A Change Transaction Script is, by design, a **clobbering transaction** for the source/project targets that the current transaction authorizes.
 
 The AI must do the source-shape reasoning **before delivery**, against the current authoritative workspace/tarball and any explicit live-state corrections supplied by the user. From that audit, generate the intended desired-state payloads and transaction operations.
+
+### Maintainer-authored source preservation
+
+The generator's first obligation is to preserve the maintainer's current source state. Exact-payload clobbering is a runtime transport/mutation technique; it does not grant the generator authority to replace newer maintainer code with an older AI-authored version.
+
+For every existing-file payload:
+
+1. Start from the newest authoritative version of that exact file, including maintainer edits made after earlier AI-generated scripts or tarballs.
+2. Treat earlier AI-generated payloads, prior scripts, prior assistant responses, and older tarballs as historical context only when a newer maintainer-authored version exists.
+3. Merge only the change(s) required by the current task into that authoritative file. Preserve unrelated implementation choices, logging, comments, XML documentation, formatting-sensitive content, method shapes, and other maintainer edits unless the current task specifically requires changing them.
+4. Follow the repository's existing "Read Before You Write" rule: unchanged source remains faithful to the authoritative file and unrelated code/documentation is not opportunistically rewritten.
+5. Before freezing an exact full-file payload, compare the desired file with the authoritative input and confirm that every substantive difference is transaction-owned or is a necessary direct consequence of the requested change.
+6. If the generator knows the maintainer changed the target after the newest available snapshot but does not have those current bytes/text, obtain the current file before producing a full-file payload. Do not reconstruct it from stale AI output.
+
+A maintainer edit can intentionally undo, restyle, expand, simplify, or otherwise alter an earlier AI change. That is not "source divergence" to be corrected by a later script. It is the new baseline. A later transaction may re-touch the same area only when the current task actually requires doing so, and it must otherwise preserve the maintainer's version.
 
 At runtime, once the script has established the correct Solution/repository and resolved an authorized target path:
 
@@ -963,6 +984,8 @@ Before writing a file:
 
 Then **clobber the authorized target with the pre-audited desired-state payload and continue**.
 
+This runtime rule assumes the payload already passed the generation-time maintainer-source-preservation audit above. It must never be interpreted as permission for the generator to build that payload from stale AI-authored source and thereby roll back newer maintainer edits. The runtime script remains intentionally non-semantic; source precedence and preservation are resolved before delivery.
+
 Once an authorized target path is established, its existing source bytes, formatting, comments, XML documentation layout, hashes, markers, method bodies, declaration shape, or semantics are irrelevant to whether the transaction may overwrite it. The runtime script must not require the target to match an earlier tarball, remembered snapshot, previously generated payload, old method body, regex capture, AST shape, or retry-state hash.
 
 For an exact desired-state replacement, do not read the target file merely to prove that it still looks like the generation-time source. The generator already performed that reasoning against the authoritative source before delivery. Runtime source reads are justified only when the transaction genuinely requires preservation of unmodeled content and therefore must use the exceptional structural-edit model described in Section 18.
@@ -1010,9 +1033,11 @@ When the generator can deterministically produce the complete desired file, this
 The generator should:
 
 1. audit the current authoritative workspace/tarball and current-prompt corrections before delivery;
-2. produce the complete desired file;
-3. audit that payload for architectural/style/correctness requirements before delivery; and
-4. embed or otherwise supply that exact payload to the Change Transaction Script.
+2. for every previously existing target, begin from the newest maintainer-authored version of that file and preserve all unrelated maintainer changes;
+3. produce the complete desired file by applying only the current transaction-owned change(s) to that authoritative baseline;
+4. compare the desired file with the authoritative baseline and reject any unrelated rollback, reversion, documentation rewrite, or source reshaping that the current task did not require;
+5. audit that payload for architectural/style/correctness requirements before delivery; and
+6. embed or otherwise supply that exact payload to the Change Transaction Script.
 
 The runtime script should then simply overwrite the authorized target and continue. It must not compare the current file with an old hash, snapshot, expected formatting, method body, marker, declaration shape, or regex before writing.
 
@@ -1303,7 +1328,8 @@ For the current DiagnosticBatchRunner repository, the pre-delivery source audit 
 - `.Constants` and `.Interfaces` projects are not given `xyLOGIX.Core.Extensions*` references merely by convention; an `.Interfaces` project receives the specific extensions dependency when its inherited/member type closure requires it, including contracts such as `IForm`/`IControl` when applicable;
 - required `using` directives and required positive project dependencies are audited together so a generated source call cannot be delivered in a state that ReSharper will immediately report as an unresolved symbol;
 - fields precede the properties they back, property accessors follow the repository's `[DebuggerStepThrough]`/statement-body conventions, and generated source does not introduce prohibited direct-return, expression-bodied, region, local-function, or other shapes identified by the current repository instructions; and
-- the exact payload set is scanned for the same class of violation across **all** files introduced or substantively modified by the transaction, rather than correcting only the first file or first ReSharper error that exposed the pattern.
+- the exact payload set is scanned for the same class of violation across **all** files introduced or substantively modified by the transaction, rather than correcting only the first file or first ReSharper error that exposed the pattern; and
+- every payload for an existing file is diffed against the newest authoritative maintainer-authored version of that file, with all non-transaction-owned maintainer changes preserved and no older AI-generated version allowed to overwrite them.
 
 ReSharper's Errors/Warnings in Solution export is valuable generation-time evidence when the maintainer supplies it. Treat the latest export as an acceptance input and repair the reported compiler-resolution problems in the generated desired state, but do not limit the audit to those reported locations: inspect sibling/generated transaction source for the same underlying defect class before delivery.
 
@@ -1729,7 +1755,9 @@ Do not stop at reviewing the generator's in-memory representation. **Double-chec
 Audit the planned transaction against the current authoritative workspace and current instructions:
 
 - every authorized target is intentional and repository-correct;
-- exact full-file desired-state payloads are used wherever feasible;
+- every existing-file target is based on the newest authoritative maintainer-authored source available for that path; earlier AI payloads/tarballs are not used to roll back later maintainer edits;
+- the generation-time diff from authoritative source to desired payload contains only transaction-owned changes and necessary direct consequences, with unrelated implementation/logging/comments/XML documentation preserved;
+- exact full-file desired-state payloads are used wherever feasible after that preservation audit succeeds;
 - source/project payloads are generation-time audited for correctness/style/documentation/reference requirements;
 - commit messages are scoped to their intended staged work items and obey repository rules;
 - boundary/retry/no-op behavior is coherent;
@@ -1769,8 +1797,9 @@ After writing the final GUID-named `.ps1` file, reopen **that exact file** and a
 23. verify no post-VCmd semantic source verification or fatal lint/style/static-analysis/build/compile/test gate exists;
 24. verify reference handling is positive-only unless the current prompt explicitly authorizes removal;
 25. verify public WinForms `*.Designer.cs` payloads use the required explicit `public partial class` declaration when applicable;
-26. verify top-level exception handling reports message/position/stack, performs safe transaction cleanup, preserves meaningful progress, and normally does not rethrow redundantly; and
-27. verify the script's final success/no-op/error paths all leave the repository and PMC session in a state the maintainer can understand from `Write-Host` output.
+26. verify top-level exception handling reports message/position/stack, performs safe transaction cleanup, preserves meaningful progress, and normally does not rethrow redundantly;
+27. verify the script's final success/no-op/error paths all leave the repository and PMC session in a state the maintainer can understand from `Write-Host` output; and
+28. verify the artifact's payload manifest corresponds to the generation-time desired files that were produced from the newest authoritative maintainer-authored baselines, not from an older AI-generated snapshot.
 
 Only after both passes succeed should the artifact be delivered.
 
@@ -1779,6 +1808,8 @@ Only after both passes succeed should the artifact be delivered.
 ## 30. Final Standard
 
 > A Change Transaction Script is a **clobbering, progress-first, in-IDE transaction that lets Visual Studio own Visual Studio topology and lets Git preserve the maintainer's preexisting work before transaction-owned changes begin**. Use the host-provided `$dte`; never assign or bind to it. Audit source/project shape before delivery against the current authoritative workspace/tarball and current-prompt corrections. Generate complete exact desired-state source payloads whenever feasible, but do not treat `.sln` membership or project-reference relationships as ordinary text payloads when DTE exposes the corresponding operation. Add projects with `$dte.Solution.AddFromFile(...)`, add project references through the consuming loaded project's DTE/VSProject reference collection, and let Visual Studio persist relative topology.
+>
+> **Clobbering is a runtime mechanism, not a source-precedence rule.** A maintainer-authored edit made after an earlier AI transaction becomes the authoritative baseline for that path. Never use an older tarball, earlier generated payload, previous assistant response, or prior script to silently restore the AI's former version. Before producing an exact full-file payload, start from the newest maintainer-authored file, merge only the currently requested change(s), and generation-time-audit the diff so unrelated maintainer code, logging, comments, XML documentation, formatting-sensitive content, and implementation choices remain intact. If the generator knows a file changed but does not have its current contents, obtain them before generating a full-file replacement.
 >
 > The current development environment is junction-sensitive: `%USERPROFILE%` is `C:\Users\Brian Hart`, while `%USERPROFILE%\source` resolves through a directory junction to `D:\Users\Brian Hart\source`. Those `C:` and `D:` spellings can identify the same physical repository/project/file. Never infer duplicate repositories from path-string inequality, and never leak a canonicalized physical path back into `.sln`/`.csproj` topology merely because a filesystem or IDE API exposed it.
 >
