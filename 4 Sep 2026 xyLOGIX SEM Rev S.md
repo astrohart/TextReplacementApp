@@ -1,11 +1,23 @@
 # The xyLOGIX Software Engineering Manifesto
-Revision: R
+Revision: S
 Last Updated: 4 September 2026
 
 This document outlines the software-development hills we'll die on, here at xyLOGIX.
 
 By Brian C. Hart, Ph.D.
 Copyright © 2026 by xyLOGIX, LLC.  All rights reserved.
+
+## Revision S Scope
+
+Revision S preserves the architectural, documentation, source-control, validation, logging, concurrency, implementation, user-interface, and result-variable guidance consolidated through Revision R and strengthens the xyLOGIX **exception-inheritance handling discipline**.
+
+Revision S requires catch clauses to respect exception inheritance as a design boundary, not merely as a compiler-ordering concern. When the exception types contemplated for one recovery boundary include both a superclass and one or more of its subclasses, catch only the highest applicable superclass. Do not write separate catch clauses for exception types that belong to the same inheritance chain. For example, because `System.ObjectDisposedException` inherits `System.InvalidOperationException`, xyLOGIX code that intends to handle both catches only `System.InvalidOperationException`.
+
+Placing a superclass catch before one of its subclasses is a C# compiler error because the subclass catch is unreachable. Placing the subclass first can be legal C#, but it still violates xyLOGIX policy when the code is merely distinguishing members of the same exception hierarchy. The preferred design is one catch at the highest applicable superclass, with one coherent recovery path. Independent exception types that are not in the same inheritance chain may still have separate catch clauses when their recovery contracts genuinely differ.
+
+Revision S also reaffirms the existing extraction rule for exception-handling structure. Nested `try`/`catch` blocks are a signal to extract a focused private method when the responsibility is local to the containing class, or to move the responsibility behind a focused class/interface/singleton service when the containing class is becoming unfocused. Do not use local functions to hide nested exception-handling complexity, and do not create a helper whose only purpose is to emit one logging statement.
+
+Revision R's result-variable control-flow discipline, together with all earlier maintainer-source-authority, Vista-style folder-selection, validator-event, corrective-feedback, focus-recovery, platform-owned font-selection, Strategy, Template Method, pipeline, playbook, chain, fallback-chain, concurrency, documentation, and engineering-judgment rules, remain in force.
 
 ## Revision R Scope
 
@@ -2323,6 +2335,8 @@ Preserve the current file's legitimate header comments exactly when modifying an
 Do not add decorative file banners, `File:` banners, `Namespace:` banners, or separator regions that are not already part of the file.  Do not use `#region` or `#endregion`.
 
 Do not use local functions.  When nested `try`/`catch` blocks or a substantial local algorithm suggest extraction, create a private method or, when the containing class is becoming unfocused, move the responsibility to a separate class or singleton service.  Do not extract a helper whose only purpose is to write one log message.
+
+When multiple contemplated catch types belong to the same exception-inheritance chain, catch only the highest applicable superclass.  Never stack separate catches for both an ancestor exception type and one or more of its descendants.  An ancestor catch placed before a descendant catch is a C# compiler error because the descendant is unreachable; placing the descendant first may compile, but the hierarchy split still violates xyLOGIX policy.  For example, because `System.ObjectDisposedException` derives from `System.InvalidOperationException`, code that intends to recover from both uses only `catch (InvalidOperationException ex)`.  Separate catch clauses remain appropriate for unrelated exception types only when their recovery contracts genuinely differ.
 
 ### `AssemblyInfo.cs` presentation
 
