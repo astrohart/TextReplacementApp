@@ -1,11 +1,25 @@
 # The xyLOGIX Software Engineering Manifesto
-Revision: Q
-Last Updated: 3 September 2026
+Revision: R
+Last Updated: 4 September 2026
 
 This document outlines the software-development hills we'll die on, here at xyLOGIX.
 
 By Brian C. Hart, Ph.D.
 Copyright © 2026 by xyLOGIX, LLC.  All rights reserved.
+
+## Revision R Scope
+
+Revision R preserves the architectural, documentation, source-control, validation, logging, concurrency, implementation, and user-interface guidance consolidated through Revision Q and strengthens the standard xyLOGIX **result-variable control-flow discipline** for non-void methods.
+
+Revision R requires an ordinary non-void method to declare and control a local variable named `result`, and requires every ordinary `return` path in that method to return `result`. Do not bypass the accumulator with `return true;`, `return false;`, `return SomeEnum.Member;`, `return SomeFactory.Create(...);`, or another direct-return expression merely because the value is already known at that point. The `result` variable is the method's explicit statement of its current answer and should make the control flow visible to a maintainer reading the method from top to bottom.
+
+This rule is especially important around eager gates. When a gate is intended to return a value other than the method's subsequent/default value, establish that provisional value in `result` **before** evaluating the gate, return `result` from inside the gate when the condition is satisfied, and restore `result` immediately after the gate when execution continues and the provisional value no longer represents the method's answer. For example, a Boolean method may set `result = true`, test the gate, `return result;` from the satisfied branch, and then set `result = false` after the branch when the remaining path is not yet successful. Do not write a gate-local `result = true; return result;` or `result = false; return result;` sequence when the same state can be established before the gate and then restored after it. The goal is deliberate state control, not ceremonial assignment immediately before a return.
+
+The result-variable convention applies to ordinary non-void methods, including selector/factory methods and small pass-through methods, unless the C# language construct itself requires a different return model. Iterator blocks are the principal exception: a method implemented with `yield return`/`yield break` follows iterator semantics rather than forcing an artificial materialized `result` collection. Abstract/interface declarations, P/Invoke/extern declarations, property accessors, constructors, and `void` methods likewise do not manufacture a meaningless `result` variable.
+
+Revision R further clarifies that the result-variable rule and the existing Functional Programming guidance are complementary rather than contradictory. xyLOGIX still avoids unnecessary local state, but `result` is intentional method state: it records the answer being constructed, supports shift-left failure handling, and provides one coherent return contract. Other local aliases remain unnecessary unless they are justified by a real snapshot, resource-lifetime, concurrency, or expensive-computation requirement.
+
+Revision Q's maintainer-source-authority, Vista-style folder-selection, and operational first-run-default standards, together with all earlier validator-event, corrective-feedback, focus-recovery, platform-owned font-selection, Strategy, Template Method, pipeline, playbook, chain, fallback-chain, concurrency, documentation, and engineering-judgment rules, remain in force.
 
 ## Revision Q Scope
 
@@ -125,14 +139,19 @@ public class Rectangle : IShape
 {
     public double Width { get; set; }
     public double Height { get; set; }
-    public double GetArea() => Width * Height;
+    public double GetArea()
+    {
+        var result = Width * Height;
+        return result;
+    }
 }
 
 public class AreaCalculator
 {
     public double CalculateArea(IShape shape)
     {
-        return shape.GetArea();
+        var result = shape.GetArea();
+        return result;
     }
 }
 ```
@@ -434,9 +453,9 @@ public class PayCalculator : IPayCalculator
     
     public double CalculateTotalPay(double hours, double rate)
     {
-        double total = hours * rate;
-        if (hours > 40) total += (hours - 40) * (rate * 0.5);
-        return total;
+        var result = hours * rate;
+        if (hours > 40) result += (hours - 40) * (rate * 0.5);
+        return result;
     }
 }
 
@@ -444,7 +463,11 @@ public static class GetPayCalculator
 {
     [DebuggerStepThrough]
     [return: NotLogged]
-    public static IPayCalculator SoleInstance() => PayCalculator.Instance;
+    public static IPayCalculator SoleInstance()
+    {
+        IPayCalculator result = PayCalculator.Instance;
+        return result;
+    }
 }
 
 public interface IEmailNotifier
@@ -467,7 +490,11 @@ public static class GetEmailNotifier
 {
     [DebuggerStepThrough]
     [return: NotLogged]
-    public static IEmailNotifier SoleInstance() => EmailNotifier.Instance;
+    public static IEmailNotifier SoleInstance()
+    {
+        IEmailNotifier result = EmailNotifier.Instance;
+        return result;
+    }
 }
 ```
 
@@ -614,7 +641,11 @@ public class Manager : IEmployee
     private double _baseSalary;
     public Manager(double salary) => _baseSalary = salary;
     
-    public double CalculateBonus() => _baseSalary * 0.20;
+    public double CalculateBonus()
+    {
+        var result = _baseSalary * 0.20;
+        return result;
+    }
 }
 
 public class Developer : IEmployee
@@ -622,7 +653,11 @@ public class Developer : IEmployee
     private double _baseSalary;
     public Developer(double salary) => _baseSalary = salary;
     
-    public double CalculateBonus() => _baseSalary * 0.10;
+    public double CalculateBonus()
+    {
+        var result = _baseSalary * 0.10;
+        return result;
+    }
 }
 
 public class BonusCalculator
@@ -630,7 +665,8 @@ public class BonusCalculator
     // This code never has to change, no matter how many employee types we add!
     public double GetBonusFor(IEmployee employee)
     {
-        return employee.CalculateBonus();
+        var result = employee.CalculateBonus();
+        return result;
     }
 }
 ```
@@ -1012,7 +1048,7 @@ Functional Programming emphasizes pure functions (methods that have no side effe
 
 We combine this with our "Shift-Left" approach:
 
-1. **Eager Returns:** Validate inputs immediately upon method entry and return eagerly if they fail.
+1. **Eager Returns:** Validate inputs immediately upon method entry and return eagerly through the method's controlled `result` variable when they fail.
 2. **No Unnecessary State:** Use `var` and `out var`, and avoid reassigning variables where possible.
 3. **Pattern Matching & Exclusions:** Use C# features to write concise, predictable logic, focusing on gating logic that EXCLUDES cases we DO NOT want, rather than deeply nesting `if` statements for the cases we DO want.
 4. **The Discard is Cool:** In C# 7.3, the `_` character is the Discard Character.  If you do not need a return value of a method, or you do not need the value of an `out` parameter, then just discard it! Do `_ = Foo(x, y, z);` or `TryGetValue(theFolderPathname, out _)` if all your're interesed in is (a) whether something fails or not, or (b) whether a `TryXXX` gate method gates or not, but you just wanna otherwise throw away what it gives you.  At xyLOGIX, we *love* the Discard character.
@@ -1114,11 +1150,13 @@ public static WorkOut
 {
     public static BalloonColor TheCorrectBalloonColorForChildsAge(int age)
     {
-        var result = BalloonColor.Yellow;
-        
+        var result = BalloonColor.Unknown;
+
         if (age <= 0)
-            return BalloonColor.Unknown;
-        
+            return result;
+
+        result = BalloonColor.Yellow;
+
         if (age == 13)
             result = BalloonColor.Blue;
         else if (age >= 8 && age < 13)
@@ -1303,7 +1341,11 @@ public static class GetReportWriter
 {
     [DebuggerStepThrough]
     [return: NotLogged]
-    public static IReportWriter SoleInstance() => LocalDiskWriter.Instance;
+    public static IReportWriter SoleInstance()
+    {
+        IReportWriter result = LocalDiskWriter.Instance;
+        return result;
+    }
 }
 
 public class ReportGenerator
@@ -1416,7 +1458,10 @@ public bool ProcessData([NotLogged] string input)
 
 [return: NotLogged]
 private string SanitizeInput([NotLogged] string input)
-    => input.Trim().ToLowerInvariant();
+{
+    var result = input.Trim().ToLowerInvariant();
+    return result;
+}
 ```
 
 By enforcing SRP at the method level, we eliminate deep nesting, make our logic infinitely easier to read, and ensure that if the sanitization logic needs to change, it changes in exactly one place (DRY), without risking the core processing logic.
@@ -1766,7 +1811,11 @@ namespace xyLOGIX.App.Models.Factories
     {
         [DebuggerStepThrough]
         [return: NotLogged]
-        public static IUserRepository SoleInstance() => SqlUserRepository.Instance;
+        public static IUserRepository SoleInstance()
+        {
+            IUserRepository result = SqlUserRepository.Instance;
+            return result;
+        }
     }
 }
 
@@ -1867,14 +1916,22 @@ public static class GetFileLogger
 {
     [DebuggerStepThrough]
     [return: NotLogged]
-    public static ILogger SoleInstance() => FileLogger.Instance;
+    public static ILogger SoleInstance()
+    {
+        ILogger result = FileLogger.Instance;
+        return result;
+    }
 }
 
 public static class GetSplunkLogger
 {
     [DebuggerStepThrough]
     [return: NotLogged]
-    public static ILogger SoleInstance() => SplunkLogger.Instance;
+    public static ILogger SoleInstance()
+    {
+        ILogger result = SplunkLogger.Instance;
+        return result;
+    }
 }
 ```
 
@@ -1888,15 +1945,23 @@ public static class GetLogger
     [DebuggerStepThrough]
     public static ILogger ForDestination(LoggingDestination destination)
     {
+        ILogger result = default;
+
         switch (destination)
         {
             case LoggingDestination.File:
-                return GetFileLogger.SoleInstance();
+                result = GetFileLogger.SoleInstance();
+                break;
+
             case LoggingDestination.Splunk:
-                return GetSplunkLogger.SoleInstance();
+                result = GetSplunkLogger.SoleInstance();
+                break;
+
             default:
                 throw new ArgumentOutOfRangeException(nameof(destination), destination, $"There is no logger for the destination, '{destination}'.);
         }
+
+        return result;
     }
 }
 ```
@@ -1963,7 +2028,11 @@ public static class GetAppSettings
 {
     [DebuggerStepThrough]
     [return: NotLogged]
-    public static IAppSettings SoleInstance() => AppSettings.Instance;
+    public static IAppSettings SoleInstance()
+    {
+        IAppSettings result = AppSettings.Instance;
+        return result;
+    }
 }
 ```
 
@@ -2327,20 +2396,24 @@ When adding such a dependency, add the required project reference positively.  D
 
 ## Method Design: Result Variables, Fault Tolerance, and Early Gates
 
-A method should have a clear default result.  Declare a local variable named `result` at the beginning of a non-void method and initialize it to the method's safe failure value.  Typical defaults include:
+A method should have a clear, explicitly controlled answer. For every ordinary non-void method, declare a local variable named `result` near the beginning of the method and initialize it to the method's documented safe/default value unless the method's contract requires another initial state. Typical defaults include:
 
 - `false` for a Boolean operation.
 - `string.Empty` for a text-producing operation.
 - `default` or `null` for an interface reference when no useful object can be returned.
-- `Enumerable.Empty<T>()` or an empty array for a collection-producing operation.
+- `Enumerable.Empty<T>()` or an empty array for a collection-producing operation that must return a materialized value.
 - The enum's `Unknown` member for a selector or determination method.
 - The input value for an intentionally idempotent transformation.
 
-Wrap method bodies in `try`/`catch` blocks when called code can throw.  Catch `Exception` at the appropriate service boundary, log it, restore `result` to its documented default, and return that value.  Avoid throwing from ordinary validation paths.  Throw only when the contract specifically requires an exception or when continuing would hide a programming error that the selected strategy explicitly promises to reject.
+Once `result` exists, it owns the method's answer. Every ordinary `return` statement in that method returns `result`. Do not bypass it with a primitive literal, enum member, constructor/factory call, subordinate method call, or another direct expression. This keeps eager exits, the normal completion path, and exception handling on one visible return contract.
 
-Every call result must be treated as untrusted until validated.  Do not assume that a method succeeded merely because it returned.  Validate returned references, strings, collections, counts, enum values, and status flags before using them.  When an intermediate result is unusable, stop the operation or select a documented fallback.
+Iterator blocks are the deliberate exception. A method implemented as an iterator uses `yield return` and `yield break` and should remain lazy when iterator semantics improve robustness, fault tolerance, resource use, or performance. Do not materialize an otherwise-natural iterator merely to manufacture a `result` collection. Abstract/interface declarations, extern/P/Invoke declarations, property accessors, constructors, and `void` methods likewise do not invent an artificial result variable.
 
-Validate inputs eagerly and one condition at a time.  Do not combine independent eager-return validation gates with `&&` or `||`.  Each invalid condition should have its own log message, comment, and return statement.  This improves traceability and makes the exact rejected condition visible in the log.
+Wrap method bodies in `try`/`catch` blocks when called code can throw. Catch `Exception` at the appropriate service boundary, log it, restore `result` to its documented default, and return that value through `return result;`. Avoid throwing from ordinary validation paths. Throw only when the contract specifically requires an exception or when continuing would hide a programming error that the selected strategy explicitly promises to reject.
+
+Every call result must be treated as untrusted until validated. Do not assume that a method succeeded merely because it returned. Validate returned references, strings, collections, counts, enum values, and status flags before using them. When an intermediate result is unusable, stop the operation or select a documented fallback.
+
+Validate inputs eagerly and one condition at a time. Do not combine independent eager-return validation gates with `&&` or `||`. Each invalid condition should have its own log message, comment, and `return result;` statement. This improves traceability and makes the exact rejected condition visible in the log.
 
 Prefer negated, fail-fast gates:
 
@@ -2351,11 +2424,40 @@ if (!condition)
 ContinueTheOperation();
 ```
 
-This is preferred to deeply nesting the successful path inside an `if` block.  Keep cyclomatic complexity low and terminate invalid paths as early as possible.
+This is preferred to deeply nesting the successful path inside an `if` block. Keep cyclomatic complexity low and terminate invalid paths as early as possible.
 
-Bounds-check values before use.  Validate indexes, lengths, dimensions, counts, enum values, numeric ranges, file paths, and other quantities even when an earlier caller was expected to validate them.  This shift-left practice protects against malformed inputs, stale assumptions, decompiled callers, memory corruption, and Single-Event Upsets.
+When a gate's satisfied branch must return a value different from the state that should apply after the gate, establish the provisional answer **before** evaluating the gate. Return `result` inside the satisfied branch, and restore `result` immediately after the branch when execution continues and that provisional value is no longer the correct answer.
 
-Check that files and folders exist before opening, deleting, enumerating, or searching them.  Use AlphaFS when it is already the solution's file-system abstraction.  Validate that a path is of the required kind and, when required, that it is absolute.
+For example:
+
+```csharp
+result = true;
+
+if (condition)
+{
+    return result;
+}
+
+result = false;
+```
+
+Do not instead write:
+
+```csharp
+if (condition)
+{
+    result = true;
+    return result;
+}
+```
+
+when `true` is merely the gate's provisional answer and the same state can be established before the gate. Likewise, do not write `return true;` or `return false;`. The purpose of the pattern is to make `result` visibly control the method's answer, not to add a ceremonial assignment immediately before a return.
+
+A simple method with no meaningful gate may calculate or assign its final answer into `result` and then return `result` once. The prohibition against immediate gate-local assignment is not a prohibition against a short method; it is a prohibition against bypassing deliberate result-state control.
+
+Bounds-check values before use. Validate indexes, lengths, dimensions, counts, enum values, numeric ranges, file paths, and other quantities even when an earlier caller was expected to validate them. This shift-left practice protects against malformed inputs, stale assumptions, decompiled callers, memory corruption, and Single-Event Upsets.
+
+Check that files and folders exist before opening, deleting, enumerating, or searching them. Use AlphaFS when it is already the solution's file-system abstraction. Validate that a path is of the required kind and, when required, that it is absolute.
 
 ### Collection gates, validator delegation, and `foreach` control flow
 
@@ -2385,14 +2487,44 @@ Do not use `return` from inside such a `foreach` body.  Prefer `continue` for th
 
 ### Boolean-result pattern
 
-Do not initialize a Boolean `result` from a complex Boolean expression.  Perform the logged gates first, then affirmatively set `result` to `true` when the operation has succeeded.  Use the standard comment:
+For a Boolean method, `result` is the single source of truth for the method's answer. Initialize it to the documented safe/default value unless the next gate deliberately requires a provisional success value. Never use `return true;` or `return false;`; every ordinary return is `return result;`.
+
+When the operation reaches its success boundary, use the standard comment:
 
 ```csharp
 /* If we made it this far with no Exception(s) getting caught, then assume that the operation(s) succeeded. */
 result = true;
 ```
 
-When a gate begins with a provisional successful value, set `result = true` before the test, perform the test, and restore `result = false` after the gate when execution continues into an unsuccessful path.  Match the established Live Template pattern in the repository.
+When a gate itself represents a successful early-exit condition, use the controlled-state form:
+
+```csharp
+result = true;
+
+if (successCondition)
+{
+    return result;
+}
+
+result = false;
+```
+
+The restoration after the gate is mandatory when execution continues and success has not yet been established. If `result` legitimately needs to remain `true` for the subsequent path, do not reset it merely for ceremony.
+
+The inverse pattern is equally valid when a gate's provisional answer is failure but the surrounding method is currently in a success state:
+
+```csharp
+result = false;
+
+if (failureCondition)
+{
+    return result;
+}
+
+result = true;
+```
+
+Choose the initial/provisional state that communicates the actual contract. The important invariants are that the gate returns `result`, the state is established before the gate whenever practical, and fall-through code restores or advances `result` deliberately rather than relying on primitive return literals.
 
 ### Incrementing and decrementing
 
@@ -2650,7 +2782,10 @@ A fluent accessor factory is a public static class named `GetXxx`.  Its sole pub
 [DebuggerStepThrough]
 [return: NotLogged]
 public static IXxx SoleInstance()
-    => Xxx.Instance;
+{
+    IXxx result = Xxx.Instance;
+    return result;
+}
 ```
 
 A factory that creates new objects is commonly named `MakeNewXxx` and uses a fluent method such as `FromScratch()` or `From(...)`.
@@ -2888,6 +3023,21 @@ Before considering a source change complete, verify the following:
 39. Every `IXXXValidator` interface derives from `IDataValidator`, and logged failures raise `ValidationFailed` with a specific corrective message.
 40. Options dialogs present validation failures with owner-parented stop-error messages rather than inline validation labels, then focus the setting that must be corrected.
 41. Standard Windows font selection is not narrowed by arbitrary product-specific point-size limits; selected sizes need only satisfy real renderer constraints and remain finite and positive.
+42. Every ordinary non-void method controls its answer through `result`, every ordinary return path says `return result;`, gate-specific provisional values are established before the gate and restored afterward when necessary, and iterator blocks remain lazy rather than being materialized merely to satisfy the result-variable convention.
+42. Every ordinary non-void method controls its answer through `result`, every ordinary return path says `return result;`, gate-specific provisional values are established before the gate and restored afterward when necessary, and iterator blocks remain lazy rather than being materialized merely to satisfy the result-variable convention.
+
+## Revision R Consolidation Summary
+
+Revision R makes the result-variable discipline explicit across xyLOGIX development:
+
+- ordinary non-void methods control their answer through a local `result` variable;
+- every ordinary return path returns `result` rather than bypassing it with a literal, enum member, factory/subordinate call, or other direct expression;
+- provisional gate-specific values are established before the gate and restored after the gate when execution continues and the provisional value no longer applies;
+- trivial `result = <primitive>; return result;` gate-local sequences are replaced by deliberate state control rather than ceremonial assignment;
+- iterator blocks remain genuine iterators and use `yield return`/`yield break` when laziness is the correct contract; and
+- the intentional `result` variable is not considered prohibited local aliasing or unnecessary state.
+
+These rules make method outcomes easier to trace, preserve shift-left eager-return behavior, and keep exception, validation, and success paths on one coherent return contract.
 
 ## Revision Q Consolidation Summary
 
