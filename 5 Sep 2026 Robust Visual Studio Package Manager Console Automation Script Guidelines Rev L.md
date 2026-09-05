@@ -1,36 +1,44 @@
 # Robust Visual Studio Package Manager Console Automation Script Guidelines
 
-Revision: K
+Revision: L
 Last Updated: 5 September 2026
 
-## Revision K Scope
+## Revision L Scope
 
-Revision K supersedes Revision J where the rules below differ. Revision K retains Revision J's maintainer-source authority, exact-payload clobbering discipline, DTE-owned Solution/project topology, junction-aware path identity, preexisting-work preservation, ReSharper suspension, one transaction-wide VCmd opening round, content-based post-VCmd cleanup convergence, positive-only dependency handling, Solution-level governance-document exclusion, progress-first failure handling, file-by-file implementation commit default, and two-pass exact-artifact audit.
+Revision L supersedes Revision K where the rules below differ. Revision L retains Revision K's maintainer-source authority, exact-payload clobbering discipline, DTE-owned Solution/project topology, junction-aware path identity, preexisting-work preservation, ReSharper suspension for source-mutating transactions, one transaction-wide VCmd opening round for source-mutating transactions, workload-adaptive content-based post-VCmd cleanup convergence, generation-time symbol-to-namespace closure, positive-only dependency handling, Solution-level governance-document exclusion, progress-first failure handling, Git-proven commit identity, file-by-file implementation commit default, observable Git end-state proof, and two-pass exact-artifact audit.
 
-Revision K strengthens generation-time C# namespace/dependency acceptance, makes IDE-cleanup timing adaptive to workload, and makes Git completion an externally proven fixed point rather than an internal-script assumption. The mandatory requirements are:
+Revision L adds an explicit **Git-recovery-only transaction mode** for the narrow case in which the intended source/project changes already exist in the live work tree from a previous transaction or maintainer correction and the only remaining work is to stage, commit, synchronize, and push those already-settled files. The mandatory requirements are:
 
-- **VCmd/IDE convergence is workload-adaptive.** The continuous quiet interval and overall maximum convergence window must scale from the exact number of files successfully opened for VCmd. Small transactions should not pay the same settling cost as large transactions, while large transactions must receive materially more time for project-system/ReSharper background work to finish. The default adaptive formula is defined in Section 9 and must remain bounded.
-- **Content stability remains the convergence signal.** Repeated SHA-256-or-equivalent content fingerprints of the exact successfully opened VCmd file set remain synchronization-only observations. Reset the complete quiet interval whenever any observed file changes, disappears, reappears, or becomes temporarily unreadable. Timestamps alone, one snapshot, or one unconditional sleep remain insufficient.
-- **Generation-time C# acceptance includes symbol-to-namespace closure.** Every introduced or retained unqualified symbol in every changed C# payload must have the required `using` directive, fully qualified name, and positive project/assembly dependency closure needed to resolve it. In particular, source using `[Log]`, `[NotLogged]`, or another PostSharp diagnostic aspect from that namespace must include `using PostSharp.Patterns.Diagnostics;` unless the symbol is fully qualified. Source using `[DebuggerStepThrough]` must have `System.Diagnostics`; source calling `DebugUtils` must have `xyLOGIX.Core.Debug`. The generator must audit the entire payload set for the defect class rather than waiting for ReSharper to identify the first unresolved symbol.
-- **Internal counters are not Git evidence.** A script variable such as an implementation-commit count may guide control flow, but it does not prove that Git history changed. After every commit, Git itself must prove that `HEAD` advanced, report the actual commit SHA/subject, and prove that the just-committed work-item paths are no longer staged or dirty.
-- **Each successful commit is visible to the maintainer.** Emit a concise diagnostic containing at least the abbreviated commit SHA and subject after Git has independently resolved them from `HEAD`. Do not print a generic "captured" message as a substitute for commit identity.
-- **Git capture is a fixed-point process.** After an ordered capture pass, run a bounded adaptive IDE/Git stabilization pass over transaction-owned paths. If delayed IDE/ReSharper writes make transaction-owned paths dirty again, wait for those writes to settle and re-enter ordered Git capture. Do not rerun VCmd merely because a late write appeared. Repeat within a bounded budget until transaction-owned paths stay clean.
-- **Push is not the end-state proof.** After pull/rebase and push, perform another bounded adaptive `File.SaveAll`/message-pump/status stabilization cycle. If transaction-owned dirt appears, capture it and synchronize again within the bounded finalization loop. A successful `git push` exit code by itself is not permission to claim transaction success.
-- **Final success requires observable Git postconditions.** Before printing `*** SUCCESS ***`, verify from Git that the index is empty, no transaction-owned path remains dirty, the final local `HEAD` can be resolved, and—when an upstream is configured and synchronization was performed—the local/upstream ahead-behind state is `0/0` after any required refresh. If unrelated post-baseline dirt exists, report local transaction completion precisely and do not claim a clean repository or completed remote synchronization.
-- **"Synchronizing completed transaction commits" is evidence-backed wording.** Do not emit that diagnostic until at least one actual transaction commit SHA has been observed from Git (unless the transaction is a verified no-op with no implementation commits). The wording must describe work that demonstrably exists in Git history.
-- **File-by-file implementation capture remains the default.** Conceptual feature grouping does not justify broad multi-file commit arrays. Continue to use multi-file commits only for the explicit source-family, rename, scaffold, or topology exceptions already defined in Revision J.
-- **Preexisting Git dirt remains preserved rather than rejected.** Revision K does not weaken the preservation-checkpoint rule. Preexisting maintainer work is still committed before transaction-owned mutation and is never rolled back merely because the later transaction fails.
-- **Maintainer-authored source remains authoritative.** If the maintainer corrects a generated file after a prior transaction, that live correction is the source baseline for the next transaction. A recovery/check-in transaction must preserve it rather than reinstalling stale generated bytes.
-- **Solution-level governance documents remain manual deliverables.** The Solution-level xyLOGIX Software Engineering Manifesto, `CONTRIBUTING.md`, and `README.md` remain outside transaction-owned mutation/staging regardless of Solution Items membership.
-- **Nested exception blocks remain prohibited.** PowerShell and generated C# continue to follow the Revision J/SEM extraction rules rather than nesting `try`/`catch`/`finally` structures.
+- **Git-recovery-only transactions do not mutate source.** They must not clobber payloads, add/remove project topology, alter references, create a new transaction boundary, invoke VCmd, or suspend/resume ReSharper merely to check in changes that are already present.
+- **Recovery-owned dirt is not a preexisting-work preservation checkpoint.** The explicitly identified dirty paths from the prior failed/incomplete transaction are the work items to capture now. Do not stage them wholesale into a generic pre-transaction preservation commit. Continue to distinguish and protect any unrelated dirty paths.
+- **No content-change convergence wait is required merely because the files are dirty.** For a Git-recovery-only transaction, after the initial `File.SaveAll` and repository/path/index checks, proceed directly to ordered exact staging and Git-proven commits. Do not run the Section 9 adaptive VCmd barrier, the Section 22.8 adaptive post-capture fingerprint wait, or the Section 23.3 adaptive post-push fingerprint wait when the script itself performed no source/IDE cleanup mutation and there is no concrete evidence that the IDE is actively rewriting the recovery paths.
+- **Recovery-only finalization remains Git-proven.** Skipping content-stability waits does not weaken Git evidence. Every commit must still prove a `HEAD` transition and report its actual SHA/subject; final transaction-owned status must be clean; configured-upstream synchronization must still be proven with the applicable `0/0` ahead/behind check.
+- **Use direct status recapture instead of artificial waits.** After each commit, after the ordered capture pass, and after push, refresh Git status immediately. If a recovery-owned path is dirty again, re-enter ordered capture from fresh status within a bounded recapture-round budget. Do not insert fingerprint/quiet-period delays unless the script has actual evidence that Visual Studio/ReSharper is actively changing those files.
+- **Initial pull/rebase is deferred for recovery-owned dirt.** Because the recovery work tree intentionally starts dirty, do not require a clean pre-mutation baseline or perform the normal initial pull/rebase before capture. Capture the authorized recovery paths first, then perform the normal final pull/rebase/push once transaction-owned paths are committed and any unrelated-dirt rule permits synchronization.
+- **Recovery-only scripts preserve maintainer corrections exactly.** A manually corrected file that is part of the recovery set is authoritative. The recovery script stages the live bytes; it does not reconstruct or reinstall an earlier generated payload.
+- **Full mutation transactions still use Revision L's adaptive convergence rules.** The recovery-only exception is narrow. If the script writes source, changes DTE topology/references, resumes ReSharper after mutation, invokes VCmd, or otherwise creates a realistic delayed-write hazard, the normal adaptive convergence and fixed-point rules remain mandatory.
 
-All Revision J requirements not expressly superseded here remain in force, including Windows PowerShell 5.1 compatibility, exact-payload transport, DTE-owned Visual Studio topology, junction-safe identity, schema-version-2 noninteractive/Git-disabled VCmd configuration, positive-only reference handling, no fatal build/test gate by default, and the two-pass audit of the exact GUID-named artifact.
+Revision L otherwise preserves Revision K's mandatory requirements:
+
+- **VCmd/IDE convergence is workload-adaptive for source-mutating transactions.** The continuous quiet interval and overall maximum convergence window scale from the exact number of files successfully opened for VCmd using the bounded formula in Section 9.
+- **Content stability remains the convergence signal when convergence is required.** Repeated SHA-256-or-equivalent fingerprints are synchronization-only observations; timestamps alone, one snapshot, or one unconditional sleep remain insufficient.
+- **Generation-time C# acceptance includes symbol-to-namespace closure.** In particular, `[Log]`, `[NotLogged]`, and related PostSharp diagnostic aspects require `using PostSharp.Patterns.Diagnostics;` unless fully qualified; `[DebuggerStepThrough]` requires `System.Diagnostics`; `DebugUtils` requires `xyLOGIX.Core.Debug`; and the real positive project/assembly dependency closure must exist.
+- **Internal counters are not Git evidence.** Git itself must prove every commit by an observed `HEAD` transition and actual SHA/subject.
+- **Each successful commit is visible to the maintainer.** Emit the actual abbreviated SHA and subject after resolving them from Git.
+- **Final success requires observable Git postconditions.** The index must be clean, transaction-owned paths must be absent from status, final `HEAD` must resolve, and synchronized repositories must prove `0/0` ahead/behind their configured upstream.
+- **File-by-file implementation capture remains the default.** Multi-file commits remain limited to the explicit source-family, rename, scaffold, or topology exceptions.
+- **Preexisting unrelated Git dirt remains preserved or isolated according to transaction mode.** Normal mutation transactions retain the preservation-checkpoint rule; recovery-only transactions treat their explicitly authorized dirty paths as the work to capture and must not misclassify them as generic preexisting dirt.
+- **Maintainer-authored source remains authoritative.** Later maintainer corrections supersede earlier AI payloads.
+- **Solution-level governance documents remain manual deliverables.** The Solution-level xyLOGIX Software Engineering Manifesto, `CONTRIBUTING.md`, and `README.md` stay outside transaction-owned mutation/staging regardless of Solution Items membership.
+- **Nested exception blocks remain prohibited.** PowerShell and generated C# continue to follow the extraction rules rather than nesting `try`/`catch`/`finally` structures.
+
+All Revision K requirements not expressly superseded here remain in force, including Windows PowerShell 5.1 compatibility, exact-payload transport for source-mutating transactions, DTE-owned Visual Studio topology, junction-safe identity, schema-version-2 noninteractive/Git-disabled VCmd configuration when VCmd is applicable, positive-only reference handling, no fatal build/test gate by default, and the two-pass audit of the exact GUID-named artifact.
 
 ## Purpose
 
 This document is a reusable engineering specification for an AI system that generates **agentic PowerShell Change Transaction Scripts intended to be dot-sourced from the Visual Studio Package Manager Console (PMC)**.
 
-A Change Transaction Script is an **in-IDE, repository-aware maintenance transaction**. It is used after the AI has inspected the current authoritative workspace and determined a concrete desired change, and the maintainer wants one downloadable `.ps1` artifact to impose that change inside the already-loaded Visual Studio Solution, prepare the resulting changed source for the normal Visual Studio/VCmd cleanup workflow, capture the result in Git, and leave the workspace in a useful state without forcing the maintainer to debug the automation itself.
+A Change Transaction Script is an **in-IDE, repository-aware maintenance transaction**. It is used after the AI has inspected the current authoritative workspace and determined a concrete desired change or a concrete recovery/check-in need. Depending on transaction mode, the maintainer wants one downloadable `.ps1` artifact either to impose that change inside the already-loaded Visual Studio Solution and prepare/capture the resulting source, or to capture already-existing settled changes in Git without mutating them, and in either case to leave the workspace in a useful state without forcing the maintainer to debug the automation itself.
 
 Typical use cases include:
 
@@ -41,6 +49,7 @@ Typical use cases include:
 - creating complete repository-standard project/module scaffolds and adding them to the loaded Solution through DTE;
 - performing project/Solution topology operations such as renames when the task genuinely requires them;
 - retrying a prior partially completed transaction without treating harmless source divergence, formatting changes, or an orphaned empty transaction boundary as a reason to fail;
+- recovering already-completed, already-settled source/project changes from a prior transaction whose Git capture did not occur or did not finish, by staging/committing/pushing the live dirty files without re-running source mutation, ReSharper suspension, VCmd cleanup, or artificial content-stability waits;
 - deriving the narrow VCmd-eligible C# processing set from the complete transaction-created changed-path set, supplying the one-run noninteractive/Git-disabled configuration for `VCmd.CCommandStripLineBreaksFromAllComments`, running that cleanup pass without modal prompts or VCmd-owned Git activity, and saving the IDE state before the script's own Git capture; and
 - staging, committing, synchronizing, and pushing transaction-owned work without allowing unrelated paths to hitchhike.
 
@@ -180,6 +189,35 @@ The maintainer will review the resulting state in Visual Studio and provide the 
 A legitimate no-op is success, not an error.
 
 ---
+
+
+### 1.1 Git-recovery-only transaction mode
+
+A **Git-recovery-only Change Transaction Script** is a specialized transaction whose sole purpose is to capture changes that already exist in the maintainer's live work tree because an earlier transaction, manual correction, or interrupted workflow left the intended files uncommitted.
+
+Use this mode only when all of the following are true:
+
+1. The maintainer has explicitly identified the recovery purpose or supplied authoritative Git evidence such as `git status`, `git diff`, or `git diff --staged` showing the intended dirty set.
+2. The desired source/project bytes already exist in the live work tree and no additional source, project, Solution, reference, resource, or topology mutation is requested.
+3. The recovery script can identify the authorized recovery path set narrowly enough to prevent unrelated dirt from hitchhiking.
+4. No VCmd/ReSharper cleanup pass is requested or needed to produce the desired bytes.
+
+In this mode:
+
+- run `File.SaveAll` once before Git observes the work tree so unsaved editor buffers are flushed;
+- do not create a new empty transaction boundary merely to check in already-existing work;
+- do not invoke `ReSharper_Suspend`, `ReSharper_Resume`, VCmd, source-editor opening passes, or content-fingerprint convergence waits merely because files are dirty;
+- do not perform the normal pre-mutation clean-baseline/preservation treatment on the authorized recovery paths, because those paths are the implementation work to be captured now;
+- require the Git index to be clean at the start unless the current prompt explicitly states that the staged index itself is authoritative recovery state;
+- stage/commit the authorized recovery paths using the normal Section 22 work-item ordering/granularity and repository commit-message rules;
+- prove every commit from Git by observing `HEAD` before and after, resolving the actual SHA/subject, and refreshing path status;
+- after a capture pass or push, use a **direct fresh Git-status check**, not an artificial quiet-period/content-fingerprint wait;
+- if an authorized recovery path is dirty again on that direct check, recapture it from fresh status in a bounded number of rounds; and
+- perform final pull/rebase/push only after the recovery paths are committed and the unrelated-dirt/upstream rules permit synchronization.
+
+A recovery-only script may escalate to the normal source-mutating convergence model only when there is concrete evidence during execution that Visual Studio/ReSharper is actively rewriting recovery-owned files. Mere dirtiness, file count, or the fact that the earlier transaction once used VCmd is not such evidence.
+
+This exception exists to avoid wasting time waiting for files that have already been sitting unchanged. It does **not** relax exact staging, commit-message discipline, Git-proven commit identity, unrelated-dirt isolation, final clean transaction-owned status, or upstream synchronization proof.
 
 ## 2. Target Runtime Assumptions
 
@@ -447,7 +485,9 @@ Use the Solution-containing directory as the Git working directory/repoRoot conv
 
 ## 6.6 ReSharper suspension and IDE settling
 
-Every Change Transaction Script running in the maintainer's Visual Studio environment must suspend ReSharper before performing source/project/Solution mutations. This prevents ReSharper and Visual Studio's Asset Synchronization Service from repeatedly re-indexing partially-written source and partially-mutated project topology.
+The suspension rule in this section applies to transactions that perform source/project/Solution mutations. A Git-recovery-only transaction as defined in Section 1.1 performs no such mutation and must not suspend/resume ReSharper merely to commit already-existing files.
+
+Every source-mutating Change Transaction Script running in the maintainer's Visual Studio environment must suspend ReSharper before performing source/project/Solution mutations. This prevents ReSharper and Visual Studio's Asset Synchronization Service from repeatedly re-indexing partially-written source and partially-mutated project topology.
 
 After validating the loaded Solution and performing the initial `File.SaveAll`:
 
@@ -458,7 +498,7 @@ After validating the loaded Solution and performing the initial `File.SaveAll`:
 
 A failure to suspend ReSharper before the first mutation is a legitimate pre-mutation stop condition for this environment because continuing can produce project-association/Miscellaneous-Files failures. If suspension was successful and the transaction later exits early, the outer cleanup must make a best-effort `ReSharper_Resume` call and pump the message loop before returning control to PMC.
 
-Normal resumption occurs only after the transaction's **single final VCmd-eligible editor-opening pass** has completed. At that point:
+For a source-mutating transaction, normal resumption occurs only after the transaction's **single final VCmd-eligible editor-opening pass** has completed. At that point:
 
 1. invoke `$dte.ExecuteCommand('ReSharper_Resume')`;
 2. clear the transaction's suspended-state flag when the command returns normally;
@@ -494,6 +534,17 @@ Reason:
 - The initial Git gate should evaluate the state the user actually sees in the IDE.
 
 `File.SaveAll` does **not** require checking whether documents are open first.
+
+### Git-recovery-only checkpoint
+
+For a Section 1.1 Git-recovery-only transaction, checkpoint A is normally the only IDE flush required before ordered Git capture. After that save:
+
+1. verify the recovery path set and Git index state;
+2. proceed directly to Section 22 ordered capture;
+3. after each commit/capture pass/push, use fresh Git status as the normal end-state observation; and
+4. do not manufacture checkpoint B/C, VCmd opening, ReSharper resumption, fingerprint sampling, or quiet-period waits when the script performed no source/IDE mutation.
+
+If direct status unexpectedly shows a recovery-owned path dirty again, recapture from fresh status within the bounded recovery-only round budget. Escalate to content-stability waiting only when there is concrete evidence of active IDE rewriting.
 
 ### Required checkpoint B: after all source/project/Solution mutations
 
@@ -572,7 +623,11 @@ The fact that VCmd-eligible changed files are intentionally opened before VCmd d
 ---
 ## 9. One-Time VCmd Source Opening and Visual Commander Cleanup
 
-When the repository workflow requires `VCmd.CCommandStripLineBreaksFromAllComments`, use one transaction-wide cleanup pass.
+### Git-recovery-only exception
+
+A Section 1.1 Git-recovery-only transaction does **not** run VCmd, does not open source files for VCmd, does not suspend/resume ReSharper, and does not enter the adaptive post-VCmd convergence barrier. The desired source bytes already exist and the transaction's job is Git capture only. Proceed from the initial `File.SaveAll` and Git-scope checks directly to Section 22.
+
+When the repository workflow requires `VCmd.CCommandStripLineBreaksFromAllComments` for a source-mutating transaction, use one transaction-wide cleanup pass.
 
 ### Maintain a transaction-wide affected-file registry
 
@@ -714,7 +769,7 @@ If the computed finite maximum settling duration expires without achieving the r
 - preserve all source/project progress already made; and
 - return control to the maintainer so the next transaction can resume safely.
 
-This is a legitimate mechanical pre-Git gate because staging while `ReSharper_SilentCleanupCode` or the IDE is still rewriting a VCmd-opened source file can produce a commit followed immediately by a newly dirty file. Revision K additionally requires the post-capture and post-push fixed-point checks in Sections 22 and 23, because even a successful pre-Git barrier is not permission to assume the IDE can never issue a later write.
+This is a legitimate mechanical pre-Git gate because staging while `ReSharper_SilentCleanupCode` or the IDE is still rewriting a VCmd-opened source file can produce a commit followed immediately by a newly dirty file. Revision L additionally requires the post-capture and post-push fixed-point checks in Sections 22 and 23, because even a successful pre-Git barrier is not permission to assume the IDE can never issue a later write.
 
 ## 9.1 Build, Compilation, and Test Policy
 
@@ -867,6 +922,20 @@ Use the synchronization workflow described below. Do not assume the remote is na
 
 ## 13. Preserve Preexisting Git Work and Establish a Clean Baseline
 
+### Git-recovery-only exception
+
+In a Section 1.1 Git-recovery-only transaction, the explicitly authorized recovery paths are intentionally dirty at transaction start and are **not** preexisting dirt to be swept into a generic preservation checkpoint. Treat them as the implementation work items to capture under Section 22.
+
+After the initial `File.SaveAll`:
+
+1. require a clean index unless the current prompt explicitly makes staged state authoritative;
+2. partition current Git dirt into the authorized recovery path set and unrelated paths;
+3. never stage unrelated paths with recovery work;
+4. do not create a repository-wide preservation checkpoint merely because the authorized recovery paths are dirty; and
+5. if unrelated dirt exists, leave it untouched and apply the normal rule that final pull/rebase/push is skipped while that unrelated work remains.
+
+The normal preservation-checkpoint workflow below applies to source-mutating transactions establishing a clean pre-mutation baseline.
+
 A dirty repository at transaction start is **not** a reason to refuse to run. The transaction first preserves that work in Git, then establishes the clean baseline required for exact transaction-owned staging.
 
 After the initial `File.SaveAll` and before initial pull/rebase or transaction-owned source/project mutation, process each affected Git work tree separately:
@@ -902,7 +971,11 @@ When parsing porcelain output, use ordinary PowerShell arrays or `ArrayList`; av
 
 ## 14. Initial Git Synchronization
 
-When the current branch has a configured upstream, perform the initial synchronization before source modification.
+### Git-recovery-only exception
+
+A Git-recovery-only transaction intentionally begins with authorized dirty files, so do **not** perform the normal initial `git pull --rebase` before capture. Capture the authorized recovery paths first. Once transaction-owned recovery paths are fully committed and no unrelated dirt prevents synchronization, use Section 23 for the final pull/rebase/push and upstream proof.
+
+When a source-mutating transaction has a configured upstream, perform the initial synchronization before source modification.
 
 The normal default, after Section 13 has preserved any preexisting dirt and established a clean baseline, is:
 
@@ -934,7 +1007,11 @@ Do not assume the codebase still matches the pre-pull state.
 
 ## 15. Empty History-Boundary Commit and Rollback Anchor
 
-When this workflow requires a pre-change history boundary, create an **empty commit before making the actual source changes**.
+### Git-recovery-only exception
+
+Do not create a new empty history-boundary commit for a Git-recovery-only transaction. The source changes already exist, so a new pre-change marker would misrepresent chronology and add bookkeeping without protecting any upcoming mutation. Preserve any existing recognized history from the earlier transaction and capture the live recovery work directly.
+
+When a source-mutating workflow requires a pre-change history boundary, create an **empty commit before making the actual source changes**.
 
 Immediately before creating or adopting the boundary:
 
@@ -1172,6 +1249,7 @@ Examples:
 - Re-derive the current transaction's VCmd-eligible changed C# set and open those eligible files in the source-code editor before VCmd even when some are already open from an earlier attempt; opening an already-open eligible document is a harmless retry condition.
 - Skip VCmd when no VCmd-eligible changed C# files can be opened.
 - Preserve partial forward progress after advisory/runtime correctness concerns and fix those concerns in the next transaction rather than automatically erasing the work.
+- For a Git-recovery-only retry, skip any recovery path that is already clean/committed, commit only the paths still dirty, do not recreate source payloads, and do not add content-stability waits merely because the earlier recovery attempt was interrupted.
 
 ---
 
@@ -1493,7 +1571,7 @@ Never allow unrelated staged paths to hitchhike. Never span two Git repositories
 
 ### 22.8 Post-capture IDE/Git fixed-point stabilization
 
-One ordered capture pass is not necessarily the end of Git capture. Visual Studio, ReSharper, the project system, or a delayed document save can still rewrite transaction-owned files after one or more commits have been created. Revision K therefore requires a bounded **post-capture fixed-point loop** before final synchronization.
+One ordered capture pass is not necessarily the end of Git capture. Visual Studio, ReSharper, the project system, or a delayed document save can still rewrite transaction-owned files after one or more commits have been created. Revision L therefore requires a bounded **post-capture fixed-point loop** before final synchronization.
 
 1. After the current ordered capture pass appears complete, call `File.SaveAll`, pump `Application.DoEvents()`, and observe the complete transaction-owned path set.
 2. Derive an adaptive quiet interval and maximum wait using the same bounded square-root policy from Section 9, substituting the count of transaction-owned paths currently subject to IDE writes for `N` when that set is larger/more appropriate than the VCmd-opened set.
@@ -1507,6 +1585,20 @@ One ordered capture pass is not necessarily the end of Git capture. Visual Studi
 
 The required fixed point is: **all transaction-owned paths are content-stable and absent from the Git index/working-tree status at the same observed boundary.**
 
+### Git-recovery-only exception to Section 22.8
+
+For a Section 1.1 Git-recovery-only transaction, skip the adaptive content-fingerprint/quiet-period loop entirely unless execution has concrete evidence that the IDE is actively rewriting recovery-owned files.
+
+After the ordered capture pass:
+
+1. run `File.SaveAll` once;
+2. refresh Git status immediately;
+3. if all recovery-owned paths are clean, proceed directly to Section 23;
+4. if one or more recovery-owned paths are dirty again, re-enter Section 22 ordered capture from fresh status without an artificial wait; and
+5. bound these direct-status recapture rounds (normally no more than three unless the current prompt authorizes more).
+
+For recovery-only work, **clean Git status is the fixed-point observation**. Content hashing and elapsed quiet intervals are unnecessary when the script did not create the delayed-write hazard they were designed to guard against.
+
 ## 23. Final Git Synchronization, Push, and End-State Proof
 
 Final synchronization is a state machine with observable postconditions, not a ceremonial `pull`/`push` tail. The transaction must arrive at a Git fixed point and prove it from Git before it prints `*** SUCCESS ***`.
@@ -1518,7 +1610,7 @@ After the Section 22 ordered-capture/fixed-point loop:
 1. Run `File.SaveAll`, pump the IDE, and refresh repository status.
 2. Require the Git index to contain no staged transaction-owned paths.
 3. Require no transaction-owned path to remain dirty/untracked/deleted/renamed unexpectedly.
-4. If a transaction-owned path is dirty, return to the Section 22.8 stabilization/recapture loop rather than declaring capture complete.
+4. If a transaction-owned path is dirty, return to the applicable Section 22.8 recapture workflow rather than declaring capture complete; a Git-recovery-only transaction uses the direct-status recapture exception rather than adaptive fingerprint waiting.
 5. If unrelated post-baseline dirt exists, warn, leave it untouched, and skip pull/rebase/push. The transaction may report **local transaction completion** only after all transaction-owned paths are committed; it must not claim a clean repository or completed remote synchronization.
 6. If zero implementation commits were genuinely created, the transaction-owned empty boundary exists, and the repository is otherwise clean, apply the verified no-op boundary cleanup rule before synchronization.
 7. Resolve and retain the actual current `HEAD` from Git. If the transaction believes implementation commits exist but no actual observed commit SHA was recorded, do not emit `*** INFO *** Synchronizing completed transaction commits...`; diagnose the inconsistency instead.
@@ -1535,9 +1627,9 @@ If an upstream is configured and no unrelated dirt prevents synchronization:
 4. Push through the configured branch/upstream relationship rather than assuming a remote name.
 5. Require the push command to succeed.
 
-### 23.3 Post-push adaptive stabilization and recapture
+### 23.3 Post-push stabilization and recapture
 
-A successful push is **not** the terminal success condition. Immediately afterward:
+For a source-mutating transaction, use the adaptive stabilization workflow below. A successful push is **not** the terminal success condition. Immediately afterward:
 
 1. Call `File.SaveAll` again and pump the Visual Studio message loop.
 2. Run another bounded adaptive stability observation over the transaction-owned path set using the Section 9 square-root timing policy.
@@ -1546,6 +1638,18 @@ A successful push is **not** the terminal success condition. Immediately afterwa
 5. Bound this final capture/synchronize cycle by the same finite recapture-round policy (normally at most three post-capture/post-push recapture rounds total unless the current prompt authorizes more). If a stable clean state cannot be reached, report an actionable error/warning and **do not print transaction success**.
 
 This post-push loop exists specifically to prevent the failure mode in which a script commits/pushes, the IDE performs one more delayed write, and the script leaves the maintainer with a dirty work tree while claiming success.
+
+#### Git-recovery-only post-push exception
+
+A Git-recovery-only transaction does not perform the adaptive post-push fingerprint/quiet-period wait by default. After a successful push:
+
+1. run `File.SaveAll` once;
+2. refresh Git status immediately;
+3. if recovery-owned paths remain clean, proceed directly to Section 23.4 final Git proof;
+4. if recovery-owned dirt reappears, recapture and re-synchronize from fresh status within the bounded recovery-only round budget; and
+5. use adaptive content-stability waiting only if there is concrete evidence that the IDE is actively rewriting those paths.
+
+The push exit code is still not sufficient proof; the difference is that recovery-only finalization proves the end state with fresh Git observations rather than waiting for an elapsed quiet interval that has no demonstrated purpose.
 
 ### 23.4 Final Git proof
 
@@ -1586,6 +1690,7 @@ Useful diagnostics normally include, when applicable:
 - post-VCmd `ReSharper_SilentCleanupCode` convergence progress, including content-fingerprint changes among the files actually opened for VCmd and the continuous quiet-interval barrier before Git capture;
 - Git work-item selection, exact staging, and commit completion, including the actual abbreviated SHA and subject resolved from Git after each successful commit;
 - the adaptive VCmd/post-capture timing policy actually selected from the observed file counts;
+- explicit identification of Git-recovery-only mode when applicable, including a concise statement that ReSharper/VCmd/content-convergence waits are being skipped because the script performs no source mutation;
 - any late transaction-owned rewrites detected after a commit or push and the resulting bounded recapture round;
 - final pull/rebase/push progress when applicable, followed by the final Git `HEAD`, transaction-owned cleanliness proof, and upstream ahead/behind proof when synchronization occurred;
 - warnings that do not block forward progress; and
@@ -1637,6 +1742,7 @@ Bad examples:
 - Using one fixed quiet interval/maximum wait for every transaction regardless of whether VCmd opened one source file or dozens; the barrier must scale adaptively with workload.
 - Treating an internal `CreatedTransactionCommitCount` (or similar variable) as proof that Git commits actually exist.
 - Printing `*** SUCCESS ***` after `git push` without a final `File.SaveAll`/adaptive settle/Git-status proof, thereby allowing delayed IDE writes to leave transaction-owned files dirty after the script claims completion.
+- Applying the adaptive VCmd/post-capture/post-push content-fingerprint waits to a Git-recovery-only transaction whose files are already sitting unchanged and whose script performs no source/IDE cleanup mutation.
 - Adding `xyLOGIX.Core.Debug` or `xyLOGIX.Core.Extensions*` to every `.Constants` or `.Interfaces` project merely as boilerplate.
 - Reading/parsing an authorized source file at runtime solely to prove that a method still has the generation-time signature/body before replacing it.
 - Using a regex/marker/old-code search helper that throws when harmless source formatting or method shape differs, when an exact desired-state file could simply be clobbered into place.
@@ -1663,6 +1769,7 @@ Good examples:
 - Computing the quiet interval and maximum observation window from the number of successfully VCmd-opened files using the bounded square-root policy, and reporting the selected timings before waiting.
 - Resolving `HEAD` before and after every commit, requiring it to advance, and reporting the actual abbreviated commit SHA/subject from Git.
 - Re-entering ordered Git capture when delayed IDE writes make transaction-owned paths dirty after an earlier commit/push, then proving the final local/upstream state before printing success.
+- For Git-recovery-only work, performing `File.SaveAll`, then immediately staging/committing the authorized dirty paths and using direct fresh Git-status checks after capture/push instead of artificial content-change waits.
 - Evaluating `.Interfaces` dependencies from actual base-interface/member-type closure, adding `xyLOGIX.Core.Extensions` only when a contract such as `IForm`/`IControl` genuinely requires it.
 - Resolving the authorized target pathname and then clobbering it with the pre-audited exact desired-state payload without inspecting old source contents.
 - Transporting large/complex audited payloads as exact Base64-encoded bytes and writing them with `WriteAllBytes` to avoid PowerShell text-encoding/quoting hazards.
@@ -1691,6 +1798,23 @@ If not, do not make it a hard gate.
 ---
 
 ## 26. Recommended High-Level Execution Order
+
+### Alternate flow — Git-recovery-only transaction
+
+When Section 1.1 applies, use this shorter flow instead of the source-mutation phases below:
+
+1. Enter child scope; strict errors.
+2. Validate host `$dte`, loaded Solution, repository identity, branch, and configured upstream without assigning/binding `$dte`.
+3. Run `File.SaveAll` once.
+4. Confirm the Git index is clean unless staged state is explicitly authoritative.
+5. Resolve the authorized recovery path set from the maintainer-supplied/current Git evidence and partition unrelated dirt.
+6. Do **not** create a boundary, suspend/resume ReSharper, open source for VCmd, invoke VCmd, write source payloads, mutate topology/references, or run content-fingerprint quiet waits.
+7. Perform Section 22 ordered file-by-file/source-family capture; prove each commit by `HEAD` transition and actual SHA/subject.
+8. Run one direct `File.SaveAll` + fresh Git-status check. If recovery-owned dirt remains/reappears, recapture directly in bounded rounds without waiting.
+9. When transaction-owned recovery paths are clean and unrelated dirt does not block synchronization, run final pull/rebase/push.
+10. Run one direct `File.SaveAll` + fresh Git-status check after push; if recovery-owned dirt reappears, recapture/re-push in bounded rounds without artificial waiting.
+11. Prove final index/transaction-owned cleanliness, final `HEAD`, and `0/0` ahead-behind when synchronization occurred.
+12. Emit `*** SUCCESS ***` only after those Git postconditions are observed.
 
 ### Phase 1 — establish Visual Studio and Git context
 
@@ -1767,6 +1891,7 @@ If not, do not make it a hard gate.
 | Action | Immediate precondition | Required postcondition | No-op / recovery |
 |---|---|---|---|
 | `File.SaveAll` | Valid host DTE + loaded Solution | Command completes | Execute at defined checkpoints |
+| Git-recovery-only mode | authoritative recovery path set + source/project changes already exist + no source/topology/reference mutation requested | source bytes remain untouched; no boundary/ReSharper/VCmd/fingerprint waits; ordered Git capture begins after initial `File.SaveAll` and index/scope checks | if active IDE rewriting is concretely observed, escalate only that synchronization concern to the normal bounded convergence model |
 | Preserve preexisting Git dirt | affected repository identified + initial `File.SaveAll` complete + preexisting dirt present | all preexisting tracked/untracked state committed with repository-compliant message; repository clean | already clean: no-op; commit failure: stop before transaction mutation without discarding work |
 | Clobber authorized source/project file | authorized target path + pre-audited desired-state payload + writable target | exact payload bytes written; mark meaningful mutation | do not inspect old source shape; exact-byte/Base64 transport is preferred for complex payloads |
 | Deliver Solution-level SEM / `CONTRIBUTING.md` / `README.md` | updated governance/documentation content requested | separate downloadable artifact produced; Change Transaction payload/staging maps exclude the Solution-level path | maintainer applies manually; preexisting dirty copies may be preservation-checkpoint content only |
@@ -1788,10 +1913,10 @@ If not, do not make it a hard gate.
 | Select implementation work item | fresh repo status | CreateStagedGitDiff-compatible next path set selected | no transaction changes: repo complete |
 | `git add` | work item dirty + index otherwise clean | staged paths exactly intended | clean item: skip; failure: reset |
 | Git commit | exact staged set + repository-valid message + pre-commit `HEAD` captured | Git command succeeds; post-commit `HEAD` differs; actual SHA/subject resolved and reported; work-item paths immediately clean | already committed/clean: skip; internal counters are informational only |
-| Post-capture fixed-point stabilization | ordered capture pass completed | adaptive IDE/content settle completes with all transaction-owned paths absent from index/work-tree status; late dirt is recaptured in bounded rounds | if stable fixed point cannot be reached, preserve progress and do not claim synchronization success |
+| Post-capture fixed-point stabilization | ordered capture pass completed | source-mutating transaction: adaptive IDE/content settle completes; Git-recovery-only transaction: direct `File.SaveAll` + fresh status proves recovery-owned paths clean, with direct recapture in bounded rounds | if stable fixed point cannot be reached, preserve progress and do not claim synchronization success |
 | Advisory/runtime correctness concern | positive mutations already completed | warning reported; forward state preserved | continue and address in next transaction |
 | Switch repo | previous repo postconditions satisfied | fresh path/status/index/branch/remote state | never reuse old repo-relative state |
-| Final pull/push and proof | configured branch upstream + transaction-owned paths clean + no unrelated post-baseline dirt | pull/rebase/push succeed; post-push adaptive settle finds no transaction-owned dirt; final `HEAD` resolves; upstream ahead/behind is `0/0` | no upstream: proven local success; unrelated dirt: warn and skip synchronization; late transaction dirt: recapture/re-push within bounded rounds |
+| Final pull/push and proof | configured branch upstream + transaction-owned paths clean + no unrelated post-baseline dirt | pull/rebase/push succeed; source-mutating transaction uses post-push adaptive settle, Git-recovery-only transaction uses direct fresh status; final `HEAD` resolves; upstream ahead/behind is `0/0` | no upstream: proven local success; unrelated dirt: warn and skip synchronization; late transaction dirt: recapture/re-push within bounded rounds |
 
 ---
 
@@ -1810,8 +1935,9 @@ If not, do not make it a hard gate.
 - [ ] The top-level transaction catch reports actionable context and normally returns control to PMC without redundant rethrowing.
 - [ ] Errors report invocation/stack context.
 - [ ] Useful transaction progress, no-op, warning, and failure diagnostics are emitted through `Write-Host` without flooding PMC.
-- [ ] `ReSharper_Suspend` is invoked through `$dte.ExecuteCommand(...)` before the first mutation, followed by bounded wait/message pumping.
-- [ ] ReSharper suspension state is tracked so early-failure cleanup can best-effort resume it.
+- [ ] For source-mutating transactions, `ReSharper_Suspend` is invoked through `$dte.ExecuteCommand(...)` before the first mutation, followed by bounded wait/message pumping.
+- [ ] For source-mutating transactions, ReSharper suspension state is tracked so early-failure cleanup can best-effort resume it.
+- [ ] Git-recovery-only artifacts intentionally omit ReSharper suspension/resumption because they perform no source/project/Solution mutation.
 - [ ] The exact delivered `.ps1` artifact has been parsed/static-checked for PowerShell 5.1 compatibility after it was written to disk.
 
 ### Project creation
@@ -1841,6 +1967,9 @@ If not, do not make it a hard gate.
 - [ ] Every commit captures pre-commit `HEAD`, resolves post-commit `HEAD`, requires it to advance, and reports the actual abbreviated SHA/subject from Git.
 - [ ] Internal commit counters are treated as informational only and are never used as proof that Git history changed.
 - [ ] The post-capture fixed-point loop can recapture delayed IDE writes without rerunning VCmd.
+- [ ] If the artifact is Git-recovery-only, it does not create a new boundary, mutate source/topology/references, suspend/resume ReSharper, invoke VCmd, or run adaptive content-fingerprint waits merely to check in already-existing files.
+- [ ] If the artifact is Git-recovery-only, authorized recovery dirt is treated as the work to capture rather than being swept into a generic pre-transaction preservation checkpoint, and unrelated dirt is partitioned/left untouched.
+- [ ] If the artifact is Git-recovery-only, post-capture and post-push checks use direct `File.SaveAll` + fresh Git status with bounded direct recapture rounds; content-stability waits appear only if actual active IDE rewriting is observed.
 
 ### Visual Studio/Git/source safety
 
@@ -1859,13 +1988,13 @@ If not, do not make it a hard gate.
 - [ ] Junction/symlink path spelling is not used as identity equality.
 - [ ] Every target is mapped to the correct repository.
 - [ ] Git mutation is sequential per repository.
-- [ ] Preexisting tracked/untracked repository dirt is preserved in a repository-compliant pre-transaction checkpoint rather than causing an abort; the transaction baseline is clean only after that preservation step.
+- [ ] For source-mutating transactions, preexisting tracked/untracked repository dirt is preserved in a repository-compliant pre-transaction checkpoint rather than causing an abort; for Git-recovery-only transactions, authorized recovery dirt is not misclassified as preservation dirt and unrelated paths remain isolated.
 - [ ] Dirty scope is checked after synchronization and before capture.
 - [ ] Unrelated dirt that appears after the clean baseline is warned about, never staged/reset, and causes final pull/push to be skipped rather than destroying transaction progress.
 - [ ] Pull/rebase/push is keyed to the current branch's configured upstream, not merely to the existence of a remote.
-- [ ] Empty-boundary creation/reuse is retry-aware when practical.
+- [ ] For source-mutating transactions that use a boundary, empty-boundary creation/reuse is retry-aware when practical; Git-recovery-only transactions do not create a new boundary.
 - [ ] Recognized orphaned empty boundaries from earlier failed iterations are removed only when `HEAD`/empty/clean/ownership checks make the cleanup unambiguous.
-- [ ] A successful transaction that produces no implementation commit removes its bookkeeping-only boundary when the repository is clean.
+- [ ] A successful source-mutating transaction that produces no implementation commit removes its bookkeeping-only boundary when the repository is clean; Git-recovery-only transactions have no new boundary to remove.
 - [ ] Authorized source/project targets are overwritten without old-byte/hash/layout/semantic preconditions.
 - [ ] Linting, formatting/style diagnostics, and static-analysis findings are warning-only and cannot throw, abort, roll back, remove commits, reset history, or block Git capture.
 - [ ] Advisory source/project/reference/formatting diagnostics cannot trigger rollback or erase forward progress.
@@ -1899,11 +2028,11 @@ If not, do not make it a hard gate.
 - [ ] VCmd is attempted only after the complete VCmd-eligible opening pass has finished and successful sidecar preparation, and normally once for the successfully opened eligible set; VCmd failure is warning-only and final `File.SaveAll` still occurs.
 - [ ] After VCmd returns, the script does not begin Git capture immediately; it enters a bounded post-VCmd convergence barrier that pumps the IDE, periodically calls `File.SaveAll`, and repeatedly fingerprints the actual contents of the files successfully opened for VCmd.
 - [ ] The convergence barrier accounts for downstream background `ReSharper_SilentCleanupCode` work, resets its quiet timer whenever any VCmd-opened file changes, and treats a fixed short sleep or timestamp-only check as insufficient.
-- [ ] The VCmd convergence quiet interval and maximum window are computed adaptively from the exact successfully opened file count using the bounded Revision K square-root policy, and the selected timings are reported through `Write-Host`.
+- [ ] The VCmd convergence quiet interval and maximum window are computed adaptively from the exact successfully opened file count using the bounded Revision L square-root policy, and the selected timings are reported through `Write-Host`.
 - [ ] After the quiet interval, the script performs a final `File.SaveAll`/message-pump/fingerprint sample and begins Git capture only if that final sample remains unchanged.
 - [ ] If post-VCmd convergence cannot be established within the finite maximum wait, the script stops before Git staging/commit while preserving source/project progress.
-- [ ] After ordered Git capture, an adaptive fixed-point stabilization verifies transaction-owned paths remain clean; delayed IDE writes are recaptured in bounded rounds without rerunning VCmd.
-- [ ] After push, the script performs another adaptive save/pump/status settle and recaptures/re-pushes transaction-owned late writes within the bounded finalization budget.
+- [ ] After ordered Git capture, a source-mutating transaction performs adaptive fixed-point stabilization; a Git-recovery-only transaction instead performs direct `File.SaveAll` + fresh status and bounded direct recapture without artificial quiet waits.
+- [ ] After push, a source-mutating transaction performs adaptive save/pump/status stabilization; a Git-recovery-only transaction instead performs direct `File.SaveAll` + fresh status and bounded direct recapture/re-push without artificial quiet waits.
 - [ ] Final `*** SUCCESS ***` is impossible until Git proves the index is clean, transaction-owned paths are absent from status, final `HEAD` resolves, and synchronized repositories are `0/0` ahead/behind their configured upstream.
 - [ ] `*** INFO *** Synchronizing completed transaction commits...` cannot be emitted before actual commit SHA(s) have been resolved from Git.
 - [ ] No source-byte/hash/layout/semantic match is required before overwriting an authorized target or before VCmd.
@@ -1937,10 +2066,11 @@ Audit the planned transaction against the current authoritative workspace and cu
 - every changed C# payload is audited for symbol-to-namespace closure, including explicit `using PostSharp.Patterns.Diagnostics;` wherever `[Log]`, `[NotLogged]`, or another PostSharp diagnostic aspect is used without qualification;
 - commit messages are scoped to their intended staged work items and obey repository rules;
 - boundary/retry/no-op behavior is coherent;
-- preexisting repository dirt is preserved through a repository-compliant checkpoint before the transaction baseline is established;
+- for source-mutating transactions, preexisting repository dirt is preserved through a repository-compliant checkpoint before the transaction baseline is established; for Git-recovery-only transactions, authorized recovery dirt is instead treated as the work to capture and unrelated dirt is isolated;
 - `.Constants`/`.Interfaces` dependency exceptions are honored while actual interface inheritance/member-type dependency closure is still satisfied;
-- the post-VCmd convergence barrier prevents Git capture until repeated content fingerprints of the exact VCmd-opened file set prove that downstream background `ReSharper_SilentCleanupCode`/IDE rewriting has remained quiet for the **adaptive Revision K interval derived from the actual opened-file count** and through the final save/resample cycle;
+- the post-VCmd convergence barrier prevents Git capture until repeated content fingerprints of the exact VCmd-opened file set prove that downstream background `ReSharper_SilentCleanupCode`/IDE rewriting has remained quiet for the **adaptive Revision L interval derived from the actual opened-file count** and through the final save/resample cycle;
 - the Git design proves each commit by observing the `HEAD` transition/SHA from Git and contains a bounded post-capture/post-push fixed-point loop that cannot print success while transaction-owned dirt remains;
+- if the requested artifact is Git-recovery-only, the design explicitly bypasses source payload mutation, new boundary creation, ReSharper suspension/resumption, VCmd, adaptive content-fingerprint waits, and initial pull/rebase while the authorized recovery work tree is dirty; it uses direct status recapture after `File.SaveAll`, capture, and push instead;
 - the complete changed-path set and narrower VCmd-eligible C# set are distinguished correctly; VCmd eligibility includes `AssemblyInfo.cs`, excludes generated/fixed-format/non-C# artifacts, and editor-opening/VCmd cleanup remains best-effort and unable to erase source progress, while the single VCmd invocation is preceded by the exact noninteractive/Git-disabled one-run sidecar so no modal prompt or VCmd-owned Git workflow can occur;
 - Git synchronization respects actual upstream state; and
 - unrelated post-baseline dirty paths cannot hitchhike or be reset.
@@ -1979,11 +2109,14 @@ After writing the final GUID-named `.ps1` file, reopen **that exact file** and a
 28. verify the script's final success/no-op/error paths all leave the repository and PMC session in a state the maintainer can understand from `Write-Host` output;
 29. verify the artifact's payload manifest corresponds to the generation-time desired files that were produced from the newest authoritative maintainer-authored baselines, not from an older AI-generated snapshot; and
 30. verify the PowerShell source contains no nested `try`/`catch`/`finally` blocks and that any operation requiring its own exception boundary was extracted into a named helper function; also verify generated C# payloads follow the current xyLOGIX Software Engineering Manifesto rule against nested exception blocks.
-31. verify every changed C# payload passed the Revision K symbol-to-namespace closure audit, including `PostSharp.Patterns.Diagnostics` for `[Log]`/`[NotLogged]`/related aspects, `System.Diagnostics` for `[DebuggerStepThrough]`, and `xyLOGIX.Core.Debug` for `DebugUtils` when those symbols are unqualified;
+31. verify every changed C# payload passed the Revision L symbol-to-namespace closure audit, including `PostSharp.Patterns.Diagnostics` for `[Log]`/`[NotLogged]`/related aspects, `System.Diagnostics` for `[DebuggerStepThrough]`, and `xyLOGIX.Core.Debug` for `DebugUtils` when those symbols are unqualified;
 32. verify each Git commit path captures the pre-commit `HEAD`, requires a different post-commit `HEAD`, resolves/reports the actual abbreviated SHA and subject from Git, and never treats an internal counter as commit proof;
-33. verify the script contains the bounded adaptive post-capture fixed-point loop that waits for late IDE writes to settle and re-enters ordered Git capture for transaction-owned dirt without rerunning VCmd;
-34. verify the post-push finalization loop performs another adaptive `File.SaveAll`/message-pump/status stabilization, recaptures/re-pushes late transaction-owned writes within a finite round budget, and cannot fall through to success while those paths remain dirty; and
+33. for a source-mutating artifact, verify the script contains the bounded adaptive post-capture fixed-point loop that waits for late IDE writes to settle and re-enters ordered Git capture for transaction-owned dirt without rerunning VCmd; for a Git-recovery-only artifact, verify the direct-status exception is used instead;
+34. for a source-mutating artifact, verify the post-push finalization loop performs adaptive `File.SaveAll`/message-pump/status stabilization and bounded recapture/re-push; for a Git-recovery-only artifact, verify post-push finalization uses direct `File.SaveAll` + fresh status and bounded direct recapture without artificial quiet waits; and
 35. verify the final success path obtains fresh Git evidence that the index is clean, all transaction-owned paths are absent from status, final `HEAD` resolves, and synchronized repositories have `0/0` local/upstream ahead-behind state; also verify synchronization wording is not emitted before actual commit SHA evidence exists.
+36. if the artifact is Git-recovery-only, verify it performs no source/project/Solution payload mutation, no new empty boundary, no ReSharper suspend/resume, no VCmd opening/sidecar/invocation, and no adaptive content-fingerprint/quiet-period wait merely because the recovery paths are dirty.
+37. if the artifact is Git-recovery-only, verify the explicitly authorized recovery paths are not misclassified into a generic pre-transaction preservation checkpoint, the initial pull/rebase is deferred until after those paths are committed, and unrelated dirt remains isolated.
+38. if the artifact is Git-recovery-only, verify post-capture and post-push fixed-point checks are direct `File.SaveAll` + fresh Git-status observations with bounded recapture rounds, while the final Git proof requirements remain fully intact.
 
 Only after both passes succeed should the artifact be delivered.
 
@@ -1999,19 +2132,21 @@ Only after both passes succeed should the artifact be delivered.
 >
 > **Solution-level governance/documentation remains outside the transaction.** The Solution-level xyLOGIX Software Engineering Manifesto, Solution-level `CONTRIBUTING.md`, and Solution-level `README.md` are separate maintainer-applied deliverables, even when they are members of **Solution Items**. A Change Transaction Script must not mutate them, add/remove them through DTE, open them for cleanup, or capture them as transaction-owned Git work. Preexisting manual edits to those files are still protected by the preservation checkpoint; post-baseline edits remain unrelated dirt. Project/module-level documentation is not covered by this standing exclusion unless the current prompt says otherwise.
 >
-> After the initial `File.SaveAll`, inspect every affected Git work tree. If preexisting tracked/untracked dirt exists, do **not** abort. Intentionally stage that preexisting state, generate a repository-compliant commit message from the actual staged diff, commit it as a pre-transaction preservation checkpoint, and verify that the repository is clean before synchronization and transaction-owned mutation. This preservation checkpoint is maintainer history, not transaction-owned bookkeeping, and must never be erased by later boundary/no-op/failure cleanup. Dirt that appears only after the baseline is established remains unrelated work and must never hitchhike into transaction commits.
+> For a source-mutating transaction, after the initial `File.SaveAll`, inspect every affected Git work tree. If preexisting tracked/untracked dirt exists, do **not** abort. Intentionally stage that preexisting state, generate a repository-compliant commit message from the actual staged diff, commit it as a pre-transaction preservation checkpoint, and verify that the repository is clean before synchronization and transaction-owned mutation. This preservation checkpoint is maintainer history, not transaction-owned bookkeeping, and must never be erased by later boundary/no-op/failure cleanup. Dirt that appears only after the baseline is established remains unrelated work and must never hitchhike into transaction commits. Git-recovery-only transactions are the explicit exception: their authorized dirty paths are the work to capture, not a generic preservation checkpoint.
 >
 > Suspend ReSharper with `ReSharper_Suspend`, wait/pump, and keep it suspended through **all** source/project/Solution mutations. Maintain one transaction-wide registry of VCmd-eligible affected C# files. Do not run VCmd or open/close source separately for scaffold and implementation phases. After every mutation is complete, save once, derive the final eligible set, and perform **exactly one** paced source-file-opening pass in the explicit source/text editor. The pacing/message pumping exists so Visual Studio's project system/Asset Synchronization Service can associate files with their real projects instead of classifying them as **Miscellaneous Files**.
 >
 > Only after the full opening pass is complete should the script invoke `ReSharper_Resume`, wait/pump for synchronization to settle, prepare the exact schema-version-2 noninteractive/Git-disabled VCmd sidecar, and invoke argumentless `VCmd.CCommandStripLineBreaksFromAllComments` once. `AssemblyInfo.cs` remains eligible because VCmd has special rules for it. `Global*.cs`, `*.Designer.cs`, generated/fixed-format C#, and all non-C# artifacts remain excluded.
 >
-> **VCmd returning is not the Git-capture boundary.** The command can trigger downstream background `ReSharper_SilentCleanupCode` work that continues rewriting the source files opened for VCmd after the outer VCmd call returns. Retain that exact successfully opened set and enter a bounded **adaptive** post-VCmd convergence barrier. Compute the continuous quiet interval and maximum observation window from the actual successfully opened file count using the Revision K bounded square-root policy, report those values, pump `Application.DoEvents()`, wait in short bounded intervals, periodically invoke `File.SaveAll`, and repeatedly fingerprint the current file contents. Reset the full quiet interval whenever any file changes and require the complete set to remain continuously quiet together. After apparent convergence, save/pump/wait/resample once more and begin Git capture only if the final sample remains unchanged. A fixed short sleep, one-size-fits-all quiet interval, or timestamp-only observation is insufficient. If the finite adaptive maximum wait expires without convergence, stop before Git capture while preserving source/project progress. Content fingerprints are temporal change detectors only; never compare them to generation-time expected hashes or use them to judge semantics.
+> **VCmd returning is not the Git-capture boundary.** The command can trigger downstream background `ReSharper_SilentCleanupCode` work that continues rewriting the source files opened for VCmd after the outer VCmd call returns. Retain that exact successfully opened set and enter a bounded **adaptive** post-VCmd convergence barrier. Compute the continuous quiet interval and maximum observation window from the actual successfully opened file count using the Revision L bounded square-root policy, report those values, pump `Application.DoEvents()`, wait in short bounded intervals, periodically invoke `File.SaveAll`, and repeatedly fingerprint the current file contents. Reset the full quiet interval whenever any file changes and require the complete set to remain continuously quiet together. After apparent convergence, save/pump/wait/resample once more and begin Git capture only if the final sample remains unchanged. A fixed short sleep, one-size-fits-all quiet interval, or timestamp-only observation is insufficient. If the finite adaptive maximum wait expires without convergence, stop before Git capture while preserving source/project progress. Content fingerprints are temporal change detectors only; never compare them to generation-time expected hashes or use them to judge semantics.
 >
 > `.Constants` and `.Interfaces` projects are exceptions to blanket dependency conventions. Do not add `xyLOGIX.Core.Debug` or `xyLOGIX.Core.Extensions*` merely because such a project exists. Add a dependency only when the actual code contract needs it. In particular, an `.Interfaces` project may legitimately require `xyLOGIX.Core.Extensions` (or another specific extensions project) when its inheritance/member-type closure depends on contracts such as `IForm` or `IControl`. Generation-time auditing must therefore verify the real dependency closure rather than applying either a blanket requirement or a blanket prohibition.
 >
 > Scaffold-first project creation remains an architectural/history rule, not a reason for multiple cleanup rounds. Create the scaffold first, add the project through DTE, then add implementation/reference state through DTE while ReSharper is suspended. After the single cleanup/convergence pass, use exact Git staging to commit the scaffold/topology work item before implementation commits. Keep Git work trees isolated, stage only transaction-owned paths, use repository commit-message rules, and preserve forward progress.
 >
-> **Git completion must be proven by Git, not inferred from script bookkeeping.** Before each commit capture the current `HEAD`; after the commit require `HEAD` to advance, resolve/report the real abbreviated SHA and subject, and verify the work-item paths are clean. After the first ordered capture pass, run the adaptive post-capture fixed-point loop and recapture delayed transaction-owned IDE writes. After pull/push, run the adaptive final stabilization again; if transaction-owned dirt appears, commit and synchronize it within the bounded recapture budget. Do not print `*** SUCCESS ***` until the index is clean, transaction-owned paths are absent from status, final `HEAD` is known, and synchronized repositories prove `0/0` ahead-behind against their configured upstream. Internal counters and successful Git exit codes are control signals, not end-state proof.
+> **Git-recovery-only transactions are intentionally shorter.** When the desired files are already sitting in the work tree and the only remaining task is to capture them in Git, do not create a new boundary, rewrite source, suspend/resume ReSharper, invoke VCmd, or impose the adaptive content-fingerprint waits that exist to synchronize delayed IDE cleanup after mutation. Run `File.SaveAll`, identify the authorized recovery dirt, commit it with normal granular Git rules, and use fresh direct Git-status checks after capture and push. If recovery-owned dirt reappears, recapture it directly in bounded rounds. Escalate to content-stability waiting only when there is concrete evidence that the IDE is actively rewriting the files. The final Git proof remains just as strict.
+>
+> **Git completion must be proven by Git, not inferred from script bookkeeping.** Before each commit capture the current `HEAD`; after the commit require `HEAD` to advance, resolve/report the real abbreviated SHA and subject, and verify the work-item paths are clean. Source-mutating transactions use the adaptive post-capture/post-push fixed-point loops to guard against delayed IDE writes; Git-recovery-only transactions use direct fresh status checks and bounded direct recapture instead. Do not print `*** SUCCESS ***` until the index is clean, transaction-owned paths are absent from status, final `HEAD` is known, and synchronized repositories prove `0/0` ahead-behind against their configured upstream. Internal counters and successful Git exit codes are control signals, not end-state proof.
 >
 > **Do not nest exception blocks.** The PowerShell transaction source must not contain a `try`/`catch`/`finally` block inside another such block. Extract the inner operation into a named helper function that owns its own exception boundary. Generated C# source follows the corresponding xyLOGIX Software Engineering Manifesto rule: use a focused helper method or interface-backed singleton service rather than nested exception-handling structure.
 >
