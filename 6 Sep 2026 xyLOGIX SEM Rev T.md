@@ -1,11 +1,33 @@
 # The xyLOGIX Software Engineering Manifesto
-Revision: S
-Last Updated: 4 September 2026
+Revision: T
+Last Updated: 6 September 2026
 
 This document outlines the software-development hills we'll die on, here at xyLOGIX.
 
 By Brian C. Hart, Ph.D.
-Copyright © 2026 by xyLOGIX, LLC.  All rights reserved.
+Copyright ?? 2026 by xyLOGIX, LLC.  All rights reserved.
+
+## Revision T Scope
+
+Revision T preserves all architectural, documentation, source-control, validation, logging, concurrency, implementation, user-interface, result-variable, exception-inheritance, maintainer-source-authority, and engineering-judgment guidance consolidated through Revision S and strengthens the xyLOGIX standards for **responsibility decomposition**, **workflow-pattern selection**, **runtime Context design**, **native-platform boundaries**, **Windows Forms thread ownership**, and **diagnostic amplification during active fault isolation**.
+
+Revision T rejects the idea that Single Responsibility Principle compliance can be achieved merely by extracting a God Method into a forest of private helpers inside the same God Class. A large method or class is a design signal, not a line-count problem. When a responsibility can be independently named, validated, tested, replaced, reused, or evolved, move that responsibility outward behind an appropriately narrow interface into a cohesive component, service, Action, Strategy, Pipeline Step, Playbook Algorithm, Chain Link, FallbackChain Approach, policy object, validator, Context, factory, Presenter, document/model, or other module whose ownership is explicit. Private helpers remain appropriate for genuinely local implementation details, but helper extraction must not be used to hide continued responsibility concentration.
+
+Revision T establishes a **two-or-more ordered-unit rule** for Pipeline, Playbook, Chain, and FallbackChain architecture. Do not create one of these orchestration patterns for a single action. When two or more independently nameable operations have a canonical order, share evolving workflow facts, and have meaningful stopping semantics, evaluate the workflow against the pattern-selection rules in the Implementation Manual. God Methods and God Classes that already contain such workflows are strong candidates for decomposition into these patterns; however, do not force a workflow pattern onto state machines, simple strategies, trivial delegation, or unrelated operations merely to reduce line count.
+
+Revision T requires workflow Contexts to be explicit, interface-backed runtime state carriers. A Context contains the facts, intermediate products, outputs, decisions, and narrowly-scoped callbacks required by the participating units. It is not a service locator, dependency-injection container, miscellaneous property bag, or new God Object. Context properties are documented in terms of their workflow meaning and ownership. Mutable Contexts have one clearly-defined orchestration owner by default; concurrent mutation is introduced only when independent work and deterministic join semantics make parallel execution materially beneficial.
+
+Revision T requires Context validation to be **stage-aware**. A Context validator exposes the ordinary whole-context validation contract when useful and also exposes named readiness operations for each materially different workflow stage. Each readiness method validates only the facts required to begin that stage. When the validator family follows the xyLOGIX logged/`Silent` convention, every callable readiness operation has a semantically-equivalent `Silent` counterpart whose dependency graph remains silent. An orchestration unit must not require a future stage's outputs merely to begin the current stage.
+
+Revision T standardizes the creation and dependency order for new workflow families: enum/Constants first; Context interface; Context implementation; Context factory; Context-validator interface, implementation, and factory; unit interface; shared Template Method base when common behavior exists; concrete units; per-unit factories; enum-selector factory; orchestration interface; orchestration implementation; orchestration factory; callers; then tests. This ordering may be distributed across the normal xyLOGIX module-family suffixes, but projects must remain acyclic and each project must justify one cohesive module-level responsibility.
+
+Revision T strengthens native-platform separation. Raw P/Invoke declarations, Win32 structures, native constants, native safe-handle implementations, and closely-related platform ownership code belong below application/domain orchestration in a module whose name ends in `.Win32` when a meaningful native boundary exists. Higher layers consume narrow interfaces and factories rather than accumulating ABI details. Moving native code into `.Win32` is not sufficient by itself if the higher-level class still owns process creation, transport pumping, rendering, and application policy; responsibility boundaries must remain explicit throughout the dependency graph.
+
+Revision T strengthens Windows Forms threading rules. A `Form` or `Control` owns presentation and other thread-affine WinForms state on its creating UI thread. Background workers may mutate only UI-independent state protected by an explicit ownership/synchronization contract. Cross-thread presentation requests are marshaled through the WinForms invocation/message-loop mechanisms supported by the target .NET Framework version. A View must not become a session manager, native-transport owner, parser, renderer policy engine, artifact orchestrator, or other nonvisual subsystem merely because it is convenient to store those objects as fields.
+
+Revision T also defines **diagnostic amplification** as a legitimate temporary debugging technique. When an active defect has an uncertain boundary, temporarily increase logging around the smallest relevant subsystem and record the decisive values and state transitions needed to discriminate hypotheses. Prefer bounded, escaped, redacted, or summarized diagnostic values over unlimited raw payload dumping. The amplified logging is intentionally temporary: after the defect is localized and the fix is demonstrated, remove or reduce the temporary noise in a follow-up cleanup transaction while retaining only the production diagnostics that materially aid future support.
+
+Revision S's exception-inheritance discipline, Revision R's result-variable control-flow discipline, and all earlier maintained guidance remain in force.
 
 ## Revision S Scope
 
@@ -395,7 +417,7 @@ This is the primary application of DRY.  DRY means "Don't Repeat Yourself."  Thi
 
 ## A Synopsis of *Clean Code*
 
-Robert C. Martin’s (affectionately known as "Uncle Bob") book *Clean Code: A Handbook of Agile Software Craftsmanship* is a foundational text in modern software engineering.
+Robert C. Martin???s (affectionately known as "Uncle Bob") book *Clean Code: A Handbook of Agile Software Craftsmanship* is a foundational text in modern software engineering.
 
 Its central thesis is simple but profound: **code is read far more often than it is written.** Therefore, code should be treated like well-crafted prose. It should be intuitive, express its intent clearly, and hide unnecessary details, allowing the reader to understand the system without mental gymnastics.
 
@@ -709,7 +731,7 @@ Uncle Bob teaches that classes shouldn't be forced to depend on methods they do 
 
 Uncle Bob states that high-level modules should not depend on low-level modules; both should depend on abstractions. Typically, the software industry solves this with massive Dependency Injection (DI) containers and constructors bloated with interfaces.
 
-**The xyLOGIX Way (Our Hill to Die On):** We fully support DIP—we depend entirely on abstractions and interfaces (`IPayCalculator`, `IEmailNotifier`). However, we fundamentally reject the industry dogma of utilizing constructor injection for absolutely everything. As detailed earlier, constructor injection makes architectural changes "viral."
+**The xyLOGIX Way (Our Hill to Die On):** We fully support DIP???we depend entirely on abstractions and interfaces (`IPayCalculator`, `IEmailNotifier`). However, we fundamentally reject the industry dogma of utilizing constructor injection for absolutely everything. As detailed earlier, constructor injection makes architectural changes "viral."
 
 Instead, we use our **Dependency Eversion** paradigm. We use `public static IXXX Instance` properties and a separate `GetXXX.SoleInstance()` factory method, accessed via `private static` properties on the consuming class. This achieves the exact same decoupling and testability (we can always swap the instance behind the getter during testing) but completely eliminates constructor bloat and the viral nature of architectural changes.
 
@@ -748,7 +770,7 @@ This reads beautifully, hides the complex instantiation logic, and adheres stric
 Sometimes, when there is such an obvious need to do so, such as there is a genuine case to be made for a class' constructor to "swallow" something else (because that class wraps/transforms it), we'll ditch the `FromScratch` method.  As we said previously, "Fluent interfaces utilize method chaining (returning `this` or a related builder interface) to make the code read like well-crafted English sentences."  But there is no point in chaining methods that do not need to even be there.  For instance, look at this interface:
 
 ```csharp
-// Copyright © 2020-2026 xyLOGIX, LLC.  All rights reserved.
+// Copyright ?? 2020-2026 xyLOGIX, LLC.  All rights reserved.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 // 
 // xyLOGIX and GUI Window Wrapper Module are trademarks of xyLOGIX, LLC.
@@ -804,7 +826,7 @@ namespace xyLOGIX.GUI.Windows.Wrappers.Interfaces
 This interface should be implemented by a Window Wrapper object:
 
 ```csharp
-// Copyright © 2020-2026 xyLOGIX, LLC.  All rights reserved.
+// Copyright ?? 2020-2026 xyLOGIX, LLC.  All rights reserved.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 //
 // xyLOGIX and GUI Window Wrapper Module are trademarks of xyLOGIX, LLC.
@@ -926,7 +948,7 @@ What is the use of such a class?  Well, as the XML docs state, sometimes we want
 We also have a `MakeNewWindowWrapper` factory (as the XML docs from above explain):
 
 ```class
-// Copyright © 2020-2026 xyLOGIX, LLC.  All rights reserved.
+// Copyright ?? 2020-2026 xyLOGIX, LLC.  All rights reserved.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 // 
 // xyLOGIX and GUI Window Wrapper Module are trademarks of xyLOGIX, LLC.
@@ -1056,7 +1078,7 @@ We also strongly embrace Functional Programming (FP) paradigms, though strictly 
 
 Functional Programming emphasizes pure functions (methods that have no side effects and always return the same output for the same input), immutability, and eager evaluation.
 
-**The xyLOGIX Way:** We express FP predominantly through our "Action Classes"—`static` classes named after verbs (e.g., `Format`, `Display`, `Calculate`). These classes contain `static` methods that take specific inputs and return specific outputs without mutating global state.
+**The xyLOGIX Way:** We express FP predominantly through our "Action Classes"???`static` classes named after verbs (e.g., `Format`, `Display`, `Calculate`). These classes contain `static` methods that take specific inputs and return specific outputs without mutating global state.
 
 We combine this with our "Shift-Left" approach:
 
@@ -1222,12 +1244,12 @@ BTW, you see now, where we say "thank you very much Uncle Bob" to him about the 
 
 At xyLOGIX, we always want to utilize the values returned by property getters directly within our methods and algorithms, rather than assigning them to intermediate local variables.
 
-A common anti-pattern generated by AI chatbots and amateur developers alike is "local aliasing"—assigning the value of a property (such as `CurrentClientSession`) to a local variable (such as `var currentClientSession = CurrentClientSession;`) before performing null-checks, logging, or evaluating conditional gating logic. We strictly reject this practice as a default rule.
+A common anti-pattern generated by AI chatbots and amateur developers alike is "local aliasing"???assigning the value of a property (such as `CurrentClientSession`) to a local variable (such as `var currentClientSession = CurrentClientSession;`) before performing null-checks, logging, or evaluating conditional gating logic. We strictly reject this practice as a default rule.
 
 ### Why This is a Hill to Die On
 
 * **Eliminates Unnecessary State:** Our Functional Programming standards explicitly mandate that we avoid unnecessary state and avoid reassigning variables where possible. Creating a local variable solely to hold an already-accessible property value introduces redundant state and visual clutter.
-* **Prevents Stale Reads:** Properties—especially those utilizing our Dependency Eversion paradigm or lazy evaluation—are designed to return the correct, current state upon invocation. Caching a property in a local variable creates an isolated snapshot that can become stale if the underlying state shifts during method execution.
+* **Prevents Stale Reads:** Properties???especially those utilizing our Dependency Eversion paradigm or lazy evaluation???are designed to return the correct, current state upon invocation. Caching a property in a local variable creates an isolated snapshot that can become stale if the underlying state shifts during method execution.
 * **Zero Performance Penalty:** In C# 7.3 and .NET Framework 4.8, simple property getters (especially those decorated with the `[DebuggerStepThrough]` attribute) are aggressively inlined by the JIT compiler. There is zero performance advantage to caching a simple property getter in a local variable.
 
 ### The Bad Way: Aliasing to a Local Variable
@@ -1296,7 +1318,7 @@ if (CurrentClientSession == null)
 
 ### The Explicit Exception: Volatile and Heavy Computed Properties
 
-While direct property evaluation is our immutable baseline, pragmatic engineering requires recognizing where strict adherence introduces logical race conditions or performance penalties. Local aliasing is explicitly permitted—and required—under two specific circumstances:
+While direct property evaluation is our immutable baseline, pragmatic engineering requires recognizing where strict adherence introduces logical race conditions or performance penalties. Local aliasing is explicitly permitted???and required???under two specific circumstances:
 
 * **Volatile or Non-Deterministic State:** If a property's underlying value is non-deterministic or subject to mutation during the execution of a method (e.g., cross-thread background modifications, hardware polling, time-sensitive calculations, or UI control properties accessed during asynchronous state changes), repeatedly evaluating the getter can lead to inconsistent evaluation (torn state). You must capture a single, immutable snapshot in a local variable to ensure your algorithm operates against a consistent state from start to finish.
 * **Heavy Computed Getters Without Memoization:** While we actively discourage designing properties that execute expensive operations without internal memoization or lazy caching, you may encounter legacy getters or complex mathematical calculations where every read incurs a massive CPU or memory allocation penalty. In these cases, caching the result locally prevents compounding performance degradation.
@@ -1401,7 +1423,7 @@ When developers cram multiple classes or interfaces into a single file, it becom
 
 **The Rule:** A class should have only one reason to change. It should represent a single cohesive concept or responsibility.
 
-If a class has the word "And" in its description (e.g., "This class retrieves the user data *and* formats it for the screen"), it is violating SRP. When classes violate SRP, they turn into "God Objects"—massive, monolithic files with thousands of lines of code, hundreds of `private` helper methods, and tightly tangled state.
+If a class has the word "And" in its description (e.g., "This class retrieves the user data *and* formats it for the screen"), it is violating SRP. When classes violate SRP, they turn into "God Objects"???massive, monolithic files with thousands of lines of code, hundreds of `private` helper methods, and tightly tangled state.
 
 * **Bad:** A `MainForm` that handles button clicks, directly queries the SQL database, and parses JSON strings.
 * **Good:** A `MainForm` that handles UI layout, a `GetUserData` action class that queries the database, and a `ParseJson` action class that handles the strings. The form delegates all non-UI work to dedicated singleton services and action classes.
@@ -1484,7 +1506,7 @@ By enforcing SRP at the method level, we eliminate deep nesting, make our logic 
 
 At xyLOGIX, we build systems that are meant to last. To do that, we must strictly enforce two related ideas: **Loose Coupling** and **Separation of Concerns (SoC)**.
 
-Think of a professional restaurant. The waiter takes your order and brings you your food. The chef stays in the kitchen, chops the vegetables, and cooks the meal. The waiter doesn't cook, and the chef doesn't talk to the customers. They have a **Separation of Concerns**—they each have a specific, separate job. 
+Think of a professional restaurant. The waiter takes your order and brings you your food. The chef stays in the kitchen, chops the vegetables, and cooks the meal. The waiter doesn't cook, and the chef doesn't talk to the customers. They have a **Separation of Concerns**???they each have a specific, separate job. 
 
 Because they have separate jobs, they are **Loosely Coupled**. If the restaurant hires a new chef, the waiter doesn't have to learn a new way to talk to the customers. They just hand the ticket to the new chef. 
 
@@ -1734,7 +1756,7 @@ namespace xyLOGIX.App.Models
 }
 ```
 
-Next, the Concrete Implementation. Notice how we use `using` blocks to ensure the `SqlConnection` and `SqlCommand` are properly disposed of, preventing memory leaks and dangling database connections. We also utilize parameterized queries (`@term`) to prevent SQL Injection attacks—another hill we will absolutely die on.
+Next, the Concrete Implementation. Notice how we use `using` blocks to ensure the `SqlConnection` and `SqlCommand` are properly disposed of, preventing memory leaks and dangling database connections. We also utilize parameterized queries (`@term`) to prevent SQL Injection attacks???another hill we will absolutely die on.
 
 ```csharp
 using PostSharp.Patterns.Diagnostics;
@@ -1850,9 +1872,9 @@ Nobody stepped on anyone else's toes. The code is SOLID, DRY, Loosely Coupled, t
 
 ## Loose Coupling and Separation of Concerns: Everywhere, Not Just UI
 
-You’ve seen how we use MVP to separate the User Interface from the Business Logic and the Data Access Layer. But **Separation of Concerns (SoC)** is not just a UI pattern; it is a fundamental engineering philosophy.
+You???ve seen how we use MVP to separate the User Interface from the Business Logic and the Data Access Layer. But **Separation of Concerns (SoC)** is not just a UI pattern; it is a fundamental engineering philosophy.
 
-If you find yourself writing code that does two different things—like calculating a user's tax *and* logging the result to a file—you have coupled those two things together. This is "spaghetti architecture." If the logging format changes, your tax calculation code shouldn't have to change.
+If you find yourself writing code that does two different things???like calculating a user's tax *and* logging the result to a file???you have coupled those two things together. This is "spaghetti architecture." If the logging format changes, your tax calculation code shouldn't have to change.
 
 Here are two non-UI examples of how we apply this at xyLOGIX to keep our system loosely coupled.
 
@@ -2069,7 +2091,7 @@ public class DatabaseService
 
 ### Why this is a Hill to Die On
 
-When you decouple these "random" parts—Logging, Configuration, I/O, Printing, Notification—you create a system that is essentially a collection of **Black Boxes**.
+When you decouple these "random" parts???Logging, Configuration, I/O, Printing, Notification???you create a system that is essentially a collection of **Black Boxes**.
 
 * **The Business Logic** is a Black Box: It takes inputs and produces outputs. It shouldn't care if the logger prints to a screen or sends a smoke signal.
 * **The Logger** is a Black Box: It just takes strings and writes them somewhere. It shouldn't care if the string came from a math calculation or a user error.
@@ -2344,7 +2366,7 @@ When a legacy project's `AssemblyInfo.cs` file is intentionally created, regener
 
 A style-only `AssemblyInfo.cs` change must preserve the project's existing active attribute inventory, attribute ordering when it is meaningful to the repository, and the values supplied to those attributes.  Do not add, remove, deduplicate, or reinterpret `AssemblyVersion`, `AssemblyFileVersion`, `Guid`, `AssemblyDescription`, or another metadata attribute merely to make different projects look more alike.  A project-specific description remains project-specific.
 
-Use the actual `©` character when copyright text is represented directly in C# source.  Do not emit the literal six-character text `\u00a9` as though it were the copyright symbol.  Preserve the repository's required source encoding so that the character is represented correctly.
+Use the actual `??` character when copyright text is represented directly in C# source.  Do not emit the literal six-character text `\u00a9` as though it were the copyright symbol.  Preserve the repository's required source encoding so that the character is represented correctly.
 
 ## Formatting and Code-Cleanup Boundaries
 
@@ -2760,31 +2782,166 @@ Avoid materialization that provides no benefit.  `ToArray()` and `ToList()` them
 
 Validate collection references, counts, and individual elements.  When the method requires at least one element to do useful work and a `Length` or `Count` is directly available, reject `<= 0` before iteration.  Skip unusable elements when the operation can produce a meaningful partial result.  If no useful elements remain, return the documented empty/default value.
 
-## Strategy, Template Method, Chain, Pipeline, and Playbook Patterns
+## Strategy, Template Method, Chain, FallbackChain, Pipeline, and Playbook Patterns
 
-Use a strategy when behavior varies by a discrete mode and the client should not contain a growing set of behavioral branches.  A strategy family normally contains:
+Use these patterns to make stable responsibilities explicit and independently replaceable, not to decorate ordinary control flow with architecture terminology.
 
-- An enum that names the available strategies.
-- A focused interface.
-- An abstract base class that provides common services through the Template Method pattern.
-- One concrete class per strategy.
-- One fluent singleton factory per concrete class.
-- A strategy factory with a `switch` statement that maps the enum to the implementation.
-- A determination action that selects the enum value from input data.
+### Pattern-selection decision
 
-The strategy factory is the appropriate place for the selector `switch`.  Adding a strategy may require modifying this factory; that deliberate, centralized exception to strict OCP is preferable to duplicating selection branches throughout the codebase.
+Choose the pattern from the behavior of the problem:
 
-Name overridable Template Method hooks with an `On` prefix rather than `Do`, except for established action-oriented special cases such as `DoApplyChanges`.
+- Use a **Strategy** when the client selects one named behavior from a discrete family and only that behavior executes for the request.
+- Use a **Chain** when a request proceeds through two or more ordered `Link` objects and the chain succeeds only when the required links succeed according to the chain contract. The first blocking/failing link normally terminates the chain.
+- Use a **FallbackChain** when two or more ordered `Approach` objects are alternatives. Try approaches in canonical order and stop on the first success. Report failure only after all usable approaches have declined or failed.
+- Use a **Pipeline** when two or more ordered `Step` objects form a workflow that progressively transforms, validates, acquires, publishes, or persists state. A Pipeline normally continues through its prescribed steps and stops early only when the workflow is blocked, cancelled, or cannot safely proceed.
+- Use a **Playbook** when two or more ordered `Algorithm` objects interpret or derive an answer from a shared Context. A Playbook may terminate before every Algorithm executes once the Context contains a conclusive answer or a documented terminal condition.
 
-Use a Chain of Responsibility when a request should pass through handlers until one can process it.  Use a fallback chain when later handlers are alternatives after earlier handlers decline or fail.  Use a pipeline when ordered stages transform or validate a value.  Use a playbook when the system selects a named sequence of operations for a scenario.  Keep each link, step, stage, or play focused on one responsibility.
+Do not create a Pipeline, Playbook, Chain, or FallbackChain for one action. Use a focused component instead. Do not convert a parser/state machine into a Pipeline merely because it has many cases; state-machine transitions or opcode/command dispatch are generally better represented by state/Strategy/dispatcher components. Do not convert unrelated methods into one workflow merely because they share a large class.
 
-Avoid a deeply nested set of more than one behavioral `if` branch when the branches represent stable, named strategies.  Prefer a strategy family and factory so that each behavior remains independently testable and replaceable.
+### God Methods and God Classes
 
-For every `Pipeline`, `Playbook`, `Chain`, and `FallbackChain`, represent the canonical order with a plain `private static readonly <EnumType>[]` field.  Use `StepOrder` for pipeline steps, an explicit algorithm-order name such as `AlgorithmExecutionOrder` for playbook algorithms, `LinkOrder` for chain links, and `ApproachOrder` for fallback-chain approaches unless the domain provides a clearer equivalent.  The declaration should expose the order directly; do not hide it behind `IReadOnlyList<T>`, `Array.AsReadOnly(...)`, or an allocation whose only purpose is to wrap the array.
+A God Method or God Class is a strong refactoring signal when it contains multiple independently nameable responsibilities. Apply SRP by moving responsibilities **outward**. A class with three public methods and forty private helpers is not automatically cleaner than the original God Class.
 
-The concrete orchestration class should document the ordered units in its class-level `<remarks>` using `<list type="number">`, and the execution-order field should carry parallel documentation explaining the canonical order and why it matters.  The corresponding public interface should describe the same overall orchestration/stopping semantics in the repository's normal interface-documentation style.  When a direct `cref` from the interface project would create or worsen project coupling, use `<c>...</c>` for the unit names instead of adding a documentation-only project reference.
+When a large method already performs two or more ordered operations over shared evolving state, prefer a Pipeline/Playbook/Chain/FallbackChain when the pattern-selection rules fit. When the large class mixes independent domains, split those domains into focused services/modules first; only then introduce orchestration where a real ordered workflow remains. Preserve narrow contracts so future implementations can be replaced without changing callers.
 
-The principal non-`Silent` execution method of the orchestration component should be a high-value diagnostic boundary.  Log the important gates, the start of execution, each unit selected/executed, early termination or fallback conditions, failure outcomes, and final success.  Do not transform trivial `SoleInstance()`/alias methods, and do not add logging or explanatory gate comments to `Silent` methods.
+### Canonical workflow-family construction order
+
+When introducing a new workflow family, prefer this dependency-ready construction sequence:
+
+1. Define the enum that identifies the Steps, Algorithms, Links, or Approaches in a `.Constants` module.
+2. Define the Context interface in an `.Interfaces` module.
+3. Implement the Context in the concrete Context module.
+4. Add the Context factory.
+5. Define and implement the Context validator and its factory.
+6. Define the unit interface.
+7. Add an abstract Template Method base class only when multiple units genuinely share cohesive behavior or dependencies.
+8. Implement one concrete unit per responsibility.
+9. Add one fluent factory/accessor per concrete unit when the repository convention calls for it.
+10. Add the enum-selector factory whose `switch` maps the enum to the unit interface.
+11. Define the top-level orchestration interface.
+12. Implement the Pipeline, Playbook, Chain, or FallbackChain.
+13. Add the orchestration factory/accessor.
+14. Update callers to consume the top-level interface/factory rather than concrete units.
+15. Add targeted tests around unit behavior, Context readiness, canonical order, stopping semantics, and resource/lifetime behavior when those tests materially improve confidence.
+
+Keep project references acyclic. A documentation-only `cref` is not a sufficient reason to introduce an undesirable project reference; use `<c>...</c>` when necessary to keep dependency direction clean.
+
+### Context design
+
+A Context is a runtime workflow state carrier. It should contain only facts that participating units need to read or produce, such as validated inputs, intermediate results, decisions, ownership tokens, bounded callbacks, or final outputs.
+
+Context rules:
+
+- Expose a narrow `I...Context` interface.
+- Document whether each mutable property is an initial input, intermediate value, final output, or ownership/lifetime value when that distinction is not self-evident.
+- Create Context instances through the normal `MakeNew...` factory when construction is nontrivial or repository consistency benefits from it.
+- Do not put unrelated services into the Context merely so Steps can find them. Shared services belong on unit/base dependencies obtained through narrow interfaces/factories or passed deliberately when the architecture requires instance injection.
+- Do not put UI controls into a Context unless the workflow itself is explicitly a UI workflow and the control/window contract is the narrowest legitimate enabler boundary.
+- Do not persist a runtime Context merely because the product has persisted model objects. Runtime workflow state and persisted model state are different responsibilities.
+- Keep one orchestrator as the default writer/owner of mutable Context progression. If several workers may mutate independent Context regions concurrently, document and enforce that ownership explicitly.
+- Do not expose a live mutable collection to concurrent units. Use a concurrent collection when shared mutation is actually required, or materialize a stable snapshot before parallel/read-only processing.
+
+### Stage-specific Context validation
+
+A whole-context `IsValid(...)` operation is insufficient when later stages require facts that earlier stages have not produced yet. Context validators therefore expose named readiness operations such as `CanCreateTransport(...)`, `CanReadHeader(...)`, `CanPublishResults(...)`, or another domain-specific form.
+
+Each stage-specific readiness operation validates exactly what must already be true **before that stage starts**. It must not require outputs that the stage itself is responsible for producing and must not require values belonging only to a later stage.
+
+When the validator convention requires logging and `Silent` paths:
+
+- provide both forms for each callable readiness operation;
+- keep their validation semantics identical;
+- make silence transitive through dependencies and exception handling;
+- use the logged form at diagnostically meaningful orchestration boundaries; and
+- use the `Silent` form inside hot loops, candidate scans, or subordinate checks when the enclosing orchestrator already owns the useful diagnostic narrative.
+
+### Units and Template Method bases
+
+Each `Step`, `Algorithm`, `Link`, or `Approach` interface exposes its enum identity and one focused execution operation against the Context interface. Prefer names such as `TryExecute(...)` when failure is an expected branch and `Execute(...)` when the domain convention already distinguishes failure through the Boolean result.
+
+A shared abstract base class is appropriate when units share cohesive validation/dependency plumbing. Use the Template Method pattern and prefix overridable hooks with `On`. Do not create a base class merely to reduce a few repeated lines if inheritance would couple unrelated responsibilities.
+
+Each concrete unit owns one reason to change. It should not know the full orchestration order, select the next unit, or perform work that belongs to another stage. The top-level orchestrator owns sequence and stopping semantics.
+
+### Enum identity and selector factories
+
+Workflow-unit enums follow the normal xyLOGIX enum rules: ordinary members are alphabetized, no ordinary member receives an explicit numeric value, and `Unknown = -1` is last.
+
+The enum declaration order is independent of execution order. The selector factory is the centralized location for the `switch` that maps an enum member to the corresponding interface implementation. Do not duplicate selector branches in callers or in the orchestration loop.
+
+### Canonical execution order
+
+Every Pipeline, Playbook, Chain, and FallbackChain declares its canonical order as a plain `private static readonly <EnumType>[]` field:
+
+- `StepOrder` for Pipeline Steps;
+- `AlgorithmExecutionOrder` (or a clearer domain-specific equivalent) for Playbook Algorithms;
+- `LinkOrder` for Chain Links; and
+- `ApproachOrder` for FallbackChain Approaches.
+
+Do not hide this order behind `IReadOnlyList<T>`, `Array.AsReadOnly(...)`, a property that allocates, or another wrapper whose only purpose is to obscure the prescribed sequence.
+
+Document the field with the ordered units and the reason the order is semantically important. The top-level orchestration class-level `<remarks>` also explains the same order and the stopping/success rules using `<list type="number">` when appropriate.
+
+### Orchestrator execution
+
+The top-level orchestrator owns the diagnostic narrative and the loop over canonical order. For each enum value it:
+
+1. validates that the enum value is usable when that validation is not structurally guaranteed;
+2. obtains the unit through the selector factory;
+3. confirms the Context is ready for that unit using the appropriate stage-specific validator contract;
+4. executes the unit;
+5. updates/observes only the state needed to determine the next orchestration action; and
+6. applies the pattern-specific stop rule.
+
+Do not let a unit recursively invoke the next unit. Do not let callers manually reproduce the orchestration order. Do not continue a Pipeline/Chain after a blocking failure merely to obtain more log entries. Do not make a FallbackChain fail merely because an earlier Approach declined if a later Approach can legitimately succeed. Do not make a Playbook continue after a conclusive terminal answer unless the contract explicitly requires post-decision algorithms.
+
+Preserve useful Context evidence when a workflow fails. Failure cleanup should release resources whose ownership cannot escape the failed workflow, but it should not erase diagnostics/intermediate facts that the caller needs to understand what happened.
+
+### Caller contract
+
+A normal caller should:
+
+1. obtain/create the Context through its interface/factory;
+2. populate only the initial inputs it owns;
+3. obtain the top-level Pipeline/Playbook/Chain/FallbackChain through its interface/factory;
+4. invoke the orchestration operation once; and
+5. inspect the documented final outputs/terminal state on the Context.
+
+A normal caller does **not** instantiate concrete Steps/Algorithms/Links/Approaches, select enum members, or duplicate the canonical loop. Such direct use is reserved for tests, factories, and the orchestration implementation itself.
+
+### Concurrency, parallelism, and `async`/`await`
+
+Default workflow execution is sequential because canonical order, Context mutation, and diagnostic evidence are normally order-sensitive. Introduce parallelism only when two or more units are truly independent, their inputs are immutable or independently owned, the performance gain is meaningful, and a deterministic join/merge contract exists. Materialize a stable snapshot before parallel enumeration of mutable non-concurrent source collections.
+
+Do not add `async`/`await` merely because a Pipeline is called a workflow. Use dedicated worker threads, producer/consumer queues, synchronous enabler calls on an already-background worker, or another simpler mechanism when that preserves the application's architecture. Use `async`/`await` when the actual enabler is naturally asynchronous and the benefit justifies propagation, such as network/REST operations or an API whose correct contract is inherently asynchronous.
+
+A WinForms View never becomes the parallel-work coordinator merely because it needs to display progress. Background work reports state through an interface/event/callback boundary and presentation is marshaled to the UI thread.
+
+### Native/Win32 workflow boundaries
+
+Raw P/Invoke declarations, Win32 structures, native constants, safe-handle classes, and closely-related native lifetime code belong in a `.Win32` module family when the subsystem has a meaningful platform boundary. Higher-level workflow units depend on a narrow interface such as a session/transport abstraction and use factories to obtain the implementation.
+
+A `.Win32` module may own native resource synchronization and platform-specific creation/teardown because those behaviors are inseparable from safe ownership of the handles. It must not absorb application presentation, workflow policy, parsing, rendering, or diagnostic-session orchestration merely because those features eventually use the native resource.
+
+### Windows Forms thread ownership
+
+A `Form` or `Control` owns its Windows Forms state on the thread that created its handle. Except for framework members explicitly documented as thread-safe, access WinForms controls only on that UI thread. Use `InvokeRequired` plus `BeginInvoke`/`Invoke` as appropriate for .NET Framework code, or a UI-thread timer/message-pump handoff when coalescing background notifications is preferable.
+
+Background terminal/file/network workers may update UI-independent models protected by their own synchronization contracts. They may set atomic flags or enqueue immutable notifications for later UI consumption. They must not read or write control properties merely because a debugger sometimes permits the access without an exception.
+
+### Temporary diagnostic amplification during fault isolation
+
+During an active defect investigation, it is acceptable and often desirable to temporarily make the affected subsystem significantly more verbose. Instrument the boundary where the failure is uncertain and record the values that discriminate competing hypotheses: sequence numbers, thread IDs, process IDs, creation flags, return codes, elapsed timings, bounded queue depths, escaped control characters, bounded hexadecimal byte samples, parser state, cursor position, visible-cell counts, and lifecycle transitions as appropriate.
+
+Diagnostic amplification rules:
+
+- keep the additional logging concentrated on the failing path;
+- bound payload samples and counters so logging cannot become an unbounded memory/I/O problem;
+- escape control characters before logging so invisible terminal data is diagnosable;
+- avoid logging sensitive payload contents when metadata or a redacted sample is sufficient;
+- never change functional behavior solely to make a diagnostic line appear;
+- do not create a class or method whose only responsibility is one logging statement; and
+- once the defect is localized and the fix is demonstrated, remove/reduce the temporary noise in a follow-up transaction and retain only durable production diagnostics.
 
 ## Singletons and Factory Naming
 
@@ -2863,7 +3020,7 @@ The folder-selection boundary should:
 - be owner-parented whenever an owner exists;
 - carry a concise task-specific title;
 - initialize to the current valid folder when that improves continuity;
-- treat Cancel as “leave the existing value alone”; and
+- treat Cancel as ???leave the existing value alone???; and
 - return/copy only a usable selected pathname.
 
 Do not replace a working Vista-style picker with the legacy folder-browser tree unless an explicit compatibility constraint requires the old control.
@@ -3038,7 +3195,33 @@ Before considering a source change complete, verify the following:
 40. Options dialogs present validation failures with owner-parented stop-error messages rather than inline validation labels, then focus the setting that must be corrected.
 41. Standard Windows font selection is not narrowed by arbitrary product-specific point-size limits; selected sizes need only satisfy real renderer constraints and remain finite and positive.
 42. Every ordinary non-void method controls its answer through `result`, every ordinary return path says `return result;`, gate-specific provisional values are established before the gate and restored afterward when necessary, and iterator blocks remain lazy rather than being materialized merely to satisfy the result-variable convention.
-42. Every ordinary non-void method controls its answer through `result`, every ordinary return path says `return result;`, gate-specific provisional values are established before the gate and restored afterward when necessary, and iterator blocks remain lazy rather than being materialized merely to satisfy the result-variable convention.
+
+43. God Methods and God Classes have been evaluated for responsibility extraction outward into cohesive services, Actions, strategies, workflow units, validators, factories, Presenters, documents/models, or other independently-owned components rather than merely being subdivided into a forest of private helpers.
+44. A `Pipeline`, `Playbook`, `Chain`, or `FallbackChain` is used only when at least two independently nameable units have meaningful orchestration semantics, and the selected pattern matches transformation, scenario, request-handling, or alternative-attempt behavior respectively.
+45. Every workflow Context is interface-backed, transient, purpose-specific runtime state; it contains only workflow facts/intermediate products/outcomes/narrow callbacks and is not a service locator, dependency-injection container, persisted configuration model, or miscellaneous property bag.
+46. Mutable workflow Context ownership is explicit, normally single-orchestrator/sequential, and any parallel mutation has independent state plus deterministic join semantics.
+47. Workflow Context validators expose stage-specific readiness operations that validate only the prerequisites for the next unit, and logged/`Silent` variants remain semantically equivalent and transitively silent where applicable.
+48. Workflow callers invoke the top-level orchestration contract with a populated Context and do not manually choreograph concrete Steps, Algorithms, Links, or Approaches outside the orchestrator.
+49. Raw Win32/P/Invoke declarations, native structs/constants, SafeHandle implementations, and closely related native lifetime ownership reside below domain/application code in an appropriate `.Win32` module when a meaningful native boundary exists.
+50. Windows Forms controls and forms access thread-affine presentation state only on their creating UI thread; background workers manipulate UI-independent state and marshal presentation requests through supported WinForms mechanisms.
+51. Temporary diagnostic amplification used for active fault isolation is bounded to the smallest useful subsystem, records decisive state rather than unlimited payloads, and is explicitly reduced or removed after the defect is localized and the fix is demonstrated.
+
+## Revision T Consolidation Summary
+
+Revision T makes responsibility-oriented architecture and workflow construction more explicit across xyLOGIX development:
+
+- SRP refactoring moves independently-owned responsibilities outward; extracting a God Method into many private helpers inside the same God Class is not considered sufficient decomposition.
+- God Methods and God Classes that contain two or more ordered, independently nameable units are strong candidates for Pipeline, Playbook, Chain, or FallbackChain refactoring when the selected pattern matches the actual workflow semantics.
+- Pipelines represent canonical ordered stages that progressively prepare, transform, validate, or execute shared workflow state; Playbooks represent named scenario-level procedures; Chains route a request through handlers until one handles it; FallbackChains try ordered alternatives until one succeeds or conclusively handles the request.
+- Workflow Contexts are narrow, interface-backed, transient state carriers with explicit ownership. They are not service locators or replacement God Objects.
+- Context validation is stage-aware. A unit validates only what must already exist for that unit to begin, and logged/`Silent` validation pairs enforce the same readiness contract.
+- Unit identities are enum-backed, canonical execution order is visible in a plain private static readonly enum array, enum-to-unit selection is centralized, and callers invoke a top-level orchestration interface rather than constructing/choreographing concrete units themselves.
+- Workflow families are created in dependency-ready order and remain acyclic. Module-level grouping is permitted when the grouped types still share one cohesive responsibility; do not create a class-library explosion merely to satisfy a naming pattern.
+- Raw platform ABI/native-handle ownership is isolated in `.Win32` modules when that boundary is meaningful, while higher layers consume interfaces/factories.
+- Windows Forms presentation remains UI-thread-owned; background concurrency is localized to UI-independent responsibilities and marshaled at the presentation boundary.
+- Temporary diagnostic amplification is an approved fault-localization technique: log the decisive variables/state transitions in the smallest relevant subsystem, bound/redact/escape payloads, then pare the instrumentation back once the fault and fix are proven.
+
+These rules are intended to make systems more malleable, fault tolerant, independently testable, and easier to evolve rather than merely producing smaller source files.
 
 ## Revision R Consolidation Summary
 
@@ -3099,7 +3282,7 @@ Revision N's additions remain in force, including:
 - Established the scaffold-first delivery workflow for newly created projects/modules: create and commit the standard architectural scaffold, then add and separately commit the functional implementation.
 - Required repository staged-diff/work-item conventions to determine commit grouping within each scaffold/implementation phase.
 - Standardized the classic comment/layout presentation for intentionally created or edited legacy `AssemblyInfo.cs` files while preserving project-specific metadata semantics.
-- Required the actual `©` source character for copyright text rather than the literal text `\u00a9`.
+- Required the actual `??` source character for copyright text rather than the literal text `\u00a9`.
 - Reinforced that constructor Live Templates include their documentation content as well as their attributes, while cleanup tools remain free to reflow formatting.
 
 Revision M's additions remain in force, including:
