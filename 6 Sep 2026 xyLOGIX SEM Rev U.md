@@ -1,11 +1,16 @@
 # The xyLOGIX Software Engineering Manifesto
-Revision: T
+Revision: U
 Last Updated: 6 September 2026
 
 This document outlines the software-development hills we'll die on, here at xyLOGIX.
 
 By Brian C. Hart, Ph.D.
-Copyright © 2026 by xyLOGIX, LLC.  All rights reserved.
+
+Copyright ?? 2026 by xyLOGIX, LLC.  All rights reserved.
+
+## Revision U Scope
+
+Changed `Copyright ??` to `Copyright ??`.
 
 ## Revision T Scope
 
