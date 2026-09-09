@@ -6,7 +6,7 @@ This document outlines the software-development hills we'll die on, here at xyLO
 
 By Brian C. Hart, Ph.D.
 
-Copyright ?? 2026 by xyLOGIX, LLC.  All rights reserved.
+Copyright © 2026 by xyLOGIX, LLC.  All rights reserved.
 
 ## Revision V Scope
 
@@ -14,7 +14,7 @@ Removed MIT-license headers for all code examples.
 
 ## Revision U Scope
 
-Changed `Copyright ??` to `Copyright ??`.
+Changed `Copyright ©` to `Copyright ©`.
 
 ## Revision T Scope
 
@@ -426,7 +426,7 @@ This is the primary application of DRY.  DRY means "Don't Repeat Yourself."  Thi
 
 ## A Synopsis of *Clean Code*
 
-Robert C. Martin???s (affectionately known as "Uncle Bob") book *Clean Code: A Handbook of Agile Software Craftsmanship* is a foundational text in modern software engineering.
+Robert C. Martin©?s (affectionately known as "Uncle Bob") book *Clean Code: A Handbook of Agile Software Craftsmanship* is a foundational text in modern software engineering.
 
 Its central thesis is simple but profound: **code is read far more often than it is written.** Therefore, code should be treated like well-crafted prose. It should be intuitive, express its intent clearly, and hide unnecessary details, allowing the reader to understand the system without mental gymnastics.
 
@@ -740,7 +740,7 @@ Uncle Bob teaches that classes shouldn't be forced to depend on methods they do 
 
 Uncle Bob states that high-level modules should not depend on low-level modules; both should depend on abstractions. Typically, the software industry solves this with massive Dependency Injection (DI) containers and constructors bloated with interfaces.
 
-**The xyLOGIX Way (Our Hill to Die On):** We fully support DIP???we depend entirely on abstractions and interfaces (`IPayCalculator`, `IEmailNotifier`). However, we fundamentally reject the industry dogma of utilizing constructor injection for absolutely everything. As detailed earlier, constructor injection makes architectural changes "viral."
+**The xyLOGIX Way (Our Hill to Die On):** We fully support DIP©?we depend entirely on abstractions and interfaces (`IPayCalculator`, `IEmailNotifier`). However, we fundamentally reject the industry dogma of utilizing constructor injection for absolutely everything. As detailed earlier, constructor injection makes architectural changes "viral."
 
 Instead, we use our **Dependency Eversion** paradigm. We use `public static IXXX Instance` properties and a separate `GetXXX.SoleInstance()` factory method, accessed via `private static` properties on the consuming class. This achieves the exact same decoupling and testability (we can always swap the instance behind the getter during testing) but completely eliminates constructor bloat and the viral nature of architectural changes.
 
@@ -779,7 +779,7 @@ This reads beautifully, hides the complex instantiation logic, and adheres stric
 Sometimes, when there is such an obvious need to do so, such as there is a genuine case to be made for a class' constructor to "swallow" something else (because that class wraps/transforms it), we'll ditch the `FromScratch` method.  As we said previously, "Fluent interfaces utilize method chaining (returning `this` or a related builder interface) to make the code read like well-crafted English sentences."  But there is no point in chaining methods that do not need to even be there.  For instance, look at this interface:
 
 ```csharp
-// Copyright ?? 2020-2026 xyLOGIX, LLC.  All rights reserved.
+// Copyright © 2020-2026 xyLOGIX, LLC.  All rights reserved.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 // 
 // xyLOGIX and GUI Window Wrapper Module are trademarks of xyLOGIX, LLC.
@@ -835,7 +835,7 @@ namespace xyLOGIX.GUI.Windows.Wrappers.Interfaces
 This interface should be implemented by a Window Wrapper object:
 
 ```csharp
-// Copyright ?? 2020-2026 xyLOGIX, LLC.  All rights reserved.
+// Copyright © 2020-2026 xyLOGIX, LLC.  All rights reserved.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 //
 // xyLOGIX and GUI Window Wrapper Module are trademarks of xyLOGIX, LLC.
@@ -957,7 +957,7 @@ What is the use of such a class?  Well, as the XML docs state, sometimes we want
 We also have a `MakeNewWindowWrapper` factory (as the XML docs from above explain):
 
 ```class
-// Copyright ?? 2020-2026 xyLOGIX, LLC.  All rights reserved.
+// Copyright © 2020-2026 xyLOGIX, LLC.  All rights reserved.
 // Licensed under the MIT License. See LICENSE file in the project root for full license information.
 // 
 // xyLOGIX and GUI Window Wrapper Module are trademarks of xyLOGIX, LLC.
@@ -1087,7 +1087,7 @@ We also strongly embrace Functional Programming (FP) paradigms, though strictly 
 
 Functional Programming emphasizes pure functions (methods that have no side effects and always return the same output for the same input), immutability, and eager evaluation.
 
-**The xyLOGIX Way:** We express FP predominantly through our "Action Classes"???`static` classes named after verbs (e.g., `Format`, `Display`, `Calculate`). These classes contain `static` methods that take specific inputs and return specific outputs without mutating global state.
+**The xyLOGIX Way:** We express FP predominantly through our "Action Classes"©?`static` classes named after verbs (e.g., `Format`, `Display`, `Calculate`). These classes contain `static` methods that take specific inputs and return specific outputs without mutating global state.
 
 We combine this with our "Shift-Left" approach:
 
@@ -1253,12 +1253,12 @@ BTW, you see now, where we say "thank you very much Uncle Bob" to him about the 
 
 At xyLOGIX, we always want to utilize the values returned by property getters directly within our methods and algorithms, rather than assigning them to intermediate local variables.
 
-A common anti-pattern generated by AI chatbots and amateur developers alike is "local aliasing"???assigning the value of a property (such as `CurrentClientSession`) to a local variable (such as `var currentClientSession = CurrentClientSession;`) before performing null-checks, logging, or evaluating conditional gating logic. We strictly reject this practice as a default rule.
+A common anti-pattern generated by AI chatbots and amateur developers alike is "local aliasing"©?assigning the value of a property (such as `CurrentClientSession`) to a local variable (such as `var currentClientSession = CurrentClientSession;`) before performing null-checks, logging, or evaluating conditional gating logic. We strictly reject this practice as a default rule.
 
 ### Why This is a Hill to Die On
 
 * **Eliminates Unnecessary State:** Our Functional Programming standards explicitly mandate that we avoid unnecessary state and avoid reassigning variables where possible. Creating a local variable solely to hold an already-accessible property value introduces redundant state and visual clutter.
-* **Prevents Stale Reads:** Properties???especially those utilizing our Dependency Eversion paradigm or lazy evaluation???are designed to return the correct, current state upon invocation. Caching a property in a local variable creates an isolated snapshot that can become stale if the underlying state shifts during method execution.
+* **Prevents Stale Reads:** Properties©?especially those utilizing our Dependency Eversion paradigm or lazy evaluation©?are designed to return the correct, current state upon invocation. Caching a property in a local variable creates an isolated snapshot that can become stale if the underlying state shifts during method execution.
 * **Zero Performance Penalty:** In C# 7.3 and .NET Framework 4.8, simple property getters (especially those decorated with the `[DebuggerStepThrough]` attribute) are aggressively inlined by the JIT compiler. There is zero performance advantage to caching a simple property getter in a local variable.
 
 ### The Bad Way: Aliasing to a Local Variable
@@ -1327,7 +1327,7 @@ if (CurrentClientSession == null)
 
 ### The Explicit Exception: Volatile and Heavy Computed Properties
 
-While direct property evaluation is our immutable baseline, pragmatic engineering requires recognizing where strict adherence introduces logical race conditions or performance penalties. Local aliasing is explicitly permitted???and required???under two specific circumstances:
+While direct property evaluation is our immutable baseline, pragmatic engineering requires recognizing where strict adherence introduces logical race conditions or performance penalties. Local aliasing is explicitly permitted©?and required©?under two specific circumstances:
 
 * **Volatile or Non-Deterministic State:** If a property's underlying value is non-deterministic or subject to mutation during the execution of a method (e.g., cross-thread background modifications, hardware polling, time-sensitive calculations, or UI control properties accessed during asynchronous state changes), repeatedly evaluating the getter can lead to inconsistent evaluation (torn state). You must capture a single, immutable snapshot in a local variable to ensure your algorithm operates against a consistent state from start to finish.
 * **Heavy Computed Getters Without Memoization:** While we actively discourage designing properties that execute expensive operations without internal memoization or lazy caching, you may encounter legacy getters or complex mathematical calculations where every read incurs a massive CPU or memory allocation penalty. In these cases, caching the result locally prevents compounding performance degradation.
@@ -1432,7 +1432,7 @@ When developers cram multiple classes or interfaces into a single file, it becom
 
 **The Rule:** A class should have only one reason to change. It should represent a single cohesive concept or responsibility.
 
-If a class has the word "And" in its description (e.g., "This class retrieves the user data *and* formats it for the screen"), it is violating SRP. When classes violate SRP, they turn into "God Objects"???massive, monolithic files with thousands of lines of code, hundreds of `private` helper methods, and tightly tangled state.
+If a class has the word "And" in its description (e.g., "This class retrieves the user data *and* formats it for the screen"), it is violating SRP. When classes violate SRP, they turn into "God Objects"©?massive, monolithic files with thousands of lines of code, hundreds of `private` helper methods, and tightly tangled state.
 
 * **Bad:** A `MainForm` that handles button clicks, directly queries the SQL database, and parses JSON strings.
 * **Good:** A `MainForm` that handles UI layout, a `GetUserData` action class that queries the database, and a `ParseJson` action class that handles the strings. The form delegates all non-UI work to dedicated singleton services and action classes.
@@ -1515,7 +1515,7 @@ By enforcing SRP at the method level, we eliminate deep nesting, make our logic 
 
 At xyLOGIX, we build systems that are meant to last. To do that, we must strictly enforce two related ideas: **Loose Coupling** and **Separation of Concerns (SoC)**.
 
-Think of a professional restaurant. The waiter takes your order and brings you your food. The chef stays in the kitchen, chops the vegetables, and cooks the meal. The waiter doesn't cook, and the chef doesn't talk to the customers. They have a **Separation of Concerns**???they each have a specific, separate job. 
+Think of a professional restaurant. The waiter takes your order and brings you your food. The chef stays in the kitchen, chops the vegetables, and cooks the meal. The waiter doesn't cook, and the chef doesn't talk to the customers. They have a **Separation of Concerns**©?they each have a specific, separate job. 
 
 Because they have separate jobs, they are **Loosely Coupled**. If the restaurant hires a new chef, the waiter doesn't have to learn a new way to talk to the customers. They just hand the ticket to the new chef. 
 
@@ -1700,7 +1700,7 @@ namespace xyLOGIX.App.Presenters
 
         public MainWindowPresenter(IMainWindow view)
         {
-            _view = view ?? throw new ArgumentNullException(nameof(view));
+            _view = view © throw new ArgumentNullException(nameof(view));
             
             // Subscribe to the View's events
             _view.SearchRequested += OnSearchRequested;
@@ -1765,7 +1765,7 @@ namespace xyLOGIX.App.Models
 }
 ```
 
-Next, the Concrete Implementation. Notice how we use `using` blocks to ensure the `SqlConnection` and `SqlCommand` are properly disposed of, preventing memory leaks and dangling database connections. We also utilize parameterized queries (`@term`) to prevent SQL Injection attacks???another hill we will absolutely die on.
+Next, the Concrete Implementation. Notice how we use `using` blocks to ensure the `SqlConnection` and `SqlCommand` are properly disposed of, preventing memory leaks and dangling database connections. We also utilize parameterized queries (`@term`) to prevent SQL Injection attacks©?another hill we will absolutely die on.
 
 ```csharp
 using PostSharp.Patterns.Diagnostics;
@@ -1881,9 +1881,9 @@ Nobody stepped on anyone else's toes. The code is SOLID, DRY, Loosely Coupled, t
 
 ## Loose Coupling and Separation of Concerns: Everywhere, Not Just UI
 
-You???ve seen how we use MVP to separate the User Interface from the Business Logic and the Data Access Layer. But **Separation of Concerns (SoC)** is not just a UI pattern; it is a fundamental engineering philosophy.
+You©?ve seen how we use MVP to separate the User Interface from the Business Logic and the Data Access Layer. But **Separation of Concerns (SoC)** is not just a UI pattern; it is a fundamental engineering philosophy.
 
-If you find yourself writing code that does two different things???like calculating a user's tax *and* logging the result to a file???you have coupled those two things together. This is "spaghetti architecture." If the logging format changes, your tax calculation code shouldn't have to change.
+If you find yourself writing code that does two different things©?like calculating a user's tax *and* logging the result to a file©?you have coupled those two things together. This is "spaghetti architecture." If the logging format changes, your tax calculation code shouldn't have to change.
 
 Here are two non-UI examples of how we apply this at xyLOGIX to keep our system loosely coupled.
 
@@ -2100,7 +2100,7 @@ public class DatabaseService
 
 ### Why this is a Hill to Die On
 
-When you decouple these "random" parts???Logging, Configuration, I/O, Printing, Notification???you create a system that is essentially a collection of **Black Boxes**.
+When you decouple these "random" parts©?Logging, Configuration, I/O, Printing, Notification©?you create a system that is essentially a collection of **Black Boxes**.
 
 * **The Business Logic** is a Black Box: It takes inputs and produces outputs. It shouldn't care if the logger prints to a screen or sends a smoke signal.
 * **The Logger** is a Black Box: It just takes strings and writes them somewhere. It shouldn't care if the string came from a math calculation or a user error.
@@ -2375,7 +2375,7 @@ When a legacy project's `AssemblyInfo.cs` file is intentionally created, regener
 
 A style-only `AssemblyInfo.cs` change must preserve the project's existing active attribute inventory, attribute ordering when it is meaningful to the repository, and the values supplied to those attributes.  Do not add, remove, deduplicate, or reinterpret `AssemblyVersion`, `AssemblyFileVersion`, `Guid`, `AssemblyDescription`, or another metadata attribute merely to make different projects look more alike.  A project-specific description remains project-specific.
 
-Use the actual `??` character when copyright text is represented directly in C# source.  Do not emit the literal six-character text `\u00a9` as though it were the copyright symbol.  Preserve the repository's required source encoding so that the character is represented correctly.
+Use the actual `©` character when copyright text is represented directly in C# source.  Do not emit the literal six-character text `\u00a9` as though it were the copyright symbol.  Preserve the repository's required source encoding so that the character is represented correctly.
 
 ## Formatting and Code-Cleanup Boundaries
 
@@ -3029,7 +3029,7 @@ The folder-selection boundary should:
 - be owner-parented whenever an owner exists;
 - carry a concise task-specific title;
 - initialize to the current valid folder when that improves continuity;
-- treat Cancel as ???leave the existing value alone???; and
+- treat Cancel as ©?leave the existing value alone©?; and
 - return/copy only a usable selected pathname.
 
 Do not replace a working Vista-style picker with the legacy folder-browser tree unless an explicit compatibility constraint requires the old control.
@@ -3291,7 +3291,7 @@ Revision N's additions remain in force, including:
 - Established the scaffold-first delivery workflow for newly created projects/modules: create and commit the standard architectural scaffold, then add and separately commit the functional implementation.
 - Required repository staged-diff/work-item conventions to determine commit grouping within each scaffold/implementation phase.
 - Standardized the classic comment/layout presentation for intentionally created or edited legacy `AssemblyInfo.cs` files while preserving project-specific metadata semantics.
-- Required the actual `??` source character for copyright text rather than the literal text `\u00a9`.
+- Required the actual `©` source character for copyright text rather than the literal text `\u00a9`.
 - Reinforced that constructor Live Templates include their documentation content as well as their attributes, while cleanup tools remain free to reflow formatting.
 
 Revision M's additions remain in force, including:
