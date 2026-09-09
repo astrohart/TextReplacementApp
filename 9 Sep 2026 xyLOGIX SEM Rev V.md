@@ -1,5 +1,5 @@
 # The xyLOGIX Software Engineering Manifesto
-Revision: U
+Revision: V
 Last Updated: 6 September 2026
 
 This document outlines the software-development hills we'll die on, here at xyLOGIX.
@@ -7,6 +7,10 @@ This document outlines the software-development hills we'll die on, here at xyLO
 By Brian C. Hart, Ph.D.
 
 Copyright ?? 2026 by xyLOGIX, LLC.  All rights reserved.
+
+## Revision V Scope
+
+Removed MIT-license headers for all code examples.
 
 ## Revision U Scope
 
