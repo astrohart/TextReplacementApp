@@ -1,12 +1,13 @@
 # Robust Visual Studio Package Manager Console Automation Script Guidelines
 
-Revision: O
-Last Updated: 7 September 2026
+Revision: P
+Last Updated: 15 September 2026
 
 ## Changelog
 
-Revision O is the current controlling revision and supersedes Revision N where this document differs. Revision O replaces the former clean-work-tree/clean-index doctrine with an imposition model: a Change Transaction Script overlays its authorized changes onto whatever Git working-tree and index state already exists, never requires or manufactures repository cleanliness, never auto-commits unrelated preexisting dirt, and never generates an `Assert-CleanIndex`-style gate. It also formalizes transaction-private Git index capture so unrelated staged work can remain untouched while transaction-owned commits are created.
+Revision P is the current controlling revision and supersedes Revision O where this document differs. Revision P adds mandatory transaction handling for xyLOGIX Windows Forms source families: every concrete `Form`/dialog is maintained as a `MyForm.cs` + `MyForm.Designer.cs` + `MyForm.resx` triplet, Designer-owned initialization/layout is kept out of the hand-authored Form source, the three files are maintained as one Visual Studio parent/child project-item family and one logical Git/source-family artifact, Visual Studio/DTE is preferred over hand-authored `.csproj` XML for establishing that nesting, and every Form receives the standard `newxylogix.ICO` identity artwork through its normal `$this.Icon` Designer resource even when `ShowIcon` or `ShowInTaskbar` is disabled. Revision P also hardens VCmd convergence so delayed CodeMaid/ReSharper cleanup cannot be mistaken for quiescence: every successful VCmd invocation is followed by a workload-scaled startup/drain window during which quiet time cannot accrue, followed by a separate workload-scaled content-quiescence interval and final drain samples before Git capture. Finally, every normally completing Change Transaction Script performs a mandatory post-transaction handoff only after all of its own mutation, VCmd, Git, stabilization, editor-restoration, and terminal-log work is complete: wait 1.5 seconds, execute `Window.CloseAllDocuments`, wait another 1.5 seconds, then dot-source `C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1` exactly as supplied, with no further Change Transaction Script work afterward.
 
+- **Revision O.** Replaced the former clean-work-tree/clean-index doctrine with an imposition model: a Change Transaction Script overlays its authorized changes onto whatever Git working-tree and index state already exists, never requires or manufactures repository cleanliness, never auto-commits unrelated preexisting dirt, never generates an `Assert-CleanIndex`-style gate, and uses a transaction-private Git index so unrelated staged work can remain untouched while transaction-owned commits are created.
 - **Revision N.** Added idempotent/nonfatal ReSharper state handling, fresh generated identity GUIDs, generation-time-known rename work items, bounded `.csproj` readiness before explicit `Solution.AddFromFile(..., false)`, and semantic before/after logging around potentially blocking DTE calls.
 - **Revision M.** Added genuinely visible/activated VCmd editor tabs, preexisting-editor-state isolation/restoration, the detailed `%TEMP%` transaction log with terminal raw `git status`, zero-output Git hardening, and authorization-based rename/copy-aware staged-scope validation. It also aligned transaction behavior with the supplied Visual Commander source, including its open-document precedence and one-run sidecar reset.
 - **Revision L.** Added the Git-recovery-only transaction mode for already-settled live changes, avoiding source mutation, VCmd/ReSharper work, and artificial content-stability waits while retaining full Git proof and unrelated-dirt isolation.
@@ -33,13 +34,15 @@ Typical use cases include:
 - clobbering one or more existing source/project files with audited desired-state replacements for a bug fix, behavioral correction, refactor, logging change, documentation change, UI adjustment, or configuration change;
 - applying a coordinated multi-file change while keeping ordinary implementation commits file-by-file unless an explicit source-family, rename, scaffold, or topology exception applies;
 - updating WinForms source and `*.Designer.cs` files while ensuring that only VCmd-eligible C# source is opened for cleanup, with `*.Designer.cs` remaining a mutation/Git artifact rather than a VCmd processing target;
+- creating or repairing a Windows Forms `Form`/dialog as the complete `MyForm.cs` + `MyForm.Designer.cs` + `MyForm.resx` source family, preserving normal Designer ownership/nesting and the standard `newxylogix.ICO` Form icon;
 - adding required project/assembly/package references without policing unrelated existing references;
 - creating complete repository-standard project/module scaffolds and adding them to the loaded Solution through DTE;
 - performing project/Solution topology operations such as renames when the task genuinely requires them;
 - retrying a prior partially completed transaction without treating harmless source divergence, formatting changes, or an orphaned empty transaction boundary as a reason to fail;
 - recovering already-completed, already-settled source/project changes from a prior transaction whose Git capture did not occur or did not finish, by staging/committing/pushing the live dirty files without re-running source mutation, ReSharper suspension, VCmd cleanup, or artificial content-stability waits;
 - deriving the narrow VCmd-eligible C# processing set from the complete transaction-created changed-path set, supplying the one-run noninteractive/Git-disabled configuration for `VCmd.CCommandStripLineBreaksFromAllComments`, running that cleanup pass without modal prompts or VCmd-owned Git activity, and saving the IDE state before the script's own Git capture; and
-- staging, committing, synchronizing, and pushing transaction-owned work without allowing unrelated paths to hitchhike.
+- staging, committing, synchronizing, and pushing transaction-owned work without allowing unrelated paths to hitchhike; and
+- after the Change Transaction Script has otherwise completed all of its own work and finalized its transaction log, performing the mandatory terminal handoff: pause 1.5 seconds, close all Visual Studio documents through `Window.CloseAllDocuments`, pause another 1.5 seconds, and dot-source `C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1` exactly as supplied.
 
 These scripts are **not** intended to be general-purpose CI/CD pipelines, substitute compilers, build validators, test harnesses, source analyzers, or autonomous architectural reviewers. They are controlled maintainer-side change vehicles: the AI performs the source/code reasoning before delivery; the script performs the mechanical transaction inside the maintainer's current Visual Studio session.
 
@@ -608,7 +611,7 @@ If VCmd is skipped before invocation because isolation, sidecar preparation, or 
 
 ## 8. Closing and Restoring Visual Studio Documents Safely
 
-Never execute `Window.CloseAllDocuments` as part of the VCmd workflow. VCmd's supplied implementation gives user-visible open C# documents precedence when choosing its processing scope, so the transaction must isolate that scope narrowly without destroying unrelated editor state.
+Never execute `Window.CloseAllDocuments` as part of the VCmd workflow, source/project mutation, transaction-owned Git capture/synchronization, post-push stabilization, editor restoration, or transaction-log finalization. VCmd's supplied implementation gives user-visible open C# documents precedence when choosing its processing scope, so the transaction must isolate that scope narrowly without destroying unrelated editor state. The sole standing exception is the mandatory **post-transaction terminal handoff** defined in Section 24.5: only after the Change Transaction Script is otherwise completely finished and its terminal raw-Git-status log has been finalized may it execute `Window.CloseAllDocuments` immediately before handing control to `buildTwiceThenCommit.ps1`.
 
 ### Snapshot user-visible editor state
 
@@ -734,34 +737,51 @@ Retain the exact pathnames that became observably user-visible in the opening ro
 
 ### Adaptive timing rule
 
-Let `N` be the count of paths in the exact successfully opened VCmd-processing set. For the default policy, compute these bounded values:
+Let `N` be the count of paths in the exact successfully opened VCmd-processing set. The barrier has **three separate timing concepts**: a mandatory startup/drain window during which quiet time is not allowed to accrue, a continuous quiet interval that begins only after that startup/drain window, and a finite overall maximum duration. For the default policy, compute these bounded values:
 
 ```powershell
 $observedFileCount = [Math]::Max(1, $openedVcmdPaths.Count)
 $scale = [Math]::Sqrt([double]$observedFileCount)
+$startupSeconds = [int][Math]::Min(
+    120,
+    [Math]::Max(
+        20,
+        [Math]::Ceiling(12 + (4 * $scale))
+    )
+)
 $quietSeconds = [int][Math]::Min(
-    30,
-    [Math]::Ceiling(6 + (1.5 * $scale))
+    60,
+    [Math]::Max(
+        12,
+        [Math]::Ceiling(8 + (3 * $scale))
+    )
 )
 $maximumSeconds = [int][Math]::Min(
-    600,
-    [Math]::Ceiling(90 + (20 * $scale))
+    1200,
+    [Math]::Max(
+        180,
+        [Math]::Ceiling(180 + (45 * $scale))
+    )
 )
 ```
 
-This formula is the normal default and intentionally grows sublinearly. Emit the observed-file count and selected timing policy before waiting. Use a short bounded sampling interval (normally about 250-500 ms) and a bounded periodic `File.SaveAll` cadence (normally every 2-5 seconds), not a tight spin loop.
+This policy intentionally prevents a fast comment-stripping pass from satisfying convergence before queued `CodeMaid.CleanupOpenCode`, `ReSharper.ReSharper_SilentCleanupOpenFiles`, `ReSharper.ReSharper_SilentCleanupCode`, or project-system/editor writes have had a realistic opportunity to begin. For example, even a small seven-file cleanup receives a substantial mandatory startup/drain interval before the quiet timer can start. Emit the observed-file count plus `startupSeconds`, `quietSeconds`, and `maximumSeconds` before waiting. Use a short bounded sampling interval (normally about 500 ms) and a bounded periodic `File.SaveAll` cadence (normally about every 2-3 seconds), not a tight spin loop.
 
-### Content-quiescence algorithm
+The startup/drain interval is a **minimum elapsed-time floor**, not an activity requirement. Cleanup can legitimately be a no-op for one or more files, so the script must not require that a digest change occur. Conversely, an unchanged digest during startup must never be treated as proof of completion and must never count toward `quietSeconds`.
 
-1. Immediately after VCmd returns or after an invocation that may have begun cleanup, call `File.SaveAll`.
-2. Materialize the exact successfully opened pathname set and compute an initial per-file mechanical fingerprint.
-3. A fingerprint must include current existence state and a content digest of the actual file bytes, preferably SHA-256. Length/last-write metadata may be supplemental but is not sufficient by itself.
-4. Compute/report the adaptive `quietSeconds` and `maximumSeconds` from the actual observed-file count.
-5. Pump `Application.DoEvents()`, sleep for the bounded sampling interval, periodically call `File.SaveAll`, and recompute the fingerprint of every observed path.
-6. Treat an unreadable/disappeared/reappeared path or changed digest as renewed activity and reset the **entire** quiet interval.
-7. Require the whole observed set to remain unchanged together for the continuous quiet interval.
-8. After that quiet interval, call `File.SaveAll` one final time, pump, wait at least one normal sampling interval, and resample the same path set. If it differs, reset the quiet interval and continue within the same finite maximum duration.
-9. Only after the final post-save sample matches may the script restore preexisting editor state, refresh Git status, and begin ordered staging/committing.
+### Two-stage startup/drain and content-quiescence algorithm
+
+1. Immediately after VCmd returns or after an invocation that may have begun cleanup, materialize the exact successfully opened pathname set, compute/report `startupSeconds`, `quietSeconds`, and `maximumSeconds`, call `File.SaveAll`, pump `Application.DoEvents()`, and compute an initial per-file mechanical fingerprint.
+2. Start the overall bounded convergence stopwatch, then enter the **startup/drain stage**. Until at least `startupSeconds` has elapsed, repeatedly pump `Application.DoEvents()`, sleep for the sampling interval, call `File.SaveAll` at the bounded periodic cadence, and recompute the fingerprint of every observed path. Record observed changes for diagnostics/baseline purposes, but **do not accumulate any quiet time and do not permit convergence to complete during this stage**.
+3. At the end of the startup/drain stage, call `File.SaveAll`, pump the IDE, wait at least one full sampling interval, recompute the complete observation-set fingerprint, and establish that result as the baseline for the quiet stage. Only now may the quiet timer begin at zero.
+4. A fingerprint must include current existence state and a content digest of the actual file bytes, preferably SHA-256. Length/last-write metadata may be supplemental but is not sufficient by itself.
+5. During the **quiet stage**, continue pumping `Application.DoEvents()`, sleeping for the bounded sampling interval, periodically calling `File.SaveAll`, and recomputing the fingerprint of every observed path.
+6. Treat an unreadable/disappeared/reappeared path or changed digest as renewed activity. Replace the baseline with the newly observed state and reset the **entire** quiet interval to zero.
+7. Require the whole observed set to remain unchanged together for the complete continuous `quietSeconds` interval after the startup/drain stage has already finished.
+8. After the quiet interval appears satisfied, perform a **final drain proof** rather than committing immediately: call `File.SaveAll`, pump `Application.DoEvents()`, wait at least 1500 ms, resample the complete path set, pump again, wait at least another normal sampling interval, and resample once more. If either final sample differs from its predecessor, reset the quiet interval and return to Step 5 within the same overall maximum duration.
+9. Only after both final drain samples remain unchanged may the script restore preexisting editor state, refresh Git status, and begin ordered staging/committing.
+10. The overall elapsed time across startup/drain, quiet observation, resets, and final drain proof must remain bounded by `maximumSeconds`. If that maximum expires before convergence is proven, preserve the source/project progress, restore preexisting editor state, and stop before Git capture.
+
 
 A single unconditional sleep, a timestamp-only observation, the VCmd return itself, or a document-window count is not convergence. Content hashing here is a **temporal change detector only** and must never be compared to generation-time expected hashes or used to judge source semantics.
 
@@ -771,7 +791,7 @@ If the finite maximum settling duration expires without achieving the required q
 
 ## 9.1 Build, Compilation, and Test Policy
 
-Change Transaction Scripts are presumed to create perfectly-building code and coherent project state.
+Change Transaction Scripts are presumed to create perfectly-building code and coherent project state. The mandatory post-transaction dot-source handoff to `C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1` is a separate maintainer workflow that occurs only after the Change Transaction Script has completely finished its own transaction and finalized its log. That external script owns its two rebuild-all passes and any follow-on generated-file commit/push behavior; those operations are not Change Transaction Script validation gates and must not be duplicated inside the transaction itself.
 
 ### Default behavior
 
@@ -1435,6 +1455,96 @@ At runtime:
 
 A changed `*.Designer.cs` file remains an authorized source/Git artifact, but it is **not** a VCmd cleanup target. The complete Git changed-path set and the VCmd processing set must remain distinct.
 
+### 20.6 WinForms Form source-family triplets and the standard xyLOGIX icon
+
+Every concrete Windows Forms `Form` or dialog in a xyLOGIX project is one logical source family whose required core members are:
+
+- `MyForm.cs`;
+- `MyForm.Designer.cs`; and
+- `MyForm.resx`.
+
+Additional partial files such as `MyForm.Presenter.cs` may exist when required by the architecture, but they are supplemental. They do not make the core Form triplet optional. A Change Transaction Script that creates or repairs a Form must preserve this family rather than emitting a monolithic Form source file that combines hand-authored behavior with Designer infrastructure.
+
+#### Generation-time source-family audit
+
+Before delivery, inspect the authoritative Form source and one or more analogous Forms in the current project/repository. Construct the desired Form family so that ownership is explicit:
+
+1. `MyForm.cs` contains the hand-authored partial class, constructors, View/interface-facing state, events/event-handler behavior, and other intentional Form logic. The constructor calls `InitializeComponent()` normally, but the method's implementation does not live in this file.
+2. `MyForm.Designer.cs` contains the matching partial type, control/component fields, the `System.ComponentModel.IContainer components` field when required, the conventional `Dispose(bool)` override, `InitializeComponent()`, and Designer-serialized property/layout/event-wireup statements. If the Form is public, apply Section 20.5 and emit `public partial class MyForm`.
+3. `MyForm.resx` is the Form-scoped Windows Forms Designer resource file. Preserve existing Designer resources and emit any new Form-owned serialized resources there. Do not confuse this file with the project's `Properties/Resources.resx`, which may separately own localizable application/UI strings according to repository policy.
+4. Do not place `InitializeComponent()`, Designer control declarations, the `components` field, Designer-generated `Dispose(bool)`, or large control construction/layout blocks in `MyForm.cs`. If the authoritative Form is currently monolithic, the generator performs the semantic split before delivery and supplies complete desired-state payloads for the resulting family; the runtime script does not regex-split or rediscover ownership boundaries.
+5. Preserve any legitimate additional partial files and their responsibilities. A `.Presenter.cs` file, for example, remains a peer in the logical Form family while the core triplet is restored.
+6. Audit the owning project's analogous Form entries so the generated family is compatible with the project's established item topology. For a legacy C# project, expect the main `.cs` item to carry Form subtype metadata and the `.Designer.cs`/`.resx` items to depend upon the main `.cs` item. Do not confuse expected persisted metadata with permission to bypass DTE and rewrite `.csproj` XML directly.
+
+#### Mandatory `newxylogix.ICO` Form identity
+
+Every xyLOGIX `Form` receives the standard `newxylogix.ICO` artwork as its `Icon` property, including dialogs/forms for which `ShowIcon = false`, `ShowInTaskbar = false`, or another presentation choice prevents the icon from being visible. The identity requirement is independent of whether a specific surface displays it.
+
+Use the established Windows Forms Designer representation unless an authoritative analogous Form demonstrates a newer repository convention:
+
+1. Obtain the exact standard `newxylogix.ICO` asset from the authoritative workspace/repository. Do not substitute another icon or synthesize new artwork. If the required asset is unavailable at generation time, do not guess; obtain the authoritative asset before freezing the Form `.resx` payload.
+2. Serialize that icon into `MyForm.resx` using the normal Form resource name `$this.Icon`.
+3. Ensure `InitializeComponent()` creates/uses `System.ComponentModel.ComponentResourceManager` for `typeof(MyForm)` and assigns the icon in Designer-owned source, conventionally:
+
+```csharp
+this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
+```
+
+4. Keep this assignment in `MyForm.Designer.cs`; do not move it into the hand-authored constructor merely to avoid a Form `.resx`.
+5. Preserve `ShowIcon`, `ShowInTaskbar`, border-style, owner, and other presentation semantics independently. The existence of `newxylogix.ICO` does not imply that every Form must visually display an icon.
+
+The generator must validate the three generated artifacts together before delivery: the Designer source references `$this.Icon`, the Form `.resx` contains the corresponding `System.Drawing.Icon` resource, and the icon bytes derive from the authoritative `newxylogix.ICO` asset. These are generation-time payload checks, not runtime semantic gates.
+
+#### Runtime project-system handling
+
+Write/clobber the pre-audited physical Form-family payloads first, then use the loaded Visual Studio project system/DTE to establish project membership and nesting. Do not hand-edit `.csproj` item XML when DTE can express the relationship.
+
+For an existing or newly created Form family:
+
+1. Locate the actual loaded owning project and derive all Form paths from that project's project-file directory spelling, preserving Section 6.4/6.5 junction rules.
+2. Resolve or add the main `MyForm.cs` project item through the owning project's `ProjectItems`. When the project system exposes the `SubType` property, set/retain the main source item as `Form`.
+3. Resolve or add `MyForm.Designer.cs` and `MyForm.resx` as children of the main Form `ProjectItem` through `mainFormProjectItem.ProjectItems.AddFromFile(...)` or the equivalent project-system operation so Visual Studio persists the normal dependent/nested relationship.
+4. When repairing an incorrectly independent child item, remove only that item's project membership without deleting its physical file, then re-add it beneath the main Form item. Do not use `ProjectItem.Delete()` merely to repair nesting.
+5. Emit the normal semantic before/after diagnostics around every potentially blocking `ProjectItems.AddFromFile(...)`/membership operation as required by Section 6.7.
+6. Run `File.SaveAll` after the complete source-family/membership mutation so the project system persists normal `SubType`/`DependentUpon`/`EmbeddedResource` relationships. Treat the successful DTE/project-system mutation as the positive boundary; do not parse the resulting `.csproj` as a fatal persistence proof.
+
+A normal legacy C# project will consequently represent the family semantically as a Form source item, a dependent `.Designer.cs` compile item, and a dependent `.resx` embedded resource. The canonical persisted shape demonstrated by established xyLOGIX Forms is equivalent to:
+
+```xml
+<Compile Include="MyForm.cs">
+  <SubType>Form</SubType>
+</Compile>
+<Compile Include="MyForm.Designer.cs">
+  <DependentUpon>MyForm.cs</DependentUpon>
+</Compile>
+<EmbeddedResource Include="MyForm.resx">
+  <DependentUpon>MyForm.cs</DependentUpon>
+</EmbeddedResource>
+```
+
+Treat this XML as the expected **project-system outcome**, not as the preferred mutation mechanism. The script should cause Visual Studio to persist the relationship rather than synthesizing these nodes by hand. In particular, prefer this sequence when the applicable legacy project system supports it:
+
+1. obtain or add the main item through `owningProject.ProjectItems.AddFromFile(myFormPath)` when it is not already present;
+2. set/retain the main item's `SubType` as `Form` through the project-item property surface when necessary;
+3. add `MyForm.Designer.cs` through `mainFormProjectItem.ProjectItems.AddFromFile(designerPath)`;
+4. add `MyForm.resx` through `mainFormProjectItem.ProjectItems.AddFromFile(resxPath)`; and
+5. call `File.SaveAll` so Visual Studio persists the corresponding `DependentUpon`, `Compile`, `EmbeddedResource`, and Form-subtype metadata.
+
+If a child file is already present as an incorrectly independent root project item, remove only that item's **project membership** first (prefer `ProjectItem.Remove()` or the equivalent non-destructive project-system operation when supported), preserve the physical file, and then add it beneath the main Form item. Never use `ProjectItem.Delete()` merely to repair nesting, because deleting the physical source/resource file is not part of the topology correction.
+
+#### VCmd and Git treatment of a Form source family
+
+The Form family is one logical artifact but has mixed cleanup eligibility:
+
+- `MyForm.cs` and any other changed, ordinary hand-authored C# partial files are eligible for the final VCmd pass under Section 9.
+- `MyForm.Designer.cs` is never a VCmd target.
+- `MyForm.resx` is never a VCmd target.
+- The project file is never a VCmd target even when project-item nesting/membership changes cause it to become transaction-owned.
+
+During ordered Git capture, keep the directly coupled Form family atomic. `MyForm.cs`, `MyForm.Designer.cs`, and `MyForm.resx` are one source-family work item under Section 22.3. If the transaction necessarily changes the owning `.csproj` solely to establish/repair that Form-family membership or nesting, include that project file in the same atomic work item because separating it can create an invalid or misleading intermediate state. Additional unrelated Form families remain separate work items.
+
+A transaction that is migrating multiple monolithic dialogs repeats this family operation for each Form independently; do not batch all Forms into one commit merely because they are being repaired by the same transaction.
+
 ---
 ## 21. Source Correctness Is a Generation-Time Responsibility
 
@@ -1703,7 +1813,7 @@ On both normal completion and failure, whenever mechanically possible, the scrip
 
 Then append a clearly delimited final block containing the complete raw human-readable `git status` output for **every affected repository**, executed from that repository. If more than one repository is affected, identify each repository immediately before its raw status text.
 
-Those final raw status block(s) are the **last substantive content written to the log**. Do not append a function-exit record, success message, cleanup note, elapsed-time line, or any other substantive log entry afterward. The helper that performs final-status logging is therefore a special terminal logger and must not log its own exit after it begins the final status block; closing/flushing the file handle is not a substantive log record.
+Those final raw status block(s) are the **last substantive content written to the Change Transaction Script's log**. Do not append a function-exit record, success message, cleanup note, elapsed-time line, terminal-handoff note, or any other substantive log entry afterward. The helper that performs final-status logging is therefore a special terminal logger and must not log its own exit after it begins the final status block; closing/flushing the file handle is not a substantive log record. The mandatory Section 24.5 terminal handoff occurs only after this log is finalized and must not reopen or append to the transaction log. Any output or logging performed by `buildTwiceThenCommit.ps1` belongs to that external script, not to the completed Change Transaction Script log.
 
 If final raw status cannot be obtained for one repository, record that failure **inside that repository's final status block** and continue to the next affected repository when possible. After the final repository block, write nothing substantive.
 
@@ -1740,6 +1850,32 @@ Do not flood PMC with raw native streams, per-byte details, or the detailed func
 On a PowerShell exception, report enough context to diagnose the failure immediately: exception message, invocation position/line when available, and script stack trace when available. At the top-level transaction boundary, report that information once, run the safe transaction cleanup applicable to the current state, preserve meaningful forward progress, and normally do not rethrow merely to make PMC print the same failure again.
 
 Do not leave the user with only an opaque message such as `Argument types do not match`. Do not print `*** SUCCESS ***` merely because PowerShell reached the end of the script; the applicable Section 23 Git postconditions must already have been observed.
+
+### 24.5 Mandatory post-transaction terminal handoff
+
+Every **normally completing** Change Transaction Script, including a successful no-op or Git-recovery-only transaction, must perform one mandatory terminal handoff after it has otherwise finished completely. This is a post-transaction handoff, not another source/Git/VCmd phase.
+
+The ordering is absolute:
+
+1. Finish every transaction-owned source/project/Solution mutation.
+2. Finish all VCmd work and the full startup/drain + quiescence convergence barrier when applicable.
+3. Finish transaction-owned Git capture, synchronization/push when mechanically appropriate, post-capture/post-push stabilization, and final transaction-owned end-state proof.
+4. Restore any preexisting editor/ReSharper state required by the transaction and run the transaction's final `File.SaveAll`/cleanup operations.
+5. Append the complete raw final `git status` block(s) required by Section 24.2, flush/close the transaction log, and perform **no further transaction-log writes**.
+6. Pause for 1-2 seconds. The standard generated implementation is `Start-Sleep -Milliseconds 1500`.
+7. Execute the DTE command exactly as `Window.CloseAllDocuments`. This is the sole standing exception to Section 8's prohibition on blanket document closure, and it is legal only because all transaction/VCmd/Git/editor-restoration/log-finalization work is already over.
+8. Pump the Visual Studio message loop when available, then pause for another 1-2 seconds. The standard generated implementation is another `Start-Sleep -Milliseconds 1500`.
+9. Dot-source this exact path, with no arguments and without rewriting/canonicalizing it:
+
+```powershell
+. "C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1"
+```
+
+10. After the dot-source statement returns, the Change Transaction Script performs **no further work**: no `File.SaveAll`, no DTE/editor operation, no ReSharper/VCmd operation, no Git/status/commit/push operation, no transaction-log append, no cleanup note, and no additional success output. `buildTwiceThenCommit.ps1` owns its own rebuild-all-twice behavior and any subsequent generated-file Git commit/push workflow.
+
+Do not execute `Window.CloseAllDocuments` early in order to "prepare" for this handoff. It must not occur during VCmd scope isolation, before Git capture, before post-push stabilization, before editor restoration, or before the terminal raw-status log has been finalized. The defining condition is simple: **if the Change Transaction Script still has any of its own work left to do, it is too early to call `Window.CloseAllDocuments`.**
+
+A mechanically unrecoverable transaction that terminates before reaching a normal completed/no-op state does not invoke the build/commit handoff, because the transaction is not "otherwise all the way done." Abrupt host termination is, of course, mechanically incapable of performing the handoff.
 
 ## 25. Avoid Over-Engineering Safety Checks
 
@@ -1878,7 +2014,7 @@ When Section 1.1 applies:
 1. Restore/transition ReSharper for cleanup idempotently and nonfatally.
 2. Rewrite the exact schema-version-2 noninteractive/Git-disabled VCmd sidecar immediately before invocation.
 3. Invoke argumentless `VCmd.CCommandStripLineBreaksFromAllComments` once when at least one intended file is observably user-visible and isolation/sidecar preparation succeeded.
-4. Observe the exact successfully opened pathname set with the adaptive content-fingerprint convergence barrier.
+4. Observe the exact successfully opened pathname set with the mandatory two-stage post-VCmd convergence barrier: first complete the workload-scaled startup/drain interval during which quiet time cannot accrue, then prove the separate workload-scaled content-quiescence interval and final drain samples.
 5. Restore preexisting editor/ReSharper state, run final `File.SaveAll`, and refresh transaction-owned Git status.
 
 ### Phase 5 ??? ordered Git capture from transaction-private indexes
@@ -1907,6 +2043,14 @@ When Section 1.1 applies:
 4. Append complete raw `git status` output for every affected repository to the detailed log.
 5. Write no substantive log content after the final repository status block.
 6. Never release/rebind/destroy `$dte`.
+
+### Phase 8 ??? mandatory post-transaction handoff
+
+1. Only after Phase 7 has completely finished and the transaction log is closed/finalized, wait 1.5 seconds.
+2. Execute `$dte.ExecuteCommand('Window.CloseAllDocuments')` and do not perform any transaction-owned editor/Git/log work afterward.
+3. Pump the Visual Studio message loop when available and wait another 1.5 seconds.
+4. Dot-source `. "C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1"` exactly as supplied, with no arguments.
+5. Return control after the external script returns; perform no further Change Transaction Script operations.
 
 ## 27. Side-Effect Gate Matrix
 
@@ -2061,10 +2205,11 @@ When Section 1.1 applies:
 - [ ] `VCmd.CCommandStripLineBreaksFromAllComments` is invoked without command arguments; no `NoPrompt` argument or equivalent is used.
 - [ ] The VCmd sidecar disables all VCmd-owned Git behavior so the Change Transaction Script remains solely responsible for synchronization, staging, custom commit-message generation, commits, and push.
 - [ ] VCmd is attempted only after the complete VCmd-eligible opening pass has finished and successful sidecar preparation, and normally once for the successfully opened eligible set; VCmd failure is warning-only and final `File.SaveAll` still occurs.
-- [ ] After VCmd returns, the script does not begin Git capture immediately; it enters a bounded post-VCmd convergence barrier that pumps the IDE, periodically calls `File.SaveAll`, and repeatedly fingerprints the actual contents of the files successfully opened for VCmd.
-- [ ] The convergence barrier accounts for downstream background `ReSharper_SilentCleanupCode` work, resets its quiet timer whenever any VCmd-opened file changes, and treats a fixed short sleep or timestamp-only check as insufficient.
-- [ ] The VCmd convergence quiet interval and maximum window are computed adaptively from the exact successfully opened file count using the bounded current square-root policy, and the selected timings are reported through `Write-Host`.
-- [ ] After the quiet interval, the script performs a final `File.SaveAll`/message-pump/fingerprint sample and begins Git capture only if that final sample remains unchanged.
+- [ ] After VCmd returns, the script does not begin Git capture immediately; it enters the mandatory two-stage convergence barrier over the exact successfully opened pathname set.
+- [ ] The first stage is a workload-scaled startup/drain interval during which the script pumps the IDE, periodically calls `File.SaveAll`, and fingerprints the VCmd-opened files, but **never accrues quiet time or permits convergence**, even if no file changes.
+- [ ] Only after the startup/drain stage ends does the script establish a new fingerprint baseline and start the workload-scaled quiet interval; every subsequent digest/existence change resets that quiet interval completely.
+- [ ] `startupSeconds`, `quietSeconds`, and `maximumSeconds` are all computed adaptively from the exact successfully opened file count using the current bounded square-root policy and are reported through `Write-Host`.
+- [ ] After the quiet interval, the script performs the required final drain proof (`File.SaveAll`, pump, 1500-ms wait/sample, another pump/sample) and begins Git capture only if those final samples remain unchanged.
 - [ ] If post-VCmd convergence cannot be established within the finite maximum wait, the script stops before Git staging/commit while preserving source/project progress.
 - [ ] After ordered Git capture, a source-mutating transaction performs adaptive fixed-point stabilization; a Git-recovery-only transaction instead performs direct `File.SaveAll` + fresh status and bounded direct recapture without artificial quiet waits.
 - [ ] After push, a source-mutating transaction performs adaptive save/pump/status stabilization; a Git-recovery-only transaction instead performs direct `File.SaveAll` + fresh status and bounded direct recapture/re-push without artificial quiet waits.
@@ -2075,6 +2220,9 @@ When Section 1.1 applies:
 - [ ] No build, compilation, or test operation is used as a fatal transaction gate.
 - [ ] If an informational build/test was explicitly requested, failure cannot throw, abort, roll back source/project state, or reset transaction-owned Git history.
 - [ ] Every modified public WinForms `*.Designer.cs` type part is explicitly declared `public partial class` when its corresponding logical type is public.
+- [ ] `Window.CloseAllDocuments` is never executed while any transaction-owned mutation, VCmd, Git, stabilization, editor-restoration, or transaction-log work remains.
+- [ ] After the transaction log has been finalized with its terminal raw Git-status block(s), the script waits 1.5 seconds, executes `Window.CloseAllDocuments`, waits another 1.5 seconds, and dot-sources `C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1` exactly as supplied.
+- [ ] No Change Transaction Script operation occurs after the `buildTwiceThenCommit.ps1` dot-source statement returns.
 
 ---
 
@@ -2144,7 +2292,7 @@ After writing the final GUID-named `.ps1` file, reopen **that exact file** and a
 19. verify VCmd cannot perform Git synchronization/check-in/push and therefore cannot compete with the script's own custom commit-message/staging workflow;
 20. verify eligible-file editor-open failure, sidecar-preparation failure, and VCmd failure are warning-only, excluded files are never opened merely for VCmd, and the final `File.SaveAll` is unconditional;
 21. verify the artifact contains no `Assert-CleanIndex` definition/call/equivalent cleanliness gate and no automatic preservation commit/stash/reset/clean step for unrelated Git dirt; verify arbitrary working-tree/default-index dirt is tolerated;
-22. verify the post-VCmd convergence barrier explicitly accounts for downstream background `ReSharper_SilentCleanupCode`, retains the exact successfully opened VCmd file set, repeatedly fingerprints those file contents, pumps the message loop, periodically saves, computes the adaptive quiet/max timings from the actual opened-file count, reports those timings, resets the full quiet interval on every detected rewrite, performs a final save/pump/resample after apparent convergence, and prevents Git capture on timeout;
+22. verify the post-VCmd convergence barrier explicitly accounts for delayed/queued `CodeMaid.CleanupOpenCode`, `ReSharper.ReSharper_SilentCleanupOpenFiles`, and `ReSharper_SilentCleanupCode`; retains the exact successfully opened VCmd file set; computes/reports workload-scaled `startupSeconds`, `quietSeconds`, and `maximumSeconds`; forbids quiet-time accrual during the startup/drain interval; establishes a fresh baseline only after startup/drain completes; resets the full quiet interval on every later rewrite; performs the required final drain samples after apparent quiescence; and prevents Git capture on convergence timeout;
 23. verify `.Constants`/`.Interfaces` projects are exempt from blanket `xyLOGIX.Core.Debug`/`xyLOGIX.Core.Extensions*` additions while genuine interface dependency closure is still satisfied;
 24. verify no post-VCmd semantic source verification or fatal lint/style/static-analysis/build/compile/test gate exists;
 25. verify reference handling is positive-only unless the current prompt explicitly authorizes removal;
@@ -2180,6 +2328,9 @@ After writing the final GUID-named `.ps1` file, reopen **that exact file** and a
 55. verify arbitrary unrelated working-tree/default-index dirt can remain present from script start through completion without being auto-committed, stashed, reset, restored, cleaned, or used to abort source mutation.
 56. verify boundary creation/removal and no-op cleanup preserve arbitrary default-index/work-tree state and do not depend on repository cleanliness.
 57. verify remote synchronization is opportunistic: dirty local state may defer pull/rebase/reconciliation, but cannot invalidate proven local transaction completion; safe push/fetch operations are not suppressed merely because unrelated dirt exists.
+58. verify `Window.CloseAllDocuments` appears only in the mandatory post-transaction terminal handoff and cannot execute until all transaction-owned source/project/VCmd/Git/stabilization/editor-restoration work and terminal raw-status logging have completed.
+59. verify the terminal handoff uses the standard sequence `Start-Sleep -Milliseconds 1500`, `$dte.ExecuteCommand('Window.CloseAllDocuments')`, message-pump/bounded 1500-ms pause, then exact dot-sourcing of `. "C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1"` with no arguments.
+60. verify the transaction log is already finalized before the terminal handoff and the Change Transaction Script performs no `File.SaveAll`, DTE, ReSharper, VCmd, Git, status, cleanup, log, or success-output operation after the external script returns.
 
 Only after both passes succeed should the artifact be delivered.
 
@@ -2197,12 +2348,14 @@ Only after both passes succeed should the artifact be delivered.
 >
 > ReSharper state transitions are idempotent and nonfatal. Command unavailability may simply mean the desired state is already active. Record only state changes positively attributable to the transaction and never blindly invert the maintainer's preexisting state.
 >
-> Source-mutating transactions perform one final VCmd preparation pass. Snapshot and preserve the user's visible editor state, isolate unrelated visible C# tabs, open each intended C# target through a genuine visible/activated source window, rewrite the exact noninteractive/Git-disabled VCmd sidecar immediately before the one argumentless invocation, and wait for bounded adaptive content convergence of the exact opened pathname set before Git capture.
+> Source-mutating transactions perform one final VCmd preparation pass. Snapshot and preserve the user's visible editor state, isolate unrelated visible C# tabs, open each intended C# target through a genuine visible/activated source window, rewrite the exact noninteractive/Git-disabled VCmd sidecar immediately before the one argumentless invocation, and wait for the mandatory two-stage bounded convergence barrier before Git capture: a workload-scaled startup/drain interval during which quiet time cannot accrue, followed by a separate workload-scaled content-quiescence interval and final drain samples. This prevents a completed comment-stripping pass from racing ahead of queued CodeMaid/ReSharper cleanup.
 >
 > Treat Windows PowerShell 5.1 as the real runtime. Normalize successful zero-output native results, avoid 5.1 parser/binder traps, log consequential DTE boundaries before entering them, and write a detailed `%TEMP%` transaction log whose complete raw final `git status` blocks are the last substantive file-log content whenever the host survives long enough to finalize.
 >
 > Remote synchronization is **opportunistic**. A dirty work tree/default index may make pull/rebase reconciliation inappropriate, but that does not invalidate local transaction progress. Fetch/push when mechanically safe; if upstream reconciliation would require disturbing unrelated local state, preserve the transaction commits and report proven local completion rather than manufacturing cleanliness.
 >
 > Git-recovery-only transactions remain intentionally short: `File.SaveAll`, identify authorized recovery paths, capture them with transaction-private/path-isolated Git state, use direct fresh-status recapture, and prove the resulting commits. They do not mutate source, create new boundaries, change ReSharper state, invoke VCmd, or run artificial content-stability waits merely because the repository is dirty.
+>
+> Every normally completing Change Transaction Script has one final post-transaction handoff after its own terminal raw-Git-status log is finalized: wait 1.5 seconds, execute `Window.CloseAllDocuments`, wait another 1.5 seconds, then dot-source `C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1` exactly as supplied. `Window.CloseAllDocuments` is forbidden before that point. After the external script returns, the Change Transaction Script performs no further work.
 >
 > Across all modes, preserve maintainer-authored source, use fresh GUID-named downloadable artifacts, never nest exception blocks, leave unrelated local Git state alone, and print `*** SUCCESS ***` only after the transaction-owned end-state proof is observable.
