@@ -1,12 +1,13 @@
 # Robust Visual Studio Package Manager Console Automation Script Guidelines
 
-Revision: P
+Revision: Q
 Last Updated: 15 September 2026
 
 ## Changelog
 
-Revision P is the current controlling revision and supersedes Revision O where this document differs. Revision P adds mandatory transaction handling for xyLOGIX Windows Forms source families: every concrete `Form`/dialog is maintained as a `MyForm.cs` + `MyForm.Designer.cs` + `MyForm.resx` triplet, Designer-owned initialization/layout is kept out of the hand-authored Form source, the three files are maintained as one Visual Studio parent/child project-item family and one logical Git/source-family artifact, Visual Studio/DTE is preferred over hand-authored `.csproj` XML for establishing that nesting, and every Form receives the standard `newxylogix.ICO` identity artwork through its normal `$this.Icon` Designer resource even when `ShowIcon` or `ShowInTaskbar` is disabled. Revision P also hardens VCmd convergence so delayed CodeMaid/ReSharper cleanup cannot be mistaken for quiescence: every successful VCmd invocation is followed by a workload-scaled startup/drain window during which quiet time cannot accrue, followed by a separate workload-scaled content-quiescence interval and final drain samples before Git capture. Finally, every normally completing Change Transaction Script performs a mandatory post-transaction handoff only after all of its own mutation, VCmd, Git, stabilization, editor-restoration, and terminal-log work is complete: wait 1.5 seconds, execute `Window.CloseAllDocuments`, wait another 1.5 seconds, then dot-source `C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1` exactly as supplied, with no further Change Transaction Script work afterward.
+Revision Q is the current controlling revision and supersedes Revision P where this document differs. Revision Q hardens the Windows PowerShell 5.1 transaction contract after a live PMC binder failure: intentionally empty collection arguments must be explicitly accepted with `[AllowEmptyCollection()]` (or avoided), empty raw-status split artifacts must never be passed into a mandatory non-empty string parameter, delivered-script identity must be captured from the actual `.ps1` invocation even when the transaction body runs in a child scope, and the exact delivered native-process wrapper must concurrently drain redirected stdout/stderr with bounded waits rather than merely describing that requirement. Revision Q also corrects the mandatory terminal handoff: after all transaction work and log finalization, wait 1.5 seconds, attempt `Window.CloseAllDocuments` only when `$dte.Documents.Count -gt 0`, treat any close failure as warning-only, wait another 1.5 seconds when the close was attempted, and always dot-source `C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1` after a normally completed transaction. Finally, Revision Q codifies the current xyLOGIX diagnostic-spacing rule for any post-VCmd presentation repair: preserve a blank physical line after a complete `Debug.WriteLine(...)` when execution continues with another statement, but never insert a blank line when the next source line is the closing brace `}`.
 
+- **Revision P.** Added mandatory Windows Forms source-family handling, standard `newxylogix.ICO` Form identity, workload-scaled two-stage VCmd convergence, and the initial mandatory post-transaction build/commit handoff.
 - **Revision O.** Replaced the former clean-work-tree/clean-index doctrine with an imposition model: a Change Transaction Script overlays its authorized changes onto whatever Git working-tree and index state already exists, never requires or manufactures repository cleanliness, never auto-commits unrelated preexisting dirt, never generates an `Assert-CleanIndex`-style gate, and uses a transaction-private Git index so unrelated staged work can remain untouched while transaction-owned commits are created.
 - **Revision N.** Added idempotent/nonfatal ReSharper state handling, fresh generated identity GUIDs, generation-time-known rename work items, bounded `.csproj` readiness before explicit `Solution.AddFromFile(..., false)`, and semantic before/after logging around potentially blocking DTE calls.
 - **Revision M.** Added genuinely visible/activated VCmd editor tabs, preexisting-editor-state isolation/restoration, the detailed `%TEMP%` transaction log with terminal raw `git status`, zero-output Git hardening, and authorization-based rename/copy-aware staged-scope validation. It also aligned transaction behavior with the supplied Visual Commander source, including its open-document precedence and one-run sidecar reset.
@@ -42,7 +43,7 @@ Typical use cases include:
 - recovering already-completed, already-settled source/project changes from a prior transaction whose Git capture did not occur or did not finish, by staging/committing/pushing the live dirty files without re-running source mutation, ReSharper suspension, VCmd cleanup, or artificial content-stability waits;
 - deriving the narrow VCmd-eligible C# processing set from the complete transaction-created changed-path set, supplying the one-run noninteractive/Git-disabled configuration for `VCmd.CCommandStripLineBreaksFromAllComments`, running that cleanup pass without modal prompts or VCmd-owned Git activity, and saving the IDE state before the script's own Git capture; and
 - staging, committing, synchronizing, and pushing transaction-owned work without allowing unrelated paths to hitchhike; and
-- after the Change Transaction Script has otherwise completed all of its own work and finalized its transaction log, performing the mandatory terminal handoff: pause 1.5 seconds, close all Visual Studio documents through `Window.CloseAllDocuments`, pause another 1.5 seconds, and dot-source `C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1` exactly as supplied.
+- after the Change Transaction Script has otherwise completed all of its own work and finalized its transaction log, performing the mandatory terminal handoff: pause 1.5 seconds; if `$dte.Documents.Count -gt 0`, make one best-effort `Window.CloseAllDocuments` attempt and treat failure as warning-only; after any attempted close, pause another 1.5 seconds; then dot-source `C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1` exactly as supplied regardless of whether document closure succeeded.
 
 These scripts are **not** intended to be general-purpose CI/CD pipelines, substitute compilers, build validators, test harnesses, source analyzers, or autonomous architectural reviewers. They are controlled maintainer-side change vehicles: the AI performs the source/code reasoning before delivery; the script performs the mechanical transaction inside the maintainer's current Visual Studio session.
 
@@ -422,7 +423,55 @@ The exact delivered artifact must include a generation-time/runtime audit path f
 
 Do not import C#/JSON punctuation habits into Windows PowerShell 5.1 source. In particular, avoid trailing commas in PowerShell array/argument/parameter constructs where the 5.1 parser rejects them, and do not write an expandable string such as `"$Label: ..."` when a colon immediately follows a variable name; use `"${Label}: ..."` or another unambiguous form.
 
-These are exact-artifact requirements, not merely generator-source preferences. The final GUID-named `.ps1` must be reopened and parsed with the Windows PowerShell 5.1 parser when available, and targeted static checks must cover the known trailing-comma, ambiguous-variable-colon, and zero-output-native-result defect classes before delivery.
+These are exact-artifact requirements, not merely generator-source preferences. The final GUID-named `.ps1` must be reopened and parsed with the Windows PowerShell 5.1 parser when available, and targeted static checks must cover the known trailing-comma, ambiguous-variable-colon, zero-output-native-result, and intentional-empty-collection binder defect classes before delivery.
+
+### 5.7 Intentional empty collections and empty strings must be binder-safe
+
+Windows PowerShell 5.1 validates parameter binding before a function body can inspect switches such as `-AllowEmpty`. A mandatory typed collection parameter therefore rejects an intentionally supplied empty array unless the parameter explicitly permits an empty collection.
+
+If a helper legitimately accepts an empty collection, declare that contract at the parameter boundary, for example:
+
+```powershell
+param(
+    [Parameter(Mandatory = $true)]
+    [AllowEmptyCollection()]
+    [string[]] $RelativePaths,
+
+    [Parameter(Mandatory = $true)]
+    [ValidateNotNullOrEmpty()]
+    [string] $CommitMessage,
+
+    [switch] $AllowEmpty
+)
+```
+
+Then validate the semantic relationship inside the function: an empty `RelativePaths` set is valid for an explicitly empty boundary commit, but it is an error for an ordinary path-owned commit. Do not rely on code inside the function to rescue a call that the binder has already rejected.
+
+Likewise, do not feed empty strings created by stream splitting into mandatory non-empty string parameters. Terminal raw-status writers must either skip empty split artifacts, write them through a helper whose parameter explicitly allows empty strings when blank lines are semantically required, or append the raw block directly. A clean zero-output Git command must never fail because an empty line was passed to a mandatory `[string]` parameter.
+
+### 5.8 Preserve the actual delivered script identity across child scope
+
+A dot-sourced Change Transaction Script normally runs its transaction body in a child scope for session hygiene. Inside an anonymous `& { ... }` child script block, `$MyInvocation.MyCommand.Path` is not a reliable source of the delivered `.ps1` pathname and can be empty. That can silently degrade the required GUID-based transaction-log name to `_yyyyMMdd_HHmmss_fff.log`.
+
+Capture/pass the outer script pathname at the child-scope invocation boundary rather than rediscovering it inside the child block. A conforming pattern is:
+
+```powershell
+& {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string] $ChangeTransactionScriptPath
+    )
+
+    $scriptBaseName = [System.IO.Path]::GetFileNameWithoutExtension(
+        [System.IO.Path]::GetFileName($ChangeTransactionScriptPath)
+    )
+
+    # transaction body
+} $MyInvocation.MyCommand.Path
+```
+
+The exact delivered artifact must prove that the resulting `%TEMP%` log basename matches the GUID `.ps1` artifact basename before any repository mutation occurs.
 
 ---
 
@@ -611,7 +660,7 @@ If VCmd is skipped before invocation because isolation, sidecar preparation, or 
 
 ## 8. Closing and Restoring Visual Studio Documents Safely
 
-Never execute `Window.CloseAllDocuments` as part of the VCmd workflow, source/project mutation, transaction-owned Git capture/synchronization, post-push stabilization, editor restoration, or transaction-log finalization. VCmd's supplied implementation gives user-visible open C# documents precedence when choosing its processing scope, so the transaction must isolate that scope narrowly without destroying unrelated editor state. The sole standing exception is the mandatory **post-transaction terminal handoff** defined in Section 24.5: only after the Change Transaction Script is otherwise completely finished and its terminal raw-Git-status log has been finalized may it execute `Window.CloseAllDocuments` immediately before handing control to `buildTwiceThenCommit.ps1`.
+Never execute `Window.CloseAllDocuments` as part of the VCmd workflow, source/project mutation, transaction-owned Git capture/synchronization, post-push stabilization, editor restoration, or transaction-log finalization. VCmd's supplied implementation gives user-visible open C# documents precedence when choosing its processing scope, so the transaction must isolate that scope narrowly without destroying unrelated editor state. The sole standing exception is the mandatory **post-transaction terminal handoff** defined in Section 24.5: only after the Change Transaction Script is otherwise completely finished and its terminal raw-Git-status log has been finalized may it inspect `$dte.Documents.Count` and, when that count is greater than zero, make one best-effort `Window.CloseAllDocuments` attempt immediately before handing control to `buildTwiceThenCommit.ps1`. A zero count means do not invoke the command, and command failure must never block the handoff.
 
 ### Snapshot user-visible editor state
 
@@ -789,6 +838,27 @@ If VCmd was skipped before invocation, do not manufacture a VCmd-specific conver
 
 If the finite maximum settling duration expires without achieving the required quiet interval, report the condition as an actionable synchronization error/warning, do **not** begin Git staging/commit capture, preserve all source/project progress, restore preexisting editor state, and return control to the maintainer.
 
+### Post-VCmd diagnostic-spacing presentation repair
+
+When the current transaction explicitly owns a mechanical source-presentation correction that CodeMaid/ReSharper would otherwise normalize away, the transaction may perform that narrow repair **after** the one VCmd pass and its convergence barrier, through the live Visual Studio text buffers, followed by `File.SaveAll` and another bounded stability observation. Do not rerun VCmd afterward and do not use this exception for semantic source changes.
+
+For xyLOGIX `System.Diagnostics.Debug.WriteLine(...)` spacing, the current controlling rule is:
+
+- when another executable/comment source line follows within the same block, preserve the requested blank physical separator after the complete `Debug.WriteLine(...)` call; but
+- when the very next source line is the block-closing brace `}`, **do not** leave a blank physical line between the `Debug.WriteLine(...)` call and that closing brace.
+
+Conforming catch-block example:
+
+```csharp
+catch (Exception ex)
+{
+    // dump all the exception info to the Debug output.
+    Debug.WriteLine(ex);
+}
+```
+
+This rule supersedes any earlier transaction payload or guidance that required a blank line after every `Debug.WriteLine(...)`, including immediately before `}`.
+
 ## 9.1 Build, Compilation, and Test Policy
 
 Change Transaction Scripts are presumed to create perfectly-building code and coherent project state. The mandatory post-transaction dot-source handoff to `C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1` is a separate maintainer workflow that occurs only after the Change Transaction Script has completely finished its own transaction and finalized its log. That external script owns its two rebuild-all passes and any follow-on generated-file commit/push behavior; those operations are not Change Transaction Script validation gates and must not be duplicated inside the transaction itself.
@@ -860,7 +930,7 @@ Run Git through `System.Diagnostics.Process` with:
 - `RedirectStandardOutput = $true`
 - `RedirectStandardError = $true`
 
-Start asynchronous reads of **both** redirected streams immediately after successful process creation, before waiting for process exit. A proven PowerShell 5.1-compatible pattern is to call `ReadToEndAsync()` for stdout and stderr, then perform a bounded `WaitForExit(...)`, and finally consume the two task results. This localized asynchronous I/O exists only to drain both redirected pipes concurrently and prevent a native-process deadlock; it does not justify spreading `async`/`await` through the product codebase.
+Start asynchronous reads of **both** redirected streams immediately after successful process creation, before waiting for process exit. A proven PowerShell 5.1-compatible pattern is to call `ReadToEndAsync()` for stdout and stderr, then perform a bounded `WaitForExit(...)`, and finally consume the two task results. This localized asynchronous I/O exists only to drain both redirected pipes concurrently and prevent a native-process deadlock; it does not justify spreading `async`/`await` through the product codebase. A delivered wrapper that instead calls synchronous `ReadToEnd()` on stdout and then stderr, or that uses an unbounded parameterless `WaitForExit()` as its primary wait, is nonconforming even if prior small Git commands happened to complete successfully.
 
 Use a finite Git timeout appropriate to the operation. If the timeout expires, make a best-effort attempt to terminate the Git process, report the timeout as an actionable transaction error, and dispose the `Process` object in `finally`.
 
@@ -1786,7 +1856,7 @@ At execution start, derive the delivered script basename and create a fresh log 
 <script-basename>_yyyyMMdd_HHmmss_fff.log
 ```
 
-The timestamp is the execution-start local timestamp. Initialize the log before the first source/DTE/Git/VCmd mutation and print the log pathname concisely to PMC so the maintainer can find it.
+The timestamp is the execution-start local timestamp. The `<script-basename>` must be the actual delivered GUID `.ps1` basename, including when the main transaction body executes in a child scope; use the Section 5.8 outer-path handoff rather than resolving `$MyInvocation.MyCommand.Path` from inside an anonymous child block. Initialize the log before the first source/DTE/Git/VCmd mutation and print the log pathname concisely to PMC so the maintainer can find it.
 
 The detailed log should timestamp records and, where applicable, capture:
 
@@ -1811,7 +1881,7 @@ The file log may be verbose; PMC should remain concise. Native Git output that w
 
 On both normal completion and failure, whenever mechanically possible, the script must perform all cleanup/restoration that could change editor/repository state **before** finalizing the execution log. This includes best-effort ReSharper resumption, preexisting editor-document restoration, `File.SaveAll`, temporary-file cleanup that can affect a repository, and any transaction-owned boundary cleanup permitted by Section 15.
 
-Then append a clearly delimited final block containing the complete raw human-readable `git status` output for **every affected repository**, executed from that repository. If more than one repository is affected, identify each repository immediately before its raw status text.
+Then append a clearly delimited final block containing the complete raw human-readable `git status` output for **every affected repository**, executed from that repository. If more than one repository is affected, identify each repository immediately before its raw status text. A clean/empty stream is a valid empty block. If status text is split into lines before logging, skip the artificial trailing empty split element (or use an explicitly empty-string-capable raw writer); never pass that empty artifact into a mandatory non-empty string parameter.
 
 Those final raw status block(s) are the **last substantive content written to the Change Transaction Script's log**. Do not append a function-exit record, success message, cleanup note, elapsed-time line, terminal-handoff note, or any other substantive log entry afterward. The helper that performs final-status logging is therefore a special terminal logger and must not log its own exit after it begins the final status block; closing/flushing the file handle is not a substantive log record. The mandatory Section 24.5 terminal handoff occurs only after this log is finalized and must not reopen or append to the transaction log. Any output or logging performed by `buildTwiceThenCommit.ps1` belongs to that external script, not to the completed Change Transaction Script log.
 
@@ -1863,9 +1933,9 @@ The ordering is absolute:
 4. Restore any preexisting editor/ReSharper state required by the transaction and run the transaction's final `File.SaveAll`/cleanup operations.
 5. Append the complete raw final `git status` block(s) required by Section 24.2, flush/close the transaction log, and perform **no further transaction-log writes**.
 6. Pause for 1-2 seconds. The standard generated implementation is `Start-Sleep -Milliseconds 1500`.
-7. Execute the DTE command exactly as `Window.CloseAllDocuments`. This is the sole standing exception to Section 8's prohibition on blanket document closure, and it is legal only because all transaction/VCmd/Git/editor-restoration/log-finalization work is already over.
-8. Pump the Visual Studio message loop when available, then pause for another 1-2 seconds. The standard generated implementation is another `Start-Sleep -Milliseconds 1500`.
-9. Dot-source this exact path, with no arguments and without rewriting/canonicalizing it:
+7. Read `$dte.Documents.Count`. If the count is zero, **do not call** `Window.CloseAllDocuments`. If the count is greater than zero, make one best-effort `$dte.ExecuteCommand('Window.CloseAllDocuments')` attempt and pump the Visual Studio message loop when available. Any command-unavailable/COM/DTE failure is warning-only and must not terminate or skip the handoff.
+8. If a close attempt was made, pause for another 1-2 seconds after message pumping. The standard generated implementation is another `Start-Sleep -Milliseconds 1500`. When the document count was zero, no close-specific second delay is required.
+9. Dot-source this exact path, with no arguments and without rewriting/canonicalizing it **regardless of whether the optional document-close attempt succeeded**:
 
 ```powershell
 . "C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1"
@@ -1873,7 +1943,7 @@ The ordering is absolute:
 
 10. After the dot-source statement returns, the Change Transaction Script performs **no further work**: no `File.SaveAll`, no DTE/editor operation, no ReSharper/VCmd operation, no Git/status/commit/push operation, no transaction-log append, no cleanup note, and no additional success output. `buildTwiceThenCommit.ps1` owns its own rebuild-all-twice behavior and any subsequent generated-file Git commit/push workflow.
 
-Do not execute `Window.CloseAllDocuments` early in order to "prepare" for this handoff. It must not occur during VCmd scope isolation, before Git capture, before post-push stabilization, before editor restoration, or before the terminal raw-status log has been finalized. The defining condition is simple: **if the Change Transaction Script still has any of its own work left to do, it is too early to call `Window.CloseAllDocuments`.**
+Do not execute `Window.CloseAllDocuments` early in order to "prepare" for this handoff. It must not occur during VCmd scope isolation, before Git capture, before post-push stabilization, before editor restoration, or before the terminal raw-status log has been finalized. The defining condition is simple: **if the Change Transaction Script still has any of its own work left to do, it is too early even to consider the terminal close attempt.** At the terminal handoff, zero documents means no call, and a failed close attempt is never a reason to withhold `buildTwiceThenCommit.ps1`.
 
 A mechanically unrecoverable transaction that terminates before reaching a normal completed/no-op state does not invoke the build/commit handoff, because the transaction is not "otherwise all the way done." Abrupt host termination is, of course, mechanically incapable of performing the handoff.
 
@@ -2047,9 +2117,9 @@ When Section 1.1 applies:
 ### Phase 8 ??? mandatory post-transaction handoff
 
 1. Only after Phase 7 has completely finished and the transaction log is closed/finalized, wait 1.5 seconds.
-2. Execute `$dte.ExecuteCommand('Window.CloseAllDocuments')` and do not perform any transaction-owned editor/Git/log work afterward.
-3. Pump the Visual Studio message loop when available and wait another 1.5 seconds.
-4. Dot-source `. "C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1"` exactly as supplied, with no arguments.
+2. If `$dte.Documents.Count -gt 0`, make one best-effort `$dte.ExecuteCommand('Window.CloseAllDocuments')` attempt. Treat failure as warning-only. If the count is zero, do not invoke the command.
+3. When a close attempt was made, pump the Visual Studio message loop when available and wait another 1.5 seconds.
+4. Dot-source `. "C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1"` exactly as supplied, with no arguments, regardless of close success/failure.
 5. Return control after the external script returns; perform no further Change Transaction Script operations.
 
 ## 27. Side-Effect Gate Matrix
@@ -2078,6 +2148,7 @@ When Section 1.1 applies:
 | Final synchronization | configured upstream + synchronization can be non-disruptive | push/sync proof when performed | if reconciliation would disturb unrelated local state, report local completion and defer sync |
 | Final Git proof | transaction-owned capture complete | transaction-owned paths committed; final `HEAD` resolved; `0/0` only when sync occurred | whole repository/default index need not be clean |
 | Finalize detailed log | cleanup/restoration complete | raw `git status` for every affected repo is final substantive log content | status failure recorded inside final block |
+| Terminal build/commit handoff | transaction otherwise complete + log finalized | count-gated best-effort document close, then exact `buildTwiceThenCommit.ps1` dot-source | zero open documents skips close; close failure warns but never blocks handoff |
 
 ## 28. Review Checklist Before Delivering a PMC Script
 
@@ -2089,8 +2160,11 @@ When Section 1.1 applies:
 - [ ] No assignment/binding/shadowing/removal of `$dte` in any casing.
 - [ ] No PowerShell 7-only syntax.
 - [ ] Regex escapes were checked for PowerShell/.NET semantics (`'\b'`, not `'\\b'`, for a word boundary in a single-quoted pattern).
-- [ ] Native Git stdout/stderr is redirected and both streams are drained concurrently before/while waiting for process exit.
+- [ ] Native Git stdout/stderr is redirected and both streams are drained concurrently before/while waiting for process exit; the exact delivered helper contains asynchronous dual-stream draining rather than sequential synchronous `ReadToEnd()` calls.
 - [ ] Git waits are bounded; timed-out processes are terminated best-effort and disposed.
+- [ ] Any mandatory typed collection parameter that is intentionally called with `@()` is decorated with `[AllowEmptyCollection()]` (or redesigned so the empty call is unnecessary), and semantic validation distinguishes an authorized empty operation from an accidental empty path set.
+- [ ] Raw-status logging cannot pass an empty split artifact into a mandatory non-empty string parameter.
+- [ ] The actual delivered script pathname is passed into any child transaction scope so the `%TEMP%` log basename matches the GUID `.ps1` basename.
 - [ ] The top-level transaction catch reports actionable context and normally returns control to PMC without redundant rethrowing.
 - [ ] Errors report invocation/stack context.
 - [ ] Useful transaction progress, no-op, warning, and failure diagnostics are emitted through `Write-Host` without flooding PMC.
@@ -2221,7 +2295,7 @@ When Section 1.1 applies:
 - [ ] If an informational build/test was explicitly requested, failure cannot throw, abort, roll back source/project state, or reset transaction-owned Git history.
 - [ ] Every modified public WinForms `*.Designer.cs` type part is explicitly declared `public partial class` when its corresponding logical type is public.
 - [ ] `Window.CloseAllDocuments` is never executed while any transaction-owned mutation, VCmd, Git, stabilization, editor-restoration, or transaction-log work remains.
-- [ ] After the transaction log has been finalized with its terminal raw Git-status block(s), the script waits 1.5 seconds, executes `Window.CloseAllDocuments`, waits another 1.5 seconds, and dot-sources `C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1` exactly as supplied.
+- [ ] After the transaction log has been finalized with its terminal raw Git-status block(s), the script waits 1.5 seconds; calls `Window.CloseAllDocuments` only when `$dte.Documents.Count -gt 0`; treats close failure as warning-only; applies the second bounded wait only after an attempted close; and always dot-sources `C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1` exactly as supplied after normal transaction completion.
 - [ ] No Change Transaction Script operation occurs after the `buildTwiceThenCommit.ps1` dot-source statement returns.
 
 ---
@@ -2329,8 +2403,12 @@ After writing the final GUID-named `.ps1` file, reopen **that exact file** and a
 56. verify boundary creation/removal and no-op cleanup preserve arbitrary default-index/work-tree state and do not depend on repository cleanliness.
 57. verify remote synchronization is opportunistic: dirty local state may defer pull/rebase/reconciliation, but cannot invalidate proven local transaction completion; safe push/fetch operations are not suppressed merely because unrelated dirt exists.
 58. verify `Window.CloseAllDocuments` appears only in the mandatory post-transaction terminal handoff and cannot execute until all transaction-owned source/project/VCmd/Git/stabilization/editor-restoration work and terminal raw-status logging have completed.
-59. verify the terminal handoff uses the standard sequence `Start-Sleep -Milliseconds 1500`, `$dte.ExecuteCommand('Window.CloseAllDocuments')`, message-pump/bounded 1500-ms pause, then exact dot-sourcing of `. "C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1"` with no arguments.
+59. verify the terminal handoff waits 1.5 seconds, checks `$dte.Documents.Count`, never invokes `Window.CloseAllDocuments` when the count is zero, attempts it best-effort only when the count is greater than zero, treats failure as warning-only, performs the second bounded 1.5-second wait only after an attempted close, and then exactly dot-sources `. "C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1"` with no arguments regardless of close outcome.
 60. verify the transaction log is already finalized before the terminal handoff and the Change Transaction Script performs no `File.SaveAll`, DTE, ReSharper, VCmd, Git, status, cleanup, log, or success-output operation after the external script returns.
+61. verify every intentional empty collection passed to a mandatory typed collection parameter is binder-safe under Windows PowerShell 5.1, especially transaction-boundary calls such as `-RelativePaths @()`.
+62. verify clean/empty native output and terminal raw-status splitting cannot pass an empty string into a mandatory non-empty logging parameter.
+63. verify the exact delivered native-process helper starts concurrent stdout/stderr drains before a bounded wait and contains no sequential synchronous stdout-then-stderr `ReadToEnd()` deadlock pattern.
+64. verify the detailed transaction-log basename is derived from the actual delivered GUID `.ps1` path across any child scope and cannot collapse to a leading-underscore timestamp-only name.
 
 Only after both passes succeed should the artifact be delivered.
 
@@ -2356,6 +2434,6 @@ Only after both passes succeed should the artifact be delivered.
 >
 > Git-recovery-only transactions remain intentionally short: `File.SaveAll`, identify authorized recovery paths, capture them with transaction-private/path-isolated Git state, use direct fresh-status recapture, and prove the resulting commits. They do not mutate source, create new boundaries, change ReSharper state, invoke VCmd, or run artificial content-stability waits merely because the repository is dirty.
 >
-> Every normally completing Change Transaction Script has one final post-transaction handoff after its own terminal raw-Git-status log is finalized: wait 1.5 seconds, execute `Window.CloseAllDocuments`, wait another 1.5 seconds, then dot-source `C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1` exactly as supplied. `Window.CloseAllDocuments` is forbidden before that point. After the external script returns, the Change Transaction Script performs no further work.
+> Every normally completing Change Transaction Script has one final post-transaction handoff after its own terminal raw-Git-status log is finalized: wait 1.5 seconds; inspect `$dte.Documents.Count`; when the count is greater than zero, attempt `Window.CloseAllDocuments` best-effort, pump messages, and wait another bounded 1.5 seconds; when the count is zero, do not invoke the close command; then dot-source `C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1` exactly as supplied regardless of close outcome. `Window.CloseAllDocuments` is forbidden before that point, and close failure never blocks the handoff. After the external script returns, the Change Transaction Script performs no further work.
 >
 > Across all modes, preserve maintainer-authored source, use fresh GUID-named downloadable artifacts, never nest exception blocks, leave unrelated local Git state alone, and print `*** SUCCESS ***` only after the transaction-owned end-state proof is observable.
