@@ -1,12 +1,34 @@
 # The xyLOGIX Software Engineering Manifesto
-Revision: W
-Last Updated: 15 September 2026
+Revision: X
+Last Updated: 17 September 2026
 
 This document outlines the software-development hills we'll die on, here at xyLOGIX.
 
 By Brian C. Hart, Ph.D.
 
 Copyright ?? 2026 by xyLOGIX, LLC.  All rights reserved.
+
+## Revision X Scope
+
+Revision X preserves all architectural, documentation, source-control, validation, logging, concurrency, implementation, user-interface, result-variable, exception-inheritance, maintainer-source-authority, Windows Forms source-family, and engineering-judgment guidance consolidated through Revision W and standardizes the xyLOGIX design and implementation contract for **Windows Forms dialog boxes**.
+
+Every reusable xyLOGIX dialog box ordinarily exposes a dedicated, narrowly-scoped C# interface whose name corresponds to the dialog and whose concrete `Form` implements that interface directly.  When the module uses the xyLOGIX `IForm` abstraction, the dialog interface derives from `IForm`.  Dialog clients should consume the interface rather than the concrete `Form` wherever the required operation can be expressed through that contract.  A repository-specific or maintainer-directed exception may deliberately omit such an interface, but that exception is local and does not weaken the general rule.
+
+A dialog interface exposes the semantic state and operations that callers need.  Input/output values should be represented by meaningfully named properties such as `EventHandlerMethodName`, `ButtonText`, `ButtonVisible`, or `ButtonFlatStyle`.  When the same value is supplied to initialize the dialog and later edited by the user, the interface property should normally expose both a getter and setter so initialization and retrieval use one contract.  A View interface may expose `System.Windows.Forms` control references when a UI-layer caller or Presenter genuinely needs a particular control for focus, selection, or another presentation concern; this is an accepted UI-layer exception to the normal preference for framework-agnostic interfaces.  Do not expose controls merely for convenience, and do not let business-policy code depend on those controls.
+
+Windows Forms control fields are an explicit exception to the ordinary xyLOGIX private-field naming convention.  Ordinary private fields continue to use a leading underscore when that is the repository convention, but **fields that reference Windows Forms controls never use a leading underscore**.  Control fields use lower camel case and a meaningful control-type suffix, such as `eventHandlerMethodNameTextBox`, `eventsToHandleCheckedListBox`, `buttonTextTextBox`, `buttonVisibleCheckBox`, `flatStyleComboBox`, `okayButton`, and `cancelButton`.
+
+Standard modal dialog buttons use WinForms `DialogResult`, `AcceptButton`, and `CancelButton` semantics instead of redundant Click handlers whose only job is to close the Form.  An OK/affirmative button normally has `DialogResult.OK`; a Cancel or Close button that abandons the operation normally has `DialogResult.Cancel`.  Cancellation is not a validation failure.  If the user dismisses the dialog through the Cancel path, close validation returns success immediately and leaves the underlying application state unchanged unless the dialog's documented contract explicitly says otherwise.
+
+Dialogs that must validate user input before closing centralize that decision in a `CanClose()`-style method and invoke it from `OnFormClosing(...)`.  The `OnFormClosing(...)` override calls the base implementation and cancels the close when validation reports failure.  Validate controls in dependency order so the user is first told about the prerequisite that must be corrected.  On failure, show an owner-parented stop-error message using the current dialog as owner, keep the dialog open, and transfer input focus to the control the user must correct.  The validation method follows the ordinary xyLOGIX `result`-variable discipline and treats Cancel as an eager-success gate.
+
+Never assign `ActiveControl`, call `Focus()`, or otherwise attempt to activate a child control from `InitializeComponent()` merely to establish initial input focus.  `InitializeComponent()` is Designer-owned construction/layout code and may run before a control is in a displayable state.  Establish initial focus from `OnShown(...)` or another lifecycle point at which the Form is visible, and defensively verify that the target control is neither `null` nor disposed and, when required for activation, is enabled.  Focus-recovery helpers used after a validation failure follow the same rule.
+
+When a dialog dynamically enables or disables one control based on the state of another, keep that behavior in the View layer and update it on the UI thread.  A direct control event is preferred when it cleanly represents the state transition.  `Application.Idle` may be used for command-UI-style refresh when that is the established dialog pattern, but every subscription to the static `Application.Idle` event must be detached deterministically when the Form closes or is disposed so the dialog cannot be kept alive accidentally.
+
+Dialog initialization must not repeatedly enumerate an arbitrary `IEnumerable<T>` merely to test emptiness and then populate controls.  If one pass is sufficient, enumerate once.  If repeated access, stable cardinality, or index-based lookup is genuinely required, materialize one deliberate snapshot and reuse it.  Conversely, dialog methods that naturally expose a sequence, such as enumerating checked event names, should remain iterator blocks with `yield return`/`yield break` when laziness is the correct contract.
+
+These dialog-specific rules supplement Revision W's mandatory `.cs`/`.Designer.cs`/`.resx` Form source-family integrity.  The interface is a separate top-level source file; it does not replace any member of the Form triplet, and it does not move Designer-owned control construction, layout, resource serialization, or disposal infrastructure into the hand-authored Form source.
 
 ## Revision W Scope
 
@@ -2739,7 +2761,7 @@ Prefer auto-properties.  Introduce a backing field only when:
 - A read-only property caches an expensive or stable value.
 - The current design requires additional state that cannot be expressed cleanly by an auto-property.
 
-Place a backing field before the property it supports.  Prefix private fields with an underscore when that is the repository convention.
+Place a backing field before the property it supports.  Prefix private fields with an underscore when that is the repository convention.  Windows Forms control fields are the deliberate exception: control fields never use a leading underscore and instead use lower camel case with a meaningful control-type suffix.
 
 Decorate every getter and setter at accessor level with `[DebuggerStepThrough]`.  Add `using System.Diagnostics;` when required.  Do not add `[return: NotLogged]` to property getters; PostSharp global aspects already suppress accessor logging.
 
@@ -3030,13 +3052,29 @@ Every xyLOGIX Windows Forms `Form` has the standard `newxylogix.ICO` artwork ass
 
 Follow the ordinary Windows Forms Designer representation demonstrated by established xyLOGIX Forms: serialize the icon into `MyForm.resx` under the `$this.Icon` resource name, create/use a `System.ComponentModel.ComponentResourceManager` in `InitializeComponent()`, and assign the Form's `Icon` property from `resources.GetObject("$this.Icon")`.  Do not move this Designer-owned assignment into the hand-authored constructor merely to avoid the `.resx`/Designer relationship.
 
+### Dialog contracts and lifecycle
+
+Every reusable modal or secondary dialog should ordinarily have a dedicated View interface, such as `ICreateEventHandlerDialog` or `IWizardButtonSettingsDialog`.  The concrete dialog implements that interface directly, and the interface derives from `IForm` when `IForm` is the established module-level Form abstraction.  Callers receive or pass the interface whenever the required API permits it; crossing a WinForms API boundary that explicitly requires a concrete `Form` or another framework type is a legitimate boundary exception.
+
+The dialog interface exposes semantic values and only those control references that are genuinely part of the UI-layer interaction contract.  Prefer semantic properties over having callers reach through controls to obtain text, check states, enum selections, or visibility choices.  When a property represents an editable dialog value, expose both getter and setter when callers legitimately need to seed and later retrieve that value.  Keep control exposure properties in the hand-authored Form source and interface, never in `.Designer.cs`.
+
+Use the standard modal button model.  Configure affirmative and cancellation buttons with `DialogResult`, and set the Form's `AcceptButton` and `CancelButton` properties as appropriate.  Do not add a redundant Click handler simply to set `DialogResult` and close the Form.  Validation belongs at the close boundary rather than in an OK-button Click handler so that all affirmative close paths pass through one validation contract.
+
+When validation is required, place the decision in a focused `CanClose()`-style method and call it from `OnFormClosing(...)`.  A cancellation path returns success without validating editable values.  An affirmative close validates each prerequisite independently and in dependency order.  If validation fails, show an owner-parented stop-error message, keep the Form open, and restore focus to the control that needs correction.
+
+Initial focus and focus recovery occur only after the relevant control is capable of being activated.  Never set `ActiveControl` or call `Focus()` from `InitializeComponent()` merely to choose the starting control.  Use `OnShown(...)` for initial focus and guard focus-transfer helpers against `null`, disposed, and disabled controls.
+
+If command-UI state is refreshed through `Application.Idle`, subscribe deliberately and detach deterministically when the Form closes or is disposed.  Static-event subscriptions must never extend a dialog's lifetime after dismissal.  Prefer direct control events when they express the dependency cleanly and avoid unnecessary polling.
+
+Dialog code remains UI-thread-affine.  Do not introduce parallelism or `async`/`await` merely to manipulate control state.  Background or asynchronous work is justified only for a real external or long-running enabler and must marshal resulting presentation changes back to the dialog's UI thread.
+
 ### Fixed dialogs
 
 Do not add a `MenuStrip`, `ToolStrip`, or `StatusStrip` to a form whose `FormBorderStyle` is `FixedDialog`.
 
 ### Control naming
 
-Name designer fields in camelCase with a mandatory control-type suffix, such as `saveButton`, `projectComboBox`, `optionsTabControl`, `generalTabPage`, and `cloneNameTextBox`.  Button names include both the action and object; avoid vague names such as `addButton` when `addTextEditorButton` is possible.
+Name Designer control fields in lower camel case with a mandatory control-type suffix, such as `saveButton`, `projectComboBox`, `optionsTabControl`, `generalTabPage`, and `cloneNameTextBox`.  Windows Forms control fields never use the ordinary xyLOGIX leading-underscore field convention; use `eventHandlerMethodNameTextBox`, not `_eventHandlerMethodNameTextBox`.  Button names include both the action and object when that distinction is useful; avoid vague names such as `addButton` when `addTextEditorButton` is possible.
 
 ### Button sizing and text
 
@@ -3261,6 +3299,28 @@ Before considering a source change complete, verify the following:
 50. Windows Forms controls and forms access thread-affine presentation state only on their creating UI thread; background workers manipulate UI-independent state and marshal presentation requests through supported WinForms mechanisms.
 51. Temporary diagnostic amplification used for active fault isolation is bounded to the smallest useful subsystem, records decisive state rather than unlimited payloads, and is explicitly reduced or removed after the defect is localized and the fix is demonstrated.
 52. Every concrete Windows Forms `Form` is represented by its `.cs`/`.Designer.cs`/`.resx` source-family triplet, Designer-owned initialization/layout code is kept out of the hand-authored Form file, and the Form's `Icon` is the standard `newxylogix.ICO` artwork even when icon/taskbar display is disabled.
+53. Every reusable dialog box ordinarily implements a dedicated narrow interface, and that interface derives from `IForm` when `IForm` is the established module-level Form abstraction.
+54. Dialog interfaces expose semantic values needed by callers; editable input/output values use getter/setter properties when callers seed and later retrieve the same value, and WinForms control references are exposed only for legitimate UI-layer interaction.
+55. Windows Forms control fields use lower camel case plus a meaningful control-type suffix and never use a leading underscore, while ordinary private non-control fields continue to follow the repository's underscore convention.
+56. Standard modal OK/Cancel/Close buttons use `DialogResult`, `AcceptButton`, and `CancelButton` semantics without redundant close-only Click handlers; cancellation bypasses affirmative validation.
+57. Dialog close validation is centralized at the close boundary, validation failures use owner-parented stop-error feedback and focus recovery, and initial/control focus is never forced from `InitializeComponent()`.
+58. Static UI-lifecycle subscriptions such as `Application.Idle` are detached deterministically, arbitrary `IEnumerable<T>` inputs are not repeatedly enumerated without justification, and dialog control state remains UI-thread-owned.
+
+## Revision X Consolidation Summary
+
+Revision X preserves the engineering rules consolidated through Revision W and standardizes the reusable xyLOGIX Windows Forms dialog-box pattern:
+
+- Reusable dialog boxes ordinarily expose a dedicated narrow View interface and implement it directly; when the module uses `IForm`, the dialog interface derives from `IForm`.
+- Dialog interfaces prefer semantic properties for the values callers seed and retrieve, while exposing concrete WinForms controls only when a legitimate UI-layer focus/selection/presentation concern requires them.
+- Windows Forms control fields are lower-camel-case names with control-type suffixes and never carry the leading underscore used by ordinary private fields.
+- Standard OK/Cancel/Close buttons rely on `DialogResult`, `AcceptButton`, and `CancelButton` semantics rather than redundant close-only Click handlers.
+- Validation occurs at the Form-closing boundary through a `CanClose()`-style decision; Cancel bypasses affirmative validation, while invalid affirmative input produces an owner-parented stop-error message and focus recovery without closing the dialog.
+- `InitializeComponent()` never forces focus or assigns an active child control merely to establish initial input; initial focus occurs from `OnShown(...)` or another lifecycle point where activation is valid.
+- Dynamic command-UI state remains on the UI thread; static `Application.Idle` subscriptions, when used, are detached deterministically so dismissed dialogs are not retained.
+- Arbitrary `IEnumerable<T>` dialog inputs are not repeatedly enumerated without justification, and natural sequence-returning APIs remain iterators when lazy enumeration is the appropriate contract.
+- Revision W's `.cs`/`.Designer.cs`/`.resx` Form source-family triplet remains mandatory; the dialog interface is an additional top-level source file and never replaces Designer-owned source or resources.
+
+These rules make dialog code consistent at the contract, naming, validation, focus, lifetime, and data-enumeration boundaries while preserving normal WinForms Designer ownership and the xyLOGIX preference for coding to abstractions.
 
 ## Revision W Consolidation Summary
 
