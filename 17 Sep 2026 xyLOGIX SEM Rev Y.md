@@ -1,5 +1,5 @@
 # The xyLOGIX Software Engineering Manifesto
-Revision: X
+Revision: Y
 Last Updated: 17 September 2026
 
 This document outlines the software-development hills we'll die on, here at xyLOGIX.
@@ -7,6 +7,18 @@ This document outlines the software-development hills we'll die on, here at xyLO
 By Brian C. Hart, Ph.D.
 
 Copyright ?? 2026 by xyLOGIX, LLC.  All rights reserved.
+
+## Revision Y Scope
+
+Revision Y preserves all architectural, documentation, source-control, validation, logging, concurrency, implementation, user-interface, result-variable, exception-inheritance, maintainer-source-authority, Windows Forms source-family, dialog-contract, and engineering-judgment guidance consolidated through Revision X and refines the xyLOGIX Windows Forms dialog-box standard in response to maintainer-reviewed implementation experience.
+
+Every `System.Windows.Forms.Button` placed on a xyLOGIX dialog box uses the standard size **87 x 26 pixels** unless a documented product-specific constraint makes that size impossible.  Preserve deliberate manual alignment when updating an existing dialog; a size normalization is not permission to casually disturb the maintainer's current layout.
+
+Every dialog box sets `ShowIcon = false`.  This display rule does not remove the Revision W identity-artwork requirement: the Form still owns the standard `newxylogix.ICO` icon through the ordinary `$this.Icon` Designer-resource serialization, but dialog chrome does not display that icon.
+
+Revision Y expressly supersedes Revision X's overly broad single-pass wording for dialog `IEnumerable<T>` inputs.  A shift-left `Enumerable.Any()` emptiness gate is allowed, and is often desirable for diagnostics and explicit no-work rejection, even when the same repeatable sequence is subsequently enumerated to populate controls.  `Any()` need inspect at most the first element to establish non-emptiness, so do not remove such a gate merely to force a single enumeration.  This permission is not a blanket license for arbitrary repeated enumeration: when the source is known to be single-pass, stateful, side-effectful, volatile, or expensive to restart, use engineering judgment and either preserve one-pass semantics or materialize one deliberate stable snapshot when the contract requires it.
+
+Revision Y also records the maintainer-reviewed `CreateEventHandlerDialog` decisions that establish the intended dialog pattern.  First, `TryPopulateCurrentEventName(...)` must return its controlled `result` value rather than ending in an unconditional primitive `false` return.  Second, the attempted removal of the `Any()` emptiness gates is vetoed; those gates are retained under the rule above.  Third, `InitializeValues(...)` may and should honor the Boolean result of `TryPopulateEventsToHandleCheckedListBox(...)` and stop immediately when population reports failure, even though later control-count gates provide additional defensive detection.  Fourth, the `Application.Idle` subscription used by the dialog is paired with deterministic unsubscription when the Form closes so the static event cannot retain the dismissed dialog.
 
 ## Revision X Scope
 
@@ -3052,6 +3064,8 @@ Every xyLOGIX Windows Forms `Form` has the standard `newxylogix.ICO` artwork ass
 
 Follow the ordinary Windows Forms Designer representation demonstrated by established xyLOGIX Forms: serialize the icon into `MyForm.resx` under the `$this.Icon` resource name, create/use a `System.ComponentModel.ComponentResourceManager` in `InitializeComponent()`, and assign the Form's `Icon` property from `resources.GetObject("$this.Icon")`.  Do not move this Designer-owned assignment into the hand-authored constructor merely to avoid the `.resx`/Designer relationship.
 
+Dialog boxes always set `ShowIcon = false`.  The `Icon` resource remains assigned for Form identity and consistency even though the dialog's caption bar does not display it.
+
 ### Dialog contracts and lifecycle
 
 Every reusable modal or secondary dialog should ordinarily have a dedicated View interface, such as `ICreateEventHandlerDialog` or `IWizardButtonSettingsDialog`.  The concrete dialog implements that interface directly, and the interface derives from `IForm` when `IForm` is the established module-level Form abstraction.  Callers receive or pass the interface whenever the required API permits it; crossing a WinForms API boundary that explicitly requires a concrete `Form` or another framework type is a legitimate boundary exception.
@@ -3066,6 +3080,8 @@ Initial focus and focus recovery occur only after the relevant control is capabl
 
 If command-UI state is refreshed through `Application.Idle`, subscribe deliberately and detach deterministically when the Form closes or is disposed.  Static-event subscriptions must never extend a dialog's lifetime after dismissal.  Prefer direct control events when they express the dependency cleanly and avoid unnecessary polling.
 
+For a repeatable `IEnumerable<T>` supplied to a dialog, a shift-left `Any()` gate may be used to reject an empty sequence before later population.  Do not remove such a gate merely because the population path will subsequently enumerate the same sequence.  If the enumerable is single-pass, stateful, side-effectful, volatile, or expensive to restart, choose one-pass processing or one deliberate snapshot instead.
+
 Dialog code remains UI-thread-affine.  Do not introduce parallelism or `async`/`await` merely to manipulate control state.  Background or asynchronous work is justified only for a real external or long-running enabler and must marshal resulting presentation changes back to the dialog's UI thread.
 
 ### Fixed dialogs
@@ -3078,7 +3094,7 @@ Name Designer control fields in lower camel case with a mandatory control-type s
 
 ### Button sizing and text
 
-Standard push buttons are normally `87 x 27` pixels.  Forms use Segoe UI 9-point and `AutoScaleMode.Dpi` unless the existing product deliberately establishes another standard.
+Standard push buttons on dialog boxes are `87 x 26` pixels.  Forms use Segoe UI 9-point and `AutoScaleMode.Dpi` unless the existing product deliberately establishes another standard.
 
 Use the established captions and mnemonic placement for OK, Cancel, Apply, Next, Browse, Add, Edit, Remove, Remove All, and Close buttons.  OK and Cancel buttons normally rely on `DialogResult` and should not receive redundant Click handlers.  Property-sheet Apply buttons and operational buttons do receive handlers.
 
@@ -3298,13 +3314,28 @@ Before considering a source change complete, verify the following:
 49. Raw Win32/P/Invoke declarations, native structs/constants, SafeHandle implementations, and closely related native lifetime ownership reside below domain/application code in an appropriate `.Win32` module when a meaningful native boundary exists.
 50. Windows Forms controls and forms access thread-affine presentation state only on their creating UI thread; background workers manipulate UI-independent state and marshal presentation requests through supported WinForms mechanisms.
 51. Temporary diagnostic amplification used for active fault isolation is bounded to the smallest useful subsystem, records decisive state rather than unlimited payloads, and is explicitly reduced or removed after the defect is localized and the fix is demonstrated.
-52. Every concrete Windows Forms `Form` is represented by its `.cs`/`.Designer.cs`/`.resx` source-family triplet, Designer-owned initialization/layout code is kept out of the hand-authored Form file, and the Form's `Icon` is the standard `newxylogix.ICO` artwork even when icon/taskbar display is disabled.
+52. Every concrete Windows Forms `Form` is represented by its `.cs`/`.Designer.cs`/`.resx` source-family triplet, Designer-owned initialization/layout code is kept out of the hand-authored Form file, and the Form's `Icon` is the standard `newxylogix.ICO` artwork even when icon/taskbar display is disabled; every dialog box also has `ShowIcon = false`.
 53. Every reusable dialog box ordinarily implements a dedicated narrow interface, and that interface derives from `IForm` when `IForm` is the established module-level Form abstraction.
 54. Dialog interfaces expose semantic values needed by callers; editable input/output values use getter/setter properties when callers seed and later retrieve the same value, and WinForms control references are exposed only for legitimate UI-layer interaction.
 55. Windows Forms control fields use lower camel case plus a meaningful control-type suffix and never use a leading underscore, while ordinary private non-control fields continue to follow the repository's underscore convention.
 56. Standard modal OK/Cancel/Close buttons use `DialogResult`, `AcceptButton`, and `CancelButton` semantics without redundant close-only Click handlers; cancellation bypasses affirmative validation.
 57. Dialog close validation is centralized at the close boundary, validation failures use owner-parented stop-error feedback and focus recovery, and initial/control focus is never forced from `InitializeComponent()`.
-58. Static UI-lifecycle subscriptions such as `Application.Idle` are detached deterministically, arbitrary `IEnumerable<T>` inputs are not repeatedly enumerated without justification, and dialog control state remains UI-thread-owned.
+58. Static UI-lifecycle subscriptions such as `Application.Idle` are detached deterministically, an `Any()` emptiness gate may precede later enumeration of a repeatable `IEnumerable<T>` when that shift-left gate is useful, and dialog control state remains UI-thread-owned.
+59. Every standard dialog-box `Button` is `87 x 26` pixels unless a documented product-specific constraint requires otherwise, and normalization preserves deliberate maintainer-authored alignment.
+
+## Revision Y Consolidation Summary
+
+Revision Y preserves the engineering rules consolidated through Revision X and refines the reusable xyLOGIX Windows Forms dialog-box pattern:
+
+- Standard dialog-box `Button` controls are `87 x 26` pixels, while deliberate maintainer-authored control alignment is preserved.
+- Dialogs retain the standard `newxylogix.ICO` Form identity resource but always set `ShowIcon = false`.
+- A repeatable `IEnumerable<T>` may be gated with `Any()` before a later full enumeration; do not remove the gate merely to enforce one-pass enumeration.
+- `CreateEventHandlerDialog.TryPopulateCurrentEventName(...)` returns its controlled `result` value rather than an unconditional primitive failure value.
+- `CreateEventHandlerDialog.InitializeValues(...)` honors a failed population result immediately while retaining downstream defensive gates.
+- `CreateEventHandlerDialog` deterministically removes its `Application.Idle` subscription when the Form closes.
+- Revision X's interface, semantic-property, control-field naming, modal-button, close-validation, focus-lifecycle, source-family, and UI-thread-affinity rules remain in force.
+
+These refinements preserve the maintainer-reviewed dialog implementation as the governing xyLOGIX pattern while keeping sequence handling explicit, lifecycle cleanup deterministic, and visual presentation consistent.
 
 ## Revision X Consolidation Summary
 
