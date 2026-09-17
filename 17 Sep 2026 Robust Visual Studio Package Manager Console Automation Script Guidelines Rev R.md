@@ -1,12 +1,13 @@
 # Robust Visual Studio Package Manager Console Automation Script Guidelines
 
-Revision: Q
-Last Updated: 15 September 2026
+Revision: R
+Last Updated: 17 September 2026
 
 ## Changelog
 
-Revision Q is the current controlling revision and supersedes Revision P where this document differs. Revision Q hardens the Windows PowerShell 5.1 transaction contract after a live PMC binder failure: intentionally empty collection arguments must be explicitly accepted with `[AllowEmptyCollection()]` (or avoided), empty raw-status split artifacts must never be passed into a mandatory non-empty string parameter, delivered-script identity must be captured from the actual `.ps1` invocation even when the transaction body runs in a child scope, and the exact delivered native-process wrapper must concurrently drain redirected stdout/stderr with bounded waits rather than merely describing that requirement. Revision Q also corrects the mandatory terminal handoff: after all transaction work and log finalization, wait 1.5 seconds, attempt `Window.CloseAllDocuments` only when `$dte.Documents.Count -gt 0`, treat any close failure as warning-only, wait another 1.5 seconds when the close was attempted, and always dot-source `C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1` after a normally completed transaction. Finally, Revision Q codifies the current xyLOGIX diagnostic-spacing rule for any post-VCmd presentation repair: preserve a blank physical line after a complete `Debug.WriteLine(...)` when execution continues with another statement, but never insert a blank line when the next source line is the closing brace `}`.
+Revision R is the current controlling revision and supersedes Revision Q where this document differs. Revision R updates the Visual Commander automation contract to the supplied Strip Line Breaks from All Comments configuration schema version 3. Source-mutating Change Transaction Scripts that run the VCmd cleanup pass must explicitly set `SuppressPrompts = true`, `EnableGitAwareness = false`, `EnableCodeMaidAndReSharperCleanup = true`, and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed = false`. This keeps the invocation noninteractive, enables the intended CodeMaid/ReSharper cleanup phase, and leaves all Git ownership with the Change Transaction Script. Revision R also records the command's new post-cleanup source-format verification pass: after cleanup, VCmd re-verifies/reapplies comment line-break formatting before it returns. This internal second formatting pass does not replace the transaction's existing adaptive post-VCmd startup/drain and content-quiescence barrier, because delayed IDE/ReSharper/project-system writes can still occur after the DTE command returns.
 
+- **Revision Q.** Hardened the Windows PowerShell 5.1 transaction contract after a live PMC binder failure, including binder-safe intentional empty collections/strings, actual delivered-script identity across child scope, concurrent bounded native stdout/stderr draining, corrected terminal handoff behavior, and the current `Debug.WriteLine(...)` diagnostic-spacing rule.
 - **Revision P.** Added mandatory Windows Forms source-family handling, standard `newxylogix.ICO` Form identity, workload-scaled two-stage VCmd convergence, and the initial mandatory post-transaction build/commit handoff.
 - **Revision O.** Replaced the former clean-work-tree/clean-index doctrine with an imposition model: a Change Transaction Script overlays its authorized changes onto whatever Git working-tree and index state already exists, never requires or manufactures repository cleanliness, never auto-commits unrelated preexisting dirt, never generates an `Assert-CleanIndex`-style gate, and uses a transaction-private Git index so unrelated staged work can remain untouched while transaction-owned commits are created.
 - **Revision N.** Added idempotent/nonfatal ReSharper state handling, fresh generated identity GUIDs, generation-time-known rename work items, bounded `.csproj` readiness before explicit `Solution.AddFromFile(..., false)`, and semantic before/after logging around potentially blocking DTE calls.
@@ -41,7 +42,7 @@ Typical use cases include:
 - performing project/Solution topology operations such as renames when the task genuinely requires them;
 - retrying a prior partially completed transaction without treating harmless source divergence, formatting changes, or an orphaned empty transaction boundary as a reason to fail;
 - recovering already-completed, already-settled source/project changes from a prior transaction whose Git capture did not occur or did not finish, by staging/committing/pushing the live dirty files without re-running source mutation, ReSharper suspension, VCmd cleanup, or artificial content-stability waits;
-- deriving the narrow VCmd-eligible C# processing set from the complete transaction-created changed-path set, supplying the one-run noninteractive/Git-disabled configuration for `VCmd.CCommandStripLineBreaksFromAllComments`, running that cleanup pass without modal prompts or VCmd-owned Git activity, and saving the IDE state before the script's own Git capture; and
+- deriving the narrow VCmd-eligible C# processing set from the complete transaction-created changed-path set, supplying the one-run noninteractive/Git-disabled/cleanup-enabled configuration for `VCmd.CCommandStripLineBreaksFromAllComments`, running that cleanup pass without modal prompts or VCmd-owned Git activity, and saving the IDE state before the script's own Git capture; and
 - staging, committing, synchronizing, and pushing transaction-owned work without allowing unrelated paths to hitchhike; and
 - after the Change Transaction Script has otherwise completed all of its own work and finalized its transaction log, performing the mandatory terminal handoff: pause 1.5 seconds; if `$dte.Documents.Count -gt 0`, make one best-effort `Window.CloseAllDocuments` attempt and treat failure as warning-only; after any attempted close, pause another 1.5 seconds; then dot-source `C:\Users\Brian Hart\source\repos\astrohart\scripts\PMC\buildTwiceThenCommit.ps1` exactly as supplied regardless of whether document closure succeeded.
 
@@ -699,6 +700,8 @@ The important observed contracts are:
 - VCmd considers a document user-visible only when the `Document` owns one or more `Document.Windows` entries; mere presence in `DTE.Documents` is not enough.
 - Its scope resolver checks user-visible open C# documents first. If any are found, they become the processing scope before selected-project or Solution-wide discovery is considered.
 - The command loads the JSON sidecar once per invocation and unconditionally resets the canonical file to constructor defaults in its final cleanup. Therefore a transaction must rewrite the automation sidecar immediately before **every** VCmd invocation and must never assume those values persist afterward.
+- Configuration schema version 3 adds `EnableCodeMaidAndReSharperCleanup` as the master gate for the cleanup phase. A normal source-mutating Change Transaction Script that invokes VCmd must set this property to `true` so CodeMaid/ReSharper cleanup runs noninteractively when `SuppressPrompts` is also `true`.
+- After CodeMaid/ReSharper cleanup completes, VCmd performs a second source-format verification pass over the processing scope and strips any eligible comment line breaks that cleanup reintroduced. This verification pass does not invoke CodeMaid/ReSharper a second time and does not eliminate the transaction-owned post-VCmd convergence barrier.
 - `AssemblyInfo.cs` receives cleanup-only handling: VCmd opens it as code, invokes `ReSharper.ReSharper_SilentCleanupCode` when available, pumps messages, then saves/closes the active document.
 - For remaining open documents, VCmd runs `CodeMaid.CleanupOpenCode`, then `ReSharper.ReSharper_SilentCleanupOpenFiles` when available, followed by `File.SaveAll`.
 - VCmd itself pumps Windows messages during synchronization/cleanup. The transaction still needs its own post-command convergence barrier because editor/ReSharper/project-system work can continue changing files after the command call returns.
@@ -763,9 +766,10 @@ After the opening pass:
 
 ```json
 {
-  "SchemaVersion": 2,
+  "SchemaVersion": 3,
   "SuppressPrompts": true,
   "EnableGitAwareness": false,
+  "EnableCodeMaidAndReSharperCleanup": true,
   "AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed": false
 }
 ```
@@ -776,11 +780,11 @@ After the opening pass:
 7. if VCmd is unavailable or throws, warn and preserve forward progress; and
 8. run `File.SaveAll` unconditionally.
 
-Because the sidecar disables both pre-formatting Git awareness and automatic post-processing check-in, the Change Transaction Script remains the sole Git owner. Open-document invocation policy also suppresses VCmd's pre-formatting Git-awareness path, but the sidecar remains mandatory defense-in-depth against VCmd-owned Git behavior.
+Because the sidecar enables CodeMaid/ReSharper cleanup while disabling both pre-formatting Git awareness and automatic post-processing check-in, the Change Transaction Script gets the intended cleanup pass while remaining the sole Git owner. Open-document invocation policy also suppresses VCmd's pre-formatting Git-awareness path, but the sidecar remains mandatory defense-in-depth against VCmd-owned Git behavior.
 
 ### Mandatory adaptive post-VCmd cleanup-convergence barrier
 
-The return of `$dte.ExecuteCommand('VCmd.CCommandStripLineBreaksFromAllComments')` is **not** proof that every CodeMaid/ReSharper/project-system write has finished. VCmd itself invokes `ReSharper.ReSharper_SilentCleanupCode` for `AssemblyInfo.cs` and `ReSharper.ReSharper_SilentCleanupOpenFiles` for remaining open documents, and downstream IDE work can continue rewriting one or more paths after the VCmd command call returns.
+VCmd performs its schema-version-3 post-cleanup source-format verification pass before returning, but the return of `$dte.ExecuteCommand('VCmd.CCommandStripLineBreaksFromAllComments')` is **not** proof that every CodeMaid/ReSharper/project-system write has finished. VCmd itself invokes `ReSharper.ReSharper_SilentCleanupCode` for `AssemblyInfo.cs` and `ReSharper.ReSharper_SilentCleanupOpenFiles` for remaining open documents, and downstream IDE work can continue rewriting one or more paths after the VCmd command call returns.
 
 Retain the exact pathnames that became observably user-visible in the opening round and use those paths as the cleanup-observation set even when VCmd closes an `AssemblyInfo.cs` document during its own processing.
 
@@ -1664,7 +1668,7 @@ A missing `using` directive in generated source is therefore a **generation-time
 
 ## 22. Ordered Git Commit Phase
 
-Change Transaction Scripts must reproduce the supplied Visual Commander/CreateStagedGitDiff work-item behavior for commit selection and ordering. The mandatory VCmd sidecar sets `EnableGitAwareness` and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed` to `false`, so VCmd performs formatting/cleanup only; it must not pull, stage, generate commit messages, commit, or push on behalf of the transaction. The Change Transaction Script remains the sole owner of Git synchronization and capture.
+Change Transaction Scripts must reproduce the supplied Visual Commander/CreateStagedGitDiff work-item behavior for commit selection and ordering. The mandatory VCmd sidecar sets `EnableCodeMaidAndReSharperCleanup` to `true` while setting `EnableGitAwareness` and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed` to `false`, so VCmd performs comment formatting plus CodeMaid/ReSharper cleanup without owning Git; it must not pull, stage, generate commit messages, commit, or push on behalf of the transaction. The Change Transaction Script remains the sole owner of Git synchronization and capture.
 
 The default for existing-source implementation work is **file-by-file granularity**, subject only to explicit selector/source-family/rename/topology exceptions. Architectural conceptual grouping by itself is not a reason to batch files.
 
@@ -2015,7 +2019,7 @@ Good examples:
 - Resolving the complete transaction-created changed-path set for Git, then deriving a separate VCmd set containing only ordinary hand-authored changed `.cs` files plus changed `AssemblyInfo.cs`.
 - Excluding `Global*.cs`, `*.Designer.cs`, generated C# source, project/scaffold metadata, resources, configuration, documentation, signing material, and binary artifacts from VCmd preparation.
 - Warning and continuing when one VCmd-eligible source file cannot be opened, while running cleanup against the eligible files that did open.
-- Writing the exact schema-version-2 noninteractive/Git-disabled VCmd sidecar immediately before invocation so the command cannot display its confirmation message box(es) or perform Git work.
+- Writing the exact schema-version-3 noninteractive/Git-disabled/cleanup-enabled VCmd sidecar immediately before invocation so the command cannot display its confirmation message box(es) or perform Git work.
 - Warning and skipping VCmd when its sidecar cannot be prepared, rather than invoking the command with default interactive/Git-aware behavior.
 - Warning and continuing when VCmd itself is unavailable, followed by the unconditional final `File.SaveAll`.
 - Checking document count before a close-all operation that is actually required.
@@ -2082,7 +2086,7 @@ When Section 1.1 applies:
 ### Phase 4 ??? resume ReSharper, run one VCmd pass, converge, and restore editor state
 
 1. Restore/transition ReSharper for cleanup idempotently and nonfatally.
-2. Rewrite the exact schema-version-2 noninteractive/Git-disabled VCmd sidecar immediately before invocation.
+2. Rewrite the exact schema-version-3 noninteractive/Git-disabled/cleanup-enabled VCmd sidecar immediately before invocation.
 3. Invoke argumentless `VCmd.CCommandStripLineBreaksFromAllComments` once when at least one intended file is observably user-visible and isolation/sidecar preparation succeeded.
 4. Observe the exact successfully opened pathname set with the mandatory two-stage post-VCmd convergence barrier: first complete the workload-scaled startup/drain interval during which quiet time cannot accrue, then prove the separate workload-scaled content-quiescence interval and final drain samples.
 5. Restore preexisting editor/ReSharper state, run final `File.SaveAll`, and refresh transaction-owned Git status.
@@ -2271,10 +2275,11 @@ When Section 1.1 applies:
 - [ ] Excluded changed paths remain part of the transaction/Git changed set and are not opened merely for VCmd.
 - [ ] Eligible WinForms primary `.cs` files are explicitly opened as source text; the transaction never activates the WinForms Designer for cleanup.
 - [ ] VCmd eligibility is determined mechanically from path/classification rules established during generation-time audit; runtime source contents are not parsed to decide eligibility.
-- [ ] Immediately before the single VCmd invocation, the script writes `%LOCALAPPDATA%\xyLOGIX, LLC\Visual Commander\Commands\Strip Line Breaks from All Comments\Config\.config.json` using schema `2` with `SuppressPrompts = true`, `EnableGitAwareness = false`, and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed = false`.
+- [ ] Immediately before the single VCmd invocation, the script writes `%LOCALAPPDATA%\xyLOGIX, LLC\Visual Commander\Commands\Strip Line Breaks from All Comments\Config\.config.json` using schema `3` with `SuppressPrompts = true`, `EnableGitAwareness = false`, `EnableCodeMaidAndReSharperCleanup = true`, and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed = false`.
+- [ ] The schema-version-3 cleanup gate is explicitly enabled: `EnableCodeMaidAndReSharperCleanup = true`; do not omit the property merely because its interactive default is currently `true`.
 - [ ] The script assumes VCmd loads that sidecar once and resets it to defaults at the end of the invocation; every invocation therefore rewrites the exact automation sidecar immediately beforehand.
 - [ ] The convergence observation set is pathname-based and retains successfully opened `AssemblyInfo.cs` paths even if VCmd closes those editor windows during its cleanup-only handling.
-- [ ] VCmd behavioral assumptions match the supplied source: `AssemblyInfo.cs` uses `ReSharper.ReSharper_SilentCleanupCode`; remaining open documents use `CodeMaid.CleanupOpenCode`, `ReSharper.ReSharper_SilentCleanupOpenFiles`, and `File.SaveAll`.
+- [ ] VCmd behavioral assumptions match the supplied source/configuration contract: `AssemblyInfo.cs` uses `ReSharper.ReSharper_SilentCleanupCode`; remaining open documents use `CodeMaid.CleanupOpenCode`, `ReSharper.ReSharper_SilentCleanupOpenFiles`, and `File.SaveAll`; then VCmd performs one post-cleanup source-format verification pass that can strip comment line breaks reintroduced by cleanup without invoking CodeMaid/ReSharper again.
 - [ ] VCmd is never invoked when that sidecar preparation fails; the failure is warning-only, VCmd is skipped, and final `File.SaveAll`/script-owned Git capture continue.
 - [ ] `VCmd.CCommandStripLineBreaksFromAllComments` is invoked without command arguments; no `NoPrompt` argument or equivalent is used.
 - [ ] The VCmd sidecar disables all VCmd-owned Git behavior so the Change Transaction Script remains solely responsible for synchronization, staging, custom commit-message generation, commits, and push.
@@ -2331,7 +2336,7 @@ Audit the planned transaction against the current authoritative workspace and cu
 - the post-VCmd convergence barrier prevents Git capture until repeated content fingerprints of the exact VCmd-opened file set prove that downstream background `ReSharper_SilentCleanupCode`/IDE rewriting has remained quiet for the **adaptive current interval derived from the actual opened-file count** and through the final save/resample cycle;
 - the Git design proves each commit by observing the `HEAD` transition/SHA from Git and contains a bounded post-capture/post-push fixed-point loop that cannot print success while transaction-owned dirt remains;
 - if the requested artifact is Git-recovery-only, the design explicitly bypasses source payload mutation, new boundary creation, ReSharper suspension/resumption, VCmd, adaptive content-fingerprint waits, and initial pull/rebase while the authorized recovery work tree is dirty; it uses direct status recapture after `File.SaveAll`, capture, and push instead;
-- the complete changed-path set and narrower VCmd-eligible C# set are distinguished correctly; VCmd eligibility includes `AssemblyInfo.cs`, excludes generated/fixed-format/non-C# artifacts, and editor-opening/VCmd cleanup remains best-effort and unable to erase source progress, while the single VCmd invocation is preceded by the exact noninteractive/Git-disabled one-run sidecar so no modal prompt or VCmd-owned Git workflow can occur;
+- the complete changed-path set and narrower VCmd-eligible C# set are distinguished correctly; VCmd eligibility includes `AssemblyInfo.cs`, excludes generated/fixed-format/non-C# artifacts, and editor-opening/VCmd cleanup remains best-effort and unable to erase source progress, while the single VCmd invocation is preceded by the exact schema-version-3 noninteractive/Git-disabled/cleanup-enabled one-run sidecar so CodeMaid/ReSharper cleanup runs without modal prompts and no VCmd-owned Git workflow can occur;
 - Git synchronization respects actual upstream state; and
 - unrelated dirty/staged paths, regardless of when they appeared, cannot hitchhike or be reset/committed by the transaction;
 - visible editor-tab behavior and VCmd scope isolation match the supplied VCmd source: only documents with `Document.Windows.Count > 0` are considered user-visible, open C# documents take scope precedence, and unrelated preexisting visible C# documents are temporarily isolated/restored;
@@ -2361,12 +2366,12 @@ After writing the final GUID-named `.ps1` file, reopen **that exact file** and a
 14. verify new projects/references/source memberships use DTE/project-system operations rather than hand-authored `.sln`/`ProjectReference` topology, and no junction-canonicalized absolute path is persisted;
 15. verify the script maintains a transaction-wide eligible-path registry and performs exactly one paced source-file opening pass after all mutations; verify `AssemblyInfo.cs` is included and `Global*.cs`, `*.Designer.cs`, generated/derived C# source, and all non-C# artifacts are excluded;
 16. verify the idempotent ReSharper state transition required for cleanup occurs after that opening pass and before VCmd, with bounded wait/message pumping after successful transitions and restoration of a preexisting suspended state afterward when applicable;
-17. verify the single VCmd invocation is immediately preceded by a write to the canonical `.config.json` path with **exactly** schema `2`, `SuppressPrompts: true`, `EnableGitAwareness: false`, and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed: false`;
+17. verify the single VCmd invocation is immediately preceded by a write to the canonical `.config.json` path with **exactly** schema `3`, `SuppressPrompts: true`, `EnableGitAwareness: false`, `EnableCodeMaidAndReSharperCleanup: true`, and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed: false`;
 18. verify the script skips VCmd rather than invoking it when sidecar preparation fails, and verify the VCmd call is argumentless (no `NoPrompt` or other command argument);
 19. verify VCmd cannot perform Git synchronization/check-in/push and therefore cannot compete with the script's own custom commit-message/staging workflow;
 20. verify eligible-file editor-open failure, sidecar-preparation failure, and VCmd failure are warning-only, excluded files are never opened merely for VCmd, and the final `File.SaveAll` is unconditional;
 21. verify the artifact contains no `Assert-CleanIndex` definition/call/equivalent cleanliness gate and no automatic preservation commit/stash/reset/clean step for unrelated Git dirt; verify arbitrary working-tree/default-index dirt is tolerated;
-22. verify the post-VCmd convergence barrier explicitly accounts for delayed/queued `CodeMaid.CleanupOpenCode`, `ReSharper.ReSharper_SilentCleanupOpenFiles`, and `ReSharper_SilentCleanupCode`; retains the exact successfully opened VCmd file set; computes/reports workload-scaled `startupSeconds`, `quietSeconds`, and `maximumSeconds`; forbids quiet-time accrual during the startup/drain interval; establishes a fresh baseline only after startup/drain completes; resets the full quiet interval on every later rewrite; performs the required final drain samples after apparent quiescence; and prevents Git capture on convergence timeout;
+22. verify the post-VCmd convergence barrier explicitly accounts for delayed/queued `CodeMaid.CleanupOpenCode`, `ReSharper.ReSharper_SilentCleanupOpenFiles`, `ReSharper_SilentCleanupCode`, and the command's schema-version-3 post-cleanup source-format verification pass; retains the exact successfully opened VCmd file set; computes/reports workload-scaled `startupSeconds`, `quietSeconds`, and `maximumSeconds`; forbids quiet-time accrual during the startup/drain interval; establishes a fresh baseline only after startup/drain completes; resets the full quiet interval on every later rewrite; performs the required final drain samples after apparent quiescence; and prevents Git capture on convergence timeout;
 23. verify `.Constants`/`.Interfaces` projects are exempt from blanket `xyLOGIX.Core.Debug`/`xyLOGIX.Core.Extensions*` additions while genuine interface dependency closure is still satisfied;
 24. verify no post-VCmd semantic source verification or fatal lint/style/static-analysis/build/compile/test gate exists;
 25. verify reference handling is positive-only unless the current prompt explicitly authorizes removal;
@@ -2426,7 +2431,7 @@ Only after both passes succeed should the artifact be delivered.
 >
 > ReSharper state transitions are idempotent and nonfatal. Command unavailability may simply mean the desired state is already active. Record only state changes positively attributable to the transaction and never blindly invert the maintainer's preexisting state.
 >
-> Source-mutating transactions perform one final VCmd preparation pass. Snapshot and preserve the user's visible editor state, isolate unrelated visible C# tabs, open each intended C# target through a genuine visible/activated source window, rewrite the exact noninteractive/Git-disabled VCmd sidecar immediately before the one argumentless invocation, and wait for the mandatory two-stage bounded convergence barrier before Git capture: a workload-scaled startup/drain interval during which quiet time cannot accrue, followed by a separate workload-scaled content-quiescence interval and final drain samples. This prevents a completed comment-stripping pass from racing ahead of queued CodeMaid/ReSharper cleanup.
+> Source-mutating transactions perform one final VCmd preparation pass. Snapshot and preserve the user's visible editor state, isolate unrelated visible C# tabs, open each intended C# target through a genuine visible/activated source window, rewrite the exact schema-version-3 noninteractive/Git-disabled/cleanup-enabled VCmd sidecar immediately before the one argumentless invocation, and wait for the mandatory two-stage bounded convergence barrier before Git capture: a workload-scaled startup/drain interval during which quiet time cannot accrue, followed by a separate workload-scaled content-quiescence interval and final drain samples. VCmd then performs its own post-cleanup comment-format verification pass before returning, but the transaction still waits for the adaptive convergence barrier. This prevents completed comment formatting/cleanup from racing ahead of delayed IDE/ReSharper/project-system writes.
 >
 > Treat Windows PowerShell 5.1 as the real runtime. Normalize successful zero-output native results, avoid 5.1 parser/binder traps, log consequential DTE boundaries before entering them, and write a detailed `%TEMP%` transaction log whose complete raw final `git status` blocks are the last substantive file-log content whenever the host survives long enough to finalize.
 >
