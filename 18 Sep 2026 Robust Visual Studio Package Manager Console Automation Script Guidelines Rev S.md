@@ -1,12 +1,13 @@
 # Robust Visual Studio Package Manager Console Automation Script Guidelines
 
-Revision: R
-Last Updated: 17 September 2026
+Revision: S
+Last Updated: 18 September 2026
 
 ## Changelog
 
-Revision R is the current controlling revision and supersedes Revision Q where this document differs. Revision R updates the Visual Commander automation contract to the supplied Strip Line Breaks from All Comments configuration schema version 3. Source-mutating Change Transaction Scripts that run the VCmd cleanup pass must explicitly set `SuppressPrompts = true`, `EnableGitAwareness = false`, `EnableCodeMaidAndReSharperCleanup = true`, and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed = false`. This keeps the invocation noninteractive, enables the intended CodeMaid/ReSharper cleanup phase, and leaves all Git ownership with the Change Transaction Script. Revision R also records the command's new post-cleanup source-format verification pass: after cleanup, VCmd re-verifies/reapplies comment line-break formatting before it returns. This internal second formatting pass does not replace the transaction's existing adaptive post-VCmd startup/drain and content-quiescence barrier, because delayed IDE/ReSharper/project-system writes can still occur after the DTE command returns.
+Revision S is the current controlling revision and supersedes Revision R where this document differs. Revision S removes the adaptive post-capture IDE/Git fixed-point wait that previously ran after transaction-owned implementation commits. Commit creation is now deliberately fast and sequential: do not sleep, fingerprint, pump, or run a post-capture quiet-period barrier after each commit. Complete the entire ordered Git-capture pass first. Only after all commits in that pass have been created and individually proven by their `HEAD` transitions, execute exactly one `Start-Sleep -ms 50`, then perform a direct fresh Git-status check of the transaction-owned paths. If late transaction-owned dirt is present, recapture it directly from fresh status within the bounded recapture budget, without VCmd reruns or adaptive content-stability waiting; after a complete recapture pass that creates additional commits, the same single 50-millisecond yield may occur once again after that whole pass, never after an individual commit. Revision S does not weaken the mandatory post-VCmd startup/drain + quiescence barrier, which still protects Git capture from delayed CodeMaid/ReSharper writes, and it does not alter the separate terminal handoff delays around `Window.CloseAllDocuments`/`buildTwiceThenCommit.ps1`.
 
+- **Revision R.** Updated the Visual Commander automation contract to the supplied Strip Line Breaks from All Comments configuration schema version 3. Source-mutating Change Transaction Scripts that run the VCmd cleanup pass must explicitly set `SuppressPrompts = true`, `EnableGitAwareness = false`, `EnableCodeMaidAndReSharperCleanup = true`, and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed = false`. This keeps the invocation noninteractive, enables the intended CodeMaid/ReSharper cleanup phase, and leaves all Git ownership with the Change Transaction Script. Revision R also recorded the command's new post-cleanup source-format verification pass: after cleanup, VCmd re-verifies/reapplies comment line-break formatting before it returns. This internal second formatting pass does not replace the transaction's existing adaptive post-VCmd startup/drain and content-quiescence barrier, because delayed IDE/ReSharper/project-system writes can still occur after the DTE command returns.
 - **Revision Q.** Hardened the Windows PowerShell 5.1 transaction contract after a live PMC binder failure, including binder-safe intentional empty collections/strings, actual delivered-script identity across child scope, concurrent bounded native stdout/stderr draining, corrected terminal handoff behavior, and the current `Debug.WriteLine(...)` diagnostic-spacing rule.
 - **Revision P.** Added mandatory Windows Forms source-family handling, standard `newxylogix.ICO` Form identity, workload-scaled two-stage VCmd convergence, and the initial mandatory post-transaction build/commit handoff.
 - **Revision O.** Replaced the former clean-work-tree/clean-index doctrine with an imposition model: a Change Transaction Script overlays its authorized changes onto whatever Git working-tree and index state already exists, never requires or manufactures repository cleanliness, never auto-commits unrelated preexisting dirt, never generates an `Assert-CleanIndex`-style gate, and uses a transaction-private Git index so unrelated staged work can remain untouched while transaction-owned commits are created.
@@ -661,7 +662,7 @@ If VCmd is skipped before invocation because isolation, sidecar preparation, or 
 
 ## 8. Closing and Restoring Visual Studio Documents Safely
 
-Never execute `Window.CloseAllDocuments` as part of the VCmd workflow, source/project mutation, transaction-owned Git capture/synchronization, post-push stabilization, editor restoration, or transaction-log finalization. VCmd's supplied implementation gives user-visible open C# documents precedence when choosing its processing scope, so the transaction must isolate that scope narrowly without destroying unrelated editor state. The sole standing exception is the mandatory **post-transaction terminal handoff** defined in Section 24.5: only after the Change Transaction Script is otherwise completely finished and its terminal raw-Git-status log has been finalized may it inspect `$dte.Documents.Count` and, when that count is greater than zero, make one best-effort `Window.CloseAllDocuments` attempt immediately before handing control to `buildTwiceThenCommit.ps1`. A zero count means do not invoke the command, and command failure must never block the handoff.
+Never execute `Window.CloseAllDocuments` as part of the VCmd workflow, source/project mutation, transaction-owned Git capture/synchronization, the Section 22.8 post-capture direct-status check, post-push stabilization, editor restoration, or transaction-log finalization. VCmd's supplied implementation gives user-visible open C# documents precedence when choosing its processing scope, so the transaction must isolate that scope narrowly without destroying unrelated editor state. The sole standing exception is the mandatory **post-transaction terminal handoff** defined in Section 24.5: only after the Change Transaction Script is otherwise completely finished and its terminal raw-Git-status log has been finalized may it inspect `$dte.Documents.Count` and, when that count is greater than zero, make one best-effort `Window.CloseAllDocuments` attempt immediately before handing control to `buildTwiceThenCommit.ps1`. A zero count means do not invoke the command, and command failure must never block the handoff.
 
 ### Snapshot user-visible editor state
 
@@ -1752,44 +1753,41 @@ For each work item:
 11. Immediately resolve `HEAD` again and require the full commit ID to differ from the pre-commit `HEAD`.
 12. Resolve the actual abbreviated SHA and subject from the new `HEAD` and emit a concise success diagnostic.
 13. Normalize only the just-committed transaction-owned path entries in the maintainer's real index to the new `HEAD` when needed so stale pre-commit entries for those authorized paths do not survive. Do not change working-tree bytes and do not touch unrelated staged entries.
-14. Refresh machine-readable status for the transaction-owned work-item paths. If one becomes immediately dirty again because the IDE rewrote it, route it through the post-capture stabilization/fixed-point workflow instead of invalidating the commit.
+14. Do **not** sleep, fingerprint files, run a quiet-period timer, or enter any post-capture stabilization barrier after this individual commit. Per-commit proof ends with the observed `HEAD` transition/SHA/subject and any path-scoped real-index normalization that was actually needed.
 15. Dispose/delete the private index and temporary commit-message file in `finally`.
 16. Record implementation-commit counts only as informational control state; observed Git `HEAD` transitions/SHA values are the evidence.
 17. If the transaction aborts before any meaningful positive mutation ever succeeded, apply the Section 15 empty-boundary cleanup rule when applicable; that cleanup does not require a clean work tree/index.
 18. If meaningful positive mutation has occurred, preserve forward source/project/Git progress unless an explicit narrow rollback contract applies.
-19. Select the next work item from fresh transaction-owned Git status.
+19. Select the next work item from fresh transaction-owned Git status and continue creating all remaining commits in the current ordered capture pass without any per-commit delay.
 
 Never allow unrelated paths into the transaction-private staged diff. Never span two Git repositories in one commit. Never use a default-index-cleanliness assertion, a staged-path **count** assertion, a commit-helper success flag, or an implementation-commit counter as a substitute for inspecting the actual transaction-private staged diff and resulting Git history.
 
-### 22.8 Post-capture IDE/Git fixed-point stabilization
+### 22.8 Post-capture 50-millisecond yield and direct Git-status recapture
 
-One ordered capture pass is not necessarily the end of Git capture. Visual Studio, ReSharper, the project system, or a delayed document save can still rewrite transaction-owned files after one or more commits have been created. This specification therefore requires a bounded **post-capture fixed-point loop** before final synchronization.
+The ordered Git-capture phase must not impose an adaptive post-capture fixed-point wait. The expensive content-fingerprint/startup/quiet-period machinery belongs to the post-VCmd cleanup boundary in Section 9, where delayed CodeMaid/ReSharper work is expected. It is **not** repeated after ordinary Git commits.
 
-1. After the current ordered capture pass appears complete, call `File.SaveAll`, pump `Application.DoEvents()`, and observe the complete transaction-owned path set.
-2. Derive an adaptive quiet interval and maximum wait using the same bounded square-root policy from Section 9, substituting the count of transaction-owned paths currently subject to IDE writes for `N` when that set is larger/more appropriate than the VCmd-opened set.
-3. During that adaptive stabilization window, repeatedly refresh content fingerprints/status while pumping the IDE and periodically saving.
-4. If a transaction-owned path becomes dirty, do not immediately stage a moving target. Reset the quiet interval and wait until the transaction-owned set is content-stable for the adaptive interval.
-5. Once stable, refresh Git status and re-enter the normal Section 22 selector/work-item commit loop for every transaction-owned path that is dirty.
-6. Do **not** rerun VCmd simply because late IDE writes appeared after the original one-time VCmd pass. VCmd remains exactly once per transaction; this loop is about capturing the final stable bytes that the IDE produced.
-7. After the recapture pass, repeat the adaptive stabilization check.
-8. Bound the total fixed-point process by both a finite total duration and a finite recapture-round count (normally no more than three recapture rounds unless the current prompt expressly authorizes more). If transaction-owned paths still cannot remain captured/stable, stop before claiming synchronization success and preserve all commits/source progress.
-9. Internal counters may describe how many recapture rounds or commits occurred, but the fixed point is established only by Git/status plus the content-stability observations.
+For a source-mutating transaction:
 
-The required fixed point is: **all transaction-owned paths are content-stable and fully represented by the intended transaction commits at the same observed boundary.** Unrelated working-tree or default-index dirt may still exist and is irrelevant to that fixed point.
+1. Complete the entire current ordered capture pass first. Create every currently required transaction-owned commit in selector order, proving each commit by its `HEAD` transition and actual SHA/subject. Do **not** sleep after an individual commit.
+2. Only after all commits in that capture pass have been created, execute exactly:
+
+```powershell
+Start-Sleep -ms 50
+```
+
+3. After that one 50-millisecond yield, refresh Git status directly for the complete transaction-owned path set. Do not start a startup/drain timer, quiet-period timer, content-fingerprint loop, adaptive wait, or "post-capture fixed-point" observation.
+4. If no transaction-owned path is dirty, proceed immediately to Section 23.
+5. If transaction-owned dirt is present, re-enter the normal Section 22 selector/work-item capture logic directly from that fresh status. Do not rerun VCmd and do not wait for a content-stability interval before recapturing.
+6. Bound direct-status recapture to a finite round count, normally no more than three recapture rounds unless the current prompt expressly authorizes more. A recapture round may create multiple commits; it receives no per-commit sleep. If that complete recapture pass creates one or more additional commits, perform the same single `Start-Sleep -ms 50` only after the whole pass is finished, then check status directly again.
+7. If transaction-owned dirt still reappears after the bounded direct recapture budget, preserve all source/commit progress, report the condition, and do not claim full transaction success.
+
+The rule is intentionally simple: **commit everything first; sleep 50 ms once; check transaction-owned Git status directly.** There is no adaptive post-capture wait and no per-commit delay.
 
 ### Git-recovery-only exception to Section 22.8
 
-For a Section 1.1 Git-recovery-only transaction, skip the adaptive content-fingerprint/quiet-period loop entirely unless execution has concrete evidence that the IDE is actively rewriting recovery-owned files.
+A Section 1.1 Git-recovery-only transaction remains even simpler. After its ordered capture pass, run `File.SaveAll` once and refresh recovery-owned Git status directly. Do not add the 50-millisecond source-mutating yield merely by convention, and do not add any content-fingerprint/quiet-period wait. If authorized recovery dirt reappears, recapture it directly from fresh status within the bounded recovery-only round budget.
 
-After the ordered capture pass:
-
-1. run `File.SaveAll` once;
-2. refresh Git status immediately;
-3. if no recovery-owned path appears in fresh status, proceed directly to Section 23;
-4. if one or more recovery-owned paths are dirty again, re-enter Section 22 ordered capture from fresh status without an artificial wait; and
-5. bound these direct-status recapture rounds (normally no more than three unless the current prompt authorizes more).
-
-For recovery-only work, **absence of recovery-owned paths from fresh Git status is the fixed-point observation**. The repository as a whole need not be clean. Content hashing and elapsed quiet intervals are unnecessary when the script did not create the delayed-write hazard they were designed to guard against.
+For recovery-only work, absence of recovery-owned paths from fresh Git status is the completion observation. The repository as a whole need not be clean.
 
 ## 23. Final Git Synchronization, Push, and End-State Proof
 
@@ -1797,10 +1795,10 @@ Finalization proves the transaction's own result. It does **not** require the re
 
 ### 23.1 Pre-synchronization proof
 
-After the Section 22 ordered-capture/fixed-point loop:
+After the Section 22 ordered capture and its direct post-capture status check:
 
 1. Run `File.SaveAll`, pump the IDE, and refresh status for the complete transaction-owned path set.
-2. Require no transaction-owned path to remain represented by an uncommitted working-tree/default-index change that belongs to the transaction. If one is dirty again, return to the applicable Section 22.8 recapture workflow.
+2. Require no transaction-owned path to remain represented by an uncommitted working-tree/default-index change that belongs to the transaction. If one is dirty again, return to the Section 22.8 direct-status recapture workflow; do not introduce an adaptive post-capture wait.
 3. Ignore unrelated dirty/staged/untracked paths except to ensure the transaction will not accidentally touch or commit them.
 4. If zero implementation commits were genuinely created and the transaction-owned empty boundary exists, apply the verified no-op boundary cleanup rule without requiring repository cleanliness.
 5. Resolve and retain the actual current `HEAD` from Git.
@@ -1933,7 +1931,7 @@ The ordering is absolute:
 
 1. Finish every transaction-owned source/project/Solution mutation.
 2. Finish all VCmd work and the full startup/drain + quiescence convergence barrier when applicable.
-3. Finish transaction-owned Git capture, synchronization/push when mechanically appropriate, post-capture/post-push stabilization, and final transaction-owned end-state proof.
+3. Finish transaction-owned Git capture, the Section 22.8 one-time 50-millisecond post-capture yield/direct-status proof, synchronization/push when mechanically appropriate, post-push stabilization, and final transaction-owned end-state proof.
 4. Restore any preexisting editor/ReSharper state required by the transaction and run the transaction's final `File.SaveAll`/cleanup operations.
 5. Append the complete raw final `git status` block(s) required by Section 24.2, flush/close the transaction log, and perform **no further transaction-log writes**.
 6. Pause for 1-2 seconds. The standard generated implementation is `Start-Sleep -Milliseconds 1500`.
@@ -1974,7 +1972,7 @@ Bad examples:
 - Using one fixed quiet interval/maximum wait for every transaction regardless of whether VCmd opened one source file or dozens; the barrier must scale adaptively with workload.
 - Treating an internal `CreatedTransactionCommitCount` (or similar variable) as proof that Git commits actually exist.
 - Printing `*** SUCCESS ***` after `git push` without a final `File.SaveAll`/adaptive settle/Git-status proof, thereby allowing delayed IDE writes to leave transaction-owned files dirty after the script claims completion.
-- Applying the adaptive VCmd/post-capture/post-push content-fingerprint waits to a Git-recovery-only transaction whose files are already sitting unchanged and whose script performs no source/IDE cleanup mutation.
+- Running an adaptive post-capture content-fingerprint/fixed-point wait after transaction commits instead of finishing all commits first, executing one `Start-Sleep -ms 50`, and checking transaction-owned Git status directly. Likewise, do not apply VCmd/post-push content-fingerprint waits to a Git-recovery-only transaction whose files are already sitting unchanged and whose script performs no source/IDE cleanup mutation.
 - Adding `xyLOGIX.Core.Debug` or `xyLOGIX.Core.Extensions*` to every `.Constants` or `.Interfaces` project merely as boilerplate.
 - Reading/parsing an authorized source file at runtime solely to prove that a method still has the generation-time signature/body before replacing it.
 - Using a regex/marker/old-code search helper that throws when harmless source formatting or method shape differs, when an exact desired-state file could simply be clobbered into place.
@@ -2010,6 +2008,7 @@ Good examples:
 - Waiting after VCmd until repeated content fingerprints of every successfully VCmd-opened source file remain unchanged for a continuous quiet interval while pumping the IDE and periodically saving.
 - Computing the quiet interval and maximum observation window from the number of successfully VCmd-opened files using the bounded square-root policy, and reporting the selected timings before waiting.
 - Resolving `HEAD` before and after every commit, requiring it to advance, and reporting the actual abbreviated commit SHA/subject from Git.
+- Creating all commits in an ordered capture pass without per-commit sleeps, then executing exactly one `Start-Sleep -ms 50` after the pass and using a direct fresh transaction-owned Git-status check rather than an adaptive post-capture fixed-point wait.
 - Re-entering ordered Git capture when delayed IDE writes make transaction-owned paths dirty after an earlier commit/push, then proving the final local/upstream state before printing success.
 - For Git-recovery-only work, performing `File.SaveAll`, then immediately staging/committing the authorized dirty paths and using direct fresh Git-status checks after capture/push instead of artificial content-change waits.
 - Evaluating `.Interfaces` dependencies from actual base-interface/member-type closure, adding `xyLOGIX.Core.Extensions` only when a contract such as `IForm`/`IControl` genuinely requires it.
@@ -2098,8 +2097,8 @@ When Section 1.1 applies:
 3. For each work item, create a fresh private index seeded from `HEAD`, stage only the generation-time-authorized pathset, and inspect the actual rename/copy-aware private staged diff.
 4. Require no unauthorized logical path in that private diff; never require the maintainer's real index to be clean and never assert staged-record count equality.
 5. Generate the commit message from the actual private staged diff, commit through that private index, prove the `HEAD` transition/SHA/subject, and normalize only transaction-owned entries in the real index when needed.
-6. Dispose the private index and continue from fresh transaction-owned status.
-7. Run the Section 22.8 fixed-point stabilization and recapture late transaction-owned writes without rerunning VCmd.
+6. Dispose the private index and continue from fresh transaction-owned status, creating all remaining commits without per-commit sleeps.
+7. After the complete capture pass has created all commits, execute one `Start-Sleep -ms 50`, refresh transaction-owned Git status directly, and use bounded direct recapture when needed. Do not run an adaptive post-capture fixed-point/content-fingerprint wait and do not rerun VCmd.
 
 ### Phase 6 ??? optional remote synchronization and transaction-owned end-state proof
 
@@ -2148,7 +2147,7 @@ When Section 1.1 applies:
 | Select implementation work item | fresh transaction-owned status | next authorized work item chosen | no transaction-owned changes: capture phase complete |
 | Stage work item | private index seeded from `HEAD` | private staged diff contains only authorized logical paths; no count-equality rule | empty private diff: no-op; recreate private index on scope defect |
 | Git commit | authorized private staged diff + valid message + pre-commit `HEAD` | post-commit `HEAD` advances; actual SHA/subject observed | unrelated real-index staging is irrelevant |
-| Post-capture fixed point | ordered capture pass completed | transaction-owned paths stable/committed | unrelated working-tree/index dirt may remain |
+| Post-capture direct status | complete ordered capture pass finished | one `Start-Sleep -ms 50`, then fresh transaction-owned status; bounded direct recapture if needed | no per-commit sleep or adaptive post-capture wait; unrelated working-tree/index dirt may remain |
 | Final synchronization | configured upstream + synchronization can be non-disruptive | push/sync proof when performed | if reconciliation would disturb unrelated local state, report local completion and defer sync |
 | Final Git proof | transaction-owned capture complete | transaction-owned paths committed; final `HEAD` resolved; `0/0` only when sync occurred | whole repository/default index need not be clean |
 | Finalize detailed log | cleanup/restoration complete | raw `git status` for every affected repo is final substantive log content | status failure recorded inside final block |
@@ -2217,10 +2216,10 @@ When Section 1.1 applies:
 - [ ] Generation-time-known rename/move pairs are predeclared and staged directly as atomic authorized work items; no temporary speculative staging/reset cycle is used merely to make Git discover the rename.
 - [ ] Every commit captures pre-commit `HEAD`, resolves post-commit `HEAD`, requires it to advance, and reports the actual abbreviated SHA/subject from Git.
 - [ ] Internal commit counters are treated as informational only and are never used as proof that Git history changed.
-- [ ] The post-capture fixed-point loop can recapture delayed IDE writes without rerunning VCmd.
+- [ ] No individual commit is followed by a sleep, fingerprint loop, quiet-period timer, or adaptive post-capture stabilization. After the complete ordered capture pass finishes, the script executes exactly one `Start-Sleep -ms 50`, checks transaction-owned Git status directly, and performs only bounded direct recapture if needed, without rerunning VCmd.
 - [ ] If the artifact is Git-recovery-only, it does not create a new boundary, mutate source/topology/references, suspend/resume ReSharper, invoke VCmd, or run adaptive content-fingerprint waits merely to check in already-existing files.
 - [ ] If the artifact is Git-recovery-only, authorized recovery dirt is captured directly and unrelated working-tree/default-index state is left untouched; no clean-index/work-tree requirement exists.
-- [ ] If the artifact is Git-recovery-only, post-capture and post-push checks use direct `File.SaveAll` + fresh Git status with bounded direct recapture rounds; content-stability waits appear only if actual active IDE rewriting is observed.
+- [ ] If the artifact is Git-recovery-only, post-capture and post-push checks use direct `File.SaveAll` + fresh Git status with bounded direct recapture rounds; the source-mutating transaction's 50-millisecond post-capture yield is not added by convention and content-stability waits appear only if actual active IDE rewriting is observed.
 
 ### Visual Studio/Git/source safety
 
@@ -2290,7 +2289,7 @@ When Section 1.1 applies:
 - [ ] `startupSeconds`, `quietSeconds`, and `maximumSeconds` are all computed adaptively from the exact successfully opened file count using the current bounded square-root policy and are reported through `Write-Host`.
 - [ ] After the quiet interval, the script performs the required final drain proof (`File.SaveAll`, pump, 1500-ms wait/sample, another pump/sample) and begins Git capture only if those final samples remain unchanged.
 - [ ] If post-VCmd convergence cannot be established within the finite maximum wait, the script stops before Git staging/commit while preserving source/project progress.
-- [ ] After ordered Git capture, a source-mutating transaction performs adaptive fixed-point stabilization; a Git-recovery-only transaction instead performs direct `File.SaveAll` + fresh status and bounded direct recapture without artificial quiet waits.
+- [ ] After ordered Git capture, a source-mutating transaction performs no adaptive fixed-point stabilization: all commits are created first, then exactly one `Start-Sleep -ms 50` occurs before a direct transaction-owned status check and bounded direct recapture if needed. A Git-recovery-only transaction uses direct `File.SaveAll` + fresh status without adding that sleep by convention.
 - [ ] After push, a source-mutating transaction performs adaptive save/pump/status stabilization; a Git-recovery-only transaction instead performs direct `File.SaveAll` + fresh status and bounded direct recapture/re-push without artificial quiet waits.
 - [ ] Final `*** SUCCESS ***` is impossible until Git proves transaction-owned paths are fully captured/stable and final `HEAD` resolves; synchronized repositories require `0/0` ahead/behind, but unrelated work-tree/default-index dirt may remain.
 - [ ] `*** INFO *** Synchronizing completed transaction commits...` cannot be emitted before actual commit SHA(s) have been resolved from Git.
@@ -2334,7 +2333,7 @@ Audit the planned transaction against the current authoritative workspace and cu
 - arbitrary preexisting working-tree/default-index dirt is tolerated in every transaction mode; no unrelated preservation commit, stash, reset, clean, or clean-baseline step is generated;
 - `.Constants`/`.Interfaces` dependency exceptions are honored while actual interface inheritance/member-type dependency closure is still satisfied;
 - the post-VCmd convergence barrier prevents Git capture until repeated content fingerprints of the exact VCmd-opened file set prove that downstream background `ReSharper_SilentCleanupCode`/IDE rewriting has remained quiet for the **adaptive current interval derived from the actual opened-file count** and through the final save/resample cycle;
-- the Git design proves each commit by observing the `HEAD` transition/SHA from Git and contains a bounded post-capture/post-push fixed-point loop that cannot print success while transaction-owned dirt remains;
+- the Git design proves each commit by observing the `HEAD` transition/SHA from Git, contains no per-commit or adaptive post-capture wait, performs one `Start-Sleep -ms 50` only after the full ordered capture pass, then uses direct status/bounded recapture; post-push stabilization remains separately bounded and success is impossible while transaction-owned dirt remains;
 - if the requested artifact is Git-recovery-only, the design explicitly bypasses source payload mutation, new boundary creation, ReSharper suspension/resumption, VCmd, adaptive content-fingerprint waits, and initial pull/rebase while the authorized recovery work tree is dirty; it uses direct status recapture after `File.SaveAll`, capture, and push instead;
 - the complete changed-path set and narrower VCmd-eligible C# set are distinguished correctly; VCmd eligibility includes `AssemblyInfo.cs`, excludes generated/fixed-format/non-C# artifacts, and editor-opening/VCmd cleanup remains best-effort and unable to erase source progress, while the single VCmd invocation is preceded by the exact schema-version-3 noninteractive/Git-disabled/cleanup-enabled one-run sidecar so CodeMaid/ReSharper cleanup runs without modal prompts and no VCmd-owned Git workflow can occur;
 - Git synchronization respects actual upstream state; and
@@ -2382,12 +2381,12 @@ After writing the final GUID-named `.ps1` file, reopen **that exact file** and a
 30. verify the PowerShell source contains no nested `try`/`catch`/`finally` blocks and that any operation requiring its own exception boundary was extracted into a named helper function; also verify generated C# payloads follow the current xyLOGIX Software Engineering Manifesto rule against nested exception blocks.
 31. verify every changed C# payload passed the current symbol-to-namespace closure audit, including `PostSharp.Patterns.Diagnostics` for `[Log]`/`[NotLogged]`/related aspects, `System.Diagnostics` for `[DebuggerStepThrough]`, and `xyLOGIX.Core.Debug` for `DebugUtils` when those symbols are unqualified;
 32. verify each Git commit path captures the pre-commit `HEAD`, requires a different post-commit `HEAD`, resolves/reports the actual abbreviated SHA and subject from Git, and never treats an internal counter as commit proof;
-33. for a source-mutating artifact, verify the script contains the bounded adaptive post-capture fixed-point loop that waits for late IDE writes to settle and re-enters ordered Git capture for transaction-owned dirt without rerunning VCmd; for a Git-recovery-only artifact, verify the direct-status exception is used instead;
+33. for a source-mutating artifact, verify there is no per-commit sleep and no adaptive post-capture fixed-point/content-fingerprint wait; verify all commits in the ordered capture pass are created first, followed by exactly one `Start-Sleep -ms 50` and a direct fresh transaction-owned Git-status check, with bounded direct recapture and no VCmd rerun; for a Git-recovery-only artifact, verify the direct-status exception is used without adding the 50-millisecond sleep by convention;
 34. for a source-mutating artifact, verify the post-push finalization loop performs adaptive `File.SaveAll`/message-pump/status stabilization and bounded recapture/re-push; for a Git-recovery-only artifact, verify post-push finalization uses direct `File.SaveAll` + fresh status and bounded direct recapture without artificial quiet waits; and
 35. verify the final success path obtains fresh Git evidence that all transaction-owned paths are fully captured/stable and final `HEAD` resolves; require `0/0` local/upstream ahead-behind only when synchronization actually occurred, and never require the whole default index/work tree to be clean.
 36. if the artifact is Git-recovery-only, verify it performs no source/project/Solution payload mutation, no new empty boundary, no ReSharper suspend/resume, no VCmd opening/sidecar/invocation, and no adaptive content-fingerprint/quiet-period wait merely because the recovery paths are dirty.
 37. if the artifact is Git-recovery-only, verify authorized recovery paths are captured directly with transaction-private/path-isolated Git state, initial pull/rebase is not a cleanliness prerequisite, and unrelated dirt/staging remains untouched.
-38. if the artifact is Git-recovery-only, verify post-capture and post-push fixed-point checks are direct `File.SaveAll` + fresh Git-status observations with bounded recapture rounds, while the final Git proof requirements remain fully intact.
+38. if the artifact is Git-recovery-only, verify post-capture and post-push checks are direct `File.SaveAll` + fresh Git-status observations with bounded recapture rounds, while the final Git proof requirements remain fully intact.
 39. verify every native-process result normalizes absent stdout/stderr to non-null strings and every status parser returns an empty collection for successful zero-output Git status; no `[string]::Join`, `.Trim()`, `.Split()`, or equivalent operation can receive `$null` on that path.
 40. verify the exact artifact contains no PowerShell 5.1-invalid trailing comma in array/argument/parameter constructs and no ambiguous expandable-string `$Name:` form; require `${Name}:` or an equivalent unambiguous spelling.
 41. verify the transaction initializes a `%TEMP%` log named from the actual GUID script basename plus execution-start `yyyyMMdd_HHmmss_fff` timestamp before the first mutation.
