@@ -1,12 +1,28 @@
 # The xyLOGIX Software Engineering Manifesto
-Revision: Y
-Last Updated: 17 September 2026
+Revision: Z
+Last Updated: 22 September 2026
 
 This document outlines the software-development hills we'll die on, here at xyLOGIX.
 
 By Brian C. Hart, Ph.D.
 
 Copyright ?? 2026 by xyLOGIX, LLC.  All rights reserved.
+
+## Revision Z Scope
+
+Revision Z preserves all architectural, documentation, source-control, validation, logging, concurrency, implementation, user-interface, result-variable, exception-inheritance, maintainer-source-authority, Windows Forms source-family, dialog-contract, and engineering-judgment guidance consolidated through Revision Y and strengthens the xyLOGIX standards for **fluent construction**, **builder-pattern use around framework classes**, **semantic factory entry points**, **debuggable fluent call sites**, and **proportional fault tolerance for trivial construction boundaries**.
+
+Fluent builders are not limited to xyLOGIX-owned product classes.  When construction of a .NET Framework class involves several ordered constructor inputs, repeated constructor shapes, or a call site that becomes materially clearer when the inputs are named semantically, xyLOGIX may wrap that framework type behind a `MakeNew...` factory and one or more narrow builder interfaces.  This is especially appropriate for design-time and UI-support types such as `System.ComponentModel.Design.DesignerActionPropertyItem`, `DesignerActionMethodItem`, `DesignerActionHeaderItem`, and `DesignerActionItemCollection`, where fluent construction makes intent easier to read and centralizes otherwise-repeated constructor knowledge.  Do not add a builder merely to conceal the `new` keyword; the abstraction must improve naming, ordering, reuse, or maintainability.
+
+A `FromScratch()` member is reserved for a genuinely parameterless semantic starting state.  If the object being created requires a meaningful constructor input, the first fluent member supplies that input directly through a descriptive name such as `ForMemberNamed(...)`, `ForActionList(...)`, `ForDisplayName(...)`, `ForWindowHandle(...)`, or another domain-appropriate phrase.  Do not force callers through `FromScratch()` only to make them immediately provide the real constructor dependency in the next call.
+
+A fluent builder does not end in a generic `Build()` call merely because builders in other ecosystems commonly do so.  The final semantically meaningful fluent member is the construction boundary and returns the finished object being built.  For example, a property-item chain may terminate with `WithDescription(...)` when description is the last required constructor value; a method-item chain may terminate with `WithDesignerVerbIncluded(...)`; and a collection builder may expose one or more intermediate `WithItem(...)` calls followed by `AndFinalItem(...)`, where `AndFinalItem(...)` appends the final item and returns the completed collection.  The terminal member name should tell the reader what semantic fact completes construction.
+
+Prefer debuggable fluent call sites over deeply nested fluent expressions.  When several items are being built and then assembled into a collection, construct each item into its own descriptively named local variable first, then pass those variables to the collection builder.  This is not prohibited local aliasing: each variable owns a newly constructed object and provides a useful breakpoint/watch location.  Avoid nesting entire item-builder chains inside collection-builder calls when separate locals make inspection and maintenance easier.
+
+Builder interfaces, concrete builder classes, builder state properties, fluent stage methods, factory entry points, and terminal methods are all first-class developer-facing contracts and receive descriptive XML documentation.  The documentation explains the semantic construction stage, what value the current member captures, what stage or finished type is returned, and any meaningful failure/validation behavior.  Interface and implementation documentation remain semantically aligned.
+
+Revision Z also establishes a narrow but important exception to the ordinary xyLOGIX result-variable and fault-tolerance rules.  When a `FromScratch()` member does nothing except invoke the parameterless constructor of a .NET Framework class, or the parameterless constructor of a straightforward builder whose purpose is to construct such an object, use a direct expression-bodied member.  Do not wrap that deterministic construction in `try`/`catch`, do not manufacture a `result` accumulator solely to satisfy ceremony, and do not use conditional access on the newly constructed instance.  For example, `public static IDesignerActionItemCollectionBuilder FromScratch() => new DesignerActionItemCollectionBuilder();` is the preferred shape.  Fault tolerance must protect plausible failure boundaries, not mechanically surround operations that do not need defensive recovery.
 
 ## Revision Y Scope
 
@@ -803,24 +819,36 @@ Instead, we use our **Dependency Eversion** paradigm. We use `public static IXXX
 
 ## Fluent Programming
 
-At xyLOGIX, we are big believers in Fluent Programming. Fluent interfaces utilize method chaining (returning `this` or a related builder interface) to make the code read like well-crafted English sentences. It encapsulates the sequential steps of an operation perfectly.
+At xyLOGIX, we are big believers in Fluent Programming. Fluent interfaces utilize method chaining, usually by returning `this` or a narrow stage-specific builder interface, so construction and setup read like well-crafted English sentences.  The goal is to expose semantic intent while hiding repetitive constructor ordering and incidental mechanics.
 
-However, we do not just "spray it everywhere." We reserve Fluent Programming for builders, configuration objects, and setup pipelines where it makes semantic sense.
+However, we do not just "spray it everywhere." We reserve Fluent Programming for builders, configuration objects, setup pipelines, and other construction/configuration boundaries where it materially improves readability or maintainability.  A fluent abstraction may wrap a class that ships with the .NET Framework just as legitimately as it may wrap one of our own classes.  Framework ownership is not a reason to repeat opaque constructor argument lists throughout our codebase.
 
-**Example:**
+For example, a framework `DesignerActionPropertyItem` can be created through a fluent xyLOGIX factory whose stages name the constructor facts:
 
 ```csharp
-// Good use of Fluent Programming
-var report = MakeNewReport.FromScratch()
-                          .WithTitle("Monthly Financials")
-                          .ForDateRange(startDate, endDate)
-                          .IncludeConfidentialData()
-                          .Build();
+var titlePropertyAction = MakeNewDesignerActionPropertyItem
+    .ForMemberNamed(nameof(Title))
+    .WithDisplayName(Resources.Action_Title)
+    .InCategory(Resources.Category_Appearance)
+    .WithDescription(Resources.Description_DarkHeader_Title);
 ```
 
-This reads beautifully, hides the complex instantiation logic, and adheres strictly to our naming conventions (like using `MakeNewReport.FromScratch()`).
+The last meaningful member, `WithDescription(...)`, returns the completed `DesignerActionPropertyItem`.  Do not append a generic `.Build()` merely to announce that a builder was used.  The semantic final input is also the construction boundary.
 
-Sometimes, when there is such an obvious need to do so, such as there is a genuine case to be made for a class' constructor to "swallow" something else (because that class wraps/transforms it), we'll ditch the `FromScratch` method.  As we said previously, "Fluent interfaces utilize method chaining (returning `this` or a related builder interface) to make the code read like well-crafted English sentences."  But there is no point in chaining methods that do not need to even be there.  For instance, look at this interface:
+Collection builders follow the same idea.  A genuinely parameterless collection/builder may begin with `FromScratch()`, intermediate `WithItem(...)` calls may accumulate items, and the final `AndFinalItem(...)` call returns the completed collection:
+
+```csharp
+var result = MakeNewDesignerActionItemCollection
+    .FromScratch()
+    .WithItem(appearanceHeader)
+    .WithItem(titlePropertyAction)
+    .WithItem(descriptionPropertyAction)
+    .AndFinalItem(imagePropertyAction);
+```
+
+When several objects will ultimately be added to such a collection, build each object into its own descriptively named local variable first.  This makes breakpoints, watches, and debugging straightforward and avoids unreadable nested fluent chains.
+
+`FromScratch()` is appropriate only when the construction really does begin from a parameterless state.  If the underlying object requires a meaningful constructor input, make that input the first fluent phrase instead.  As we said previously, fluent code should read naturally; there is no point in chaining a method that exists only as ceremony.  For instance, look at this interface:
 
 ```csharp
 // Copyright ?? 2020-2026 xyLOGIX, LLC.  All rights reserved.
@@ -1121,7 +1149,21 @@ dialog.ShowDialog(
 );
 ```
 
-Now, never mind my line wrapping; that was just to make it easier to read the code snippet.  The point is, it's pointless to put a `.FromScratch()` method here, to make us have to say, `MakeNewWindowWrapper.FromScratch().ForWindowHandle(myWindowHandle)` which would just be silly.  So that's what I mean, when I say that we do not have to ALWAYS have a `FromScratch`. method.
+Now, never mind my line wrapping; that was just to make it easier to read the code snippet.  The point is, it's pointless to put a `.FromScratch()` method here, to make us have to say, `MakeNewWindowWrapper.FromScratch().ForWindowHandle(myWindowHandle)` which would just be silly.  So that's what I mean, when I say that we do not have to ALWAYS have a `FromScratch()` method.
+
+The same rule applies when the thing being created is owned by the .NET Framework.  A `MakeNew...` abstraction is allowed to make framework construction fluent when doing so gives constructor parameters meaningful names, centralizes repeated construction knowledge, or makes maintenance easier.  Conversely, if a framework type needs only one obvious argument, a one-step factory such as `MakeNewDesignerActionHeaderItem.ForDisplayName(...)` can simply return the finished framework object without introducing a stateful builder.
+
+Do not add a generic `Build()` member when the final semantic input can itself return the completed object.  A builder stage exists because another meaningful input still has to be supplied; once the last meaningful input has been supplied, return the thing being built.
+
+A parameterless `FromScratch()` boundary also does not need ceremonial fault tolerance when its entire implementation is a deterministic parameterless constructor call.  When it creates a framework class or a straightforward builder around that framework class, prefer the direct expression-bodied form, for example:
+
+```csharp
+[return: NotLogged]
+public static IDesignerActionItemCollectionBuilder FromScratch()
+    => new DesignerActionItemCollectionBuilder();
+```
+
+Do not surround this shape with `try`/`catch`, do not manufacture a `result` variable, and do not use conditional access on the newly created builder.  Add defensive handling only when the factory actually performs validation, I/O, native/enabler work, callback execution, reflection, or another operation with a plausible recoverable failure mode.
 
 Now, let's also talk about the school of so-called "Functional Programming" and why we love it.
 
@@ -2448,7 +2490,7 @@ A module is a family of related class-library projects.  The root project name i
 | `.Interfaces` | Interfaces exposed by the module. |
 | `.Tests` | NUnit fixtures and supporting test infrastructure. |
 
-Action and factory classes should read fluently at the call site.  Examples include `Determine.TheModeToUse(...)`, `GetClassInfoValidator.SoleInstance()`, `MakeNewModel.FromScratch()`, and `GetRenderer.ForRenderingMode(mode)`.
+Action and factory classes should read fluently at the call site.  Examples include `Determine.TheModeToUse(...)`, `GetClassInfoValidator.SoleInstance()`, `MakeNewModel.FromScratch()` when the model truly has a parameterless semantic start, `MakeNewWindowWrapper.ForWindowHandle(handle)` when construction requires a handle, and `GetRenderer.ForRenderingMode(mode)`.
 
 Do not create a project simply to hold unrelated leftovers.  Each project and each class must have a cohesive responsibility.  Do not create circular project references.  Remember that an XML documentation `cref` can also create pressure to add a project reference; avoid a cross-reference that would force a circular dependency.  Use `<c>TypeName</c>` for a conceptual mention when a navigable cross-reference would introduce undesirable coupling.
 
@@ -2485,7 +2527,7 @@ When adding such a dependency, add the required project reference positively.  D
 
 ## Method Design: Result Variables, Fault Tolerance, and Early Gates
 
-A method should have a clear, explicitly controlled answer. For every ordinary non-void method, declare a local variable named `result` near the beginning of the method and initialize it to the method's documented safe/default value unless the method's contract requires another initial state. Typical defaults include:
+A method should have a clear, explicitly controlled answer. For every ordinary non-void method, declare a local variable named `result` near the beginning of the method and initialize it to the method's documented safe/default value unless the method's contract requires another initial state.  The explicit expression-bodied construction/accessor exceptions documented by this manifesto, including the trivial parameterless `FromScratch()` rule below, do not manufacture a meaningless accumulator. Typical defaults include:
 
 - `false` for a Boolean operation.
 - `string.Empty` for a text-producing operation.
@@ -2494,11 +2536,22 @@ A method should have a clear, explicitly controlled answer. For every ordinary n
 - The enum's `Unknown` member for a selector or determination method.
 - The input value for an intentionally idempotent transformation.
 
-Once `result` exists, it owns the method's answer. Every ordinary `return` statement in that method returns `result`. Do not bypass it with a primitive literal, enum member, constructor/factory call, subordinate method call, or another direct expression. This keeps eager exits, the normal completion path, and exception handling on one visible return contract.
+Once `result` exists, it owns the method's answer. Every ordinary `return` statement in that method returns `result`. Do not bypass it with a primitive literal, enum member, constructor/factory call, subordinate method call, or another direct expression. This keeps eager exits, the normal completion path, and exception handling on one visible return contract.  This rule does not force a `result` variable into a member that is intentionally covered by one of the manifesto's narrow expression-bodied exceptions.
 
-Iterator blocks are the deliberate exception. A method implemented as an iterator uses `yield return` and `yield break` and should remain lazy when iterator semantics improve robustness, fault tolerance, resource use, or performance. Do not materialize an otherwise-natural iterator merely to manufacture a `result` collection. Abstract/interface declarations, extern/P/Invoke declarations, property accessors, constructors, and `void` methods likewise do not invent an artificial result variable.
+Iterator blocks are the deliberate exception. A method implemented as an iterator uses `yield return` and `yield break` and should remain lazy when iterator semantics improve robustness, fault tolerance, resource use, or performance. Do not materialize an otherwise-natural iterator merely to manufacture a `result` collection. Abstract/interface declarations, extern/P/Invoke declarations, property accessors, constructors, and `void` methods likewise do not invent an artificial result variable.  A trivial expression-bodied `FromScratch()` member whose sole operation is a parameterless .NET Framework construction, or construction of a straightforward builder around that framework object, is also an explicit exception.
 
-Wrap method bodies in `try`/`catch` blocks when called code can throw. Catch `Exception` at the appropriate service boundary, log it, restore `result` to its documented default, and return that value through `return result;`. Avoid throwing from ordinary validation paths. Throw only when the contract specifically requires an exception or when continuing would hide a programming error that the selected strategy explicitly promises to reject.
+Wrap method bodies in `try`/`catch` blocks when called code has a plausible recoverable failure mode and the method is an appropriate recovery boundary. Catch `Exception` at the appropriate service boundary, log it, restore `result` to its documented default, and return that value through `return result;`. Avoid throwing from ordinary validation paths. Throw only when the contract specifically requires an exception or when continuing would hide a programming error that the selected strategy explicitly promises to reject.  Do not add `try`/`catch` solely for ceremony around a deterministic parameterless framework/builder constructor.  In that narrow case, use the direct expression-bodied `FromScratch()` form and allow genuinely exceptional constructor failures, if any, to surface naturally rather than pretending that `null` is an expected alternate outcome.
+
+### Trivial `FromScratch()` construction boundary
+
+When all of the following are true, prefer an expression-bodied `FromScratch()` member:
+
+- the method accepts no input parameters;
+- its only substantive action is `new FrameworkType()` or `new StraightforwardBuilder()` for a builder whose purpose is to construct/configure a framework object;
+- no validation, I/O, native call, callback, reflection, external state, or other enabler is involved; and
+- construction is not documented to use `null` as an ordinary failure result.
+
+In this specific situation, do not introduce `try`/`catch`, do not create a `result` variable, and do not apply `?.` to the newly created object.  The concise expression body is more accurate because there is no alternate control-flow contract to model.  This exception is intentionally narrow and does not weaken the normal fault-tolerance requirements at real failure boundaries.
 
 Every call result must be treated as untrusted until validated. Do not assume that a method succeeded merely because it returned. Validate returned references, strings, collections, counts, enum values, and status flags before using them. When an intermediate result is unusable, stop the operation or select a documented fallback.
 
@@ -2694,6 +2747,14 @@ Do not paraphrase the implementation line by line.  Avoid documentation whose ma
 When several public members represent alternative policies or operating modes, document the conceptual difference at the type level when practical and reinforce the caller-selection guidance on the individual members.  A developer should not need to read the implementation to discover which public entry point is appropriate.
 
 Apply this standard on every documentation pass, including documentation written for private/internal members.  Private-member documentation should help a future maintainer preserve invariants and understand why the member exists without exposing irrelevant implementation trivia in public contracts.
+
+### Fluent-builder documentation
+
+Treat a fluent builder as a public state machine for object construction.  Document the builder interface, concrete builder class, every builder state property, every fluent stage method, every factory entry point, and every terminal method.  The documentation should tell a maintainer what construction fact has already been captured, what fact the current method accepts, and whether the returned value is another builder stage or the completed object.
+
+For an intermediate stage, the `<returns>` documentation identifies the next interface/stage and explains what must still be supplied when that distinction is useful.  For a terminal stage, the `<returns>` documentation identifies the actual completed product type.  Do not document a deterministic expression-bodied `FromScratch()` as though `null` were a normal failure result when the implementation simply invokes a parameterless constructor.
+
+Keep interface-member and implementation-member documentation semantically aligned.  The documentation describes the contract and the semantic role of each stage, not the private field assignments used to remember constructor arguments.
 
 ### Tag order
 
@@ -3012,7 +3073,18 @@ public static IXxx SoleInstance()
 }
 ```
 
-A factory that creates new objects is commonly named `MakeNewXxx` and uses a fluent method such as `FromScratch()` or `From(...)`.
+A factory that creates new objects is commonly named `MakeNewXxx`.  Choose its fluent entry point from the actual construction contract:
+
+- Use `FromScratch()` only when construction genuinely begins from a parameterless empty/default state.
+- When a required constructor value exists, make that value the first semantic phrase, such as `ForMemberNamed(...)`, `ForActionList(...)`, `ForDisplayName(...)`, `ForWindowHandle(...)`, `FromPath(...)`, or another domain-specific equivalent.
+- When one factory call can completely describe construction, return the finished object directly rather than manufacturing a builder.
+- When several inputs must be accumulated, return narrow stage-specific builder interfaces as appropriate and let the final semantically meaningful method return the finished object.
+- Do not add a generic `Build()` terminal method when the final required semantic input can itself complete construction.
+- A `FromScratch()` member that merely invokes the parameterless constructor of a .NET Framework class, or a straightforward builder around one, should normally be a direct expression-bodied member without `try`/`catch`, a ceremonial `result` variable, or conditional access.
+
+Fluent builders may wrap framework-owned classes as well as xyLOGIX-owned classes when the abstraction gives constructor inputs meaningful names, centralizes repeated constructor knowledge, or materially improves call-site maintainability.  Framework classes do not need to implement xyLOGIX interfaces; the builder itself may expose narrow interfaces while the terminal stage returns the framework type required by the API boundary.
+
+When several built objects are assembled into a collection, prefer one descriptively named local variable per built object before entering the collection-building chain.  Intermediate collection methods may use names such as `WithItem(...)`; the terminal method should make completion explicit, such as `AndFinalItem(...)`, and return the completed collection directly.
 
 A singleton strategy factory commonly uses `GetXxx.ForType(...)`, `ForMode(...)`, or `ForFormattingMethod(...)`.  A factory that creates new strategy instances uses `MakeNewXxx.OfType(...)` or similar wording.
 
