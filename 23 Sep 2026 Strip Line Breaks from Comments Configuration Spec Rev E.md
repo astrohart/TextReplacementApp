@@ -66,19 +66,29 @@ Default: `true`
 
 This is the master gate for the CodeMaid/ReSharper cleanup phase.
 
-When `false`:
-
-- no CodeMaid/ReSharper cleanup confirmation is displayed;
-- CodeMaid cleanup is skipped;
-- `ReSharper.ReSharper_SilentCleanupCode` is skipped;
-- `ReSharper.ReSharper_SilentCleanupOpenFiles` is skipped; and
-- `AssemblyInfo.cs` cleanup-only processing is skipped.
+When `false`, no CodeMaid/ReSharper cleanup confirmation is displayed and no CodeMaid or ReSharper cleanup command is executed. `AssemblyInfo.cs` cleanup-only processing is skipped as well.
 
 When `true` and `SuppressPrompts` is `false`, comment line-break processing completes first and the command displays a Visual Studio-owned Yes/No question asking whether CodeMaid/ReSharper cleanup should run. The Question icon is used and **No is the default button**. Cleanup runs only if the user selects Yes.
 
-When `true` and `SuppressPrompts` is `true`, the cleanup phase runs without asking the question. This makes the property directly usable by a `.ps1` script.
+When `true` and `SuppressPrompts` is `true`, the cleanup phase runs without asking the question. This is the one-shot configuration path used by a `.ps1` script. The cleanup implementation is identical to the confirmed interactive path; suppressing prompts does not select a bulk/open-document cleanup algorithm.
 
-After cleanup completes, the command performs a second source-formatting verification pass over the processing scope. Any eligible comment line breaks reintroduced by CodeMaid/ReSharper are stripped again before Git completion/check-in. This post-cleanup pass does not invoke CodeMaid/ReSharper a second time.
+When cleanup runs, the command iterates the complete resolved `processingFilePaths` scope one source file at a time. For each file it opens or activates that exact file in the Visual Studio code editor and allows the active-document context to settle before invoking cleanup commands. Files that were already open remain open; files opened only for cleanup are saved and then closed by the command.
+
+For each non-`AssemblyInfo.cs` source file, the cleanup sequence is:
+
+1. activate the source file;
+2. wait for and invoke `CodeMaid.CleanupCode` against the active document;
+3. pump Visual Studio messages for a settling interval;
+4. independently wait for and invoke ReSharper silent cleanup against the active file, preferring `ReSharper_SilentCleanupCode` and falling back to `ReSharper.ReSharper_SilentCleanupCode`;
+5. save the active document.
+
+The CodeMaid and ReSharper attempts are intentionally independent. Failure, unavailability, or an exception from CodeMaid MUST NOT prevent the ReSharper silent-cleanup attempt. The command waits for cleanup commands to become available while pumping Visual Studio messages so an extension that temporarily disables a command while the editor is settling does not cause the subsequent cleanup step to be silently skipped.
+
+`AssemblyInfo.cs` continues to bypass the command's comment-line-break transformation and CodeMaid cleanup; when cleanup is enabled it receives active-file ReSharper silent cleanup followed by a save.
+
+The command MUST NOT use `CodeMaid.CleanupOpenCode`, `CodeMaid.CleanupAllCode`, or `ReSharper.ReSharper_SilentCleanupOpenFiles` for this cleanup phase. The cleanup scope is established by the command's own `processingFilePaths` list and is processed deterministically one activated source file at a time rather than depending on whichever documents happen to be open.
+
+When cleanup runs, CodeMaid/ReSharper is the final source-formatting stage for the invocation. The command MUST NOT reapply comment-line-break formatting after cleanup. Any subsequent Git prompt, Git preparation, commit, push, cancellation, or decline path must preserve the exact editor/source state produced by cleanup and must not rewrite source merely to re-establish the pre-cleanup comment-line-break invariant.
 
 ### `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed`
 
@@ -104,9 +114,10 @@ With the canonical default configuration:
 2. Git awareness is permitted subject to the existing open-document/invocation policy.
 3. Comment line breaks are processed.
 4. The command asks whether CodeMaid/ReSharper cleanup should run. No is the default answer.
-5. If cleanup runs, the command re-verifies/reapplies comment line-break formatting afterward so cleanup cannot reintroduce the line breaks as the final source state.
-6. When pre-formatting Git awareness was suppressed, the existing post-processing Git check-in question is displayed.
-7. The configuration file is reset to the canonical defaults before `Run` exits.
+5. If cleanup runs, every in-scope source file is activated and cleaned one file at a time: CodeMaid active-file cleanup first (except `AssemblyInfo.cs`), then ReSharper active-file silent cleanup, then save. A CodeMaid failure does not suppress ReSharper.
+6. CodeMaid/ReSharper becomes the final source-formatting authority for the invocation. No comment-line-break formatting pass runs afterward; later Git control flow must not mutate the cleaned source state.
+7. When pre-formatting Git awareness was suppressed, the existing post-processing Git check-in question is displayed.
+8. The configuration file is reset to the canonical defaults before `Run` exits.
 
 ## Scripted format-only example
 
