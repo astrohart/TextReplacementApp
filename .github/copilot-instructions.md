@@ -201,36 +201,24 @@ Use a shift-left, fault-tolerant style. Do not assume values, indexes, propertie
 11. Validate parameters before async work begins.
 12. Log before checks, log failures, log successes, and log `result` before every early return when surrounding code uses detailed logging.
 
-When logging a validation gate, use this structure:
+When logging a validation gate in this solution, use `System.Diagnostics.Debug.WriteLine(...)` and the established `Checking...` / `*** SUCCESS ***` / `*** ERROR ***` / `*** WARNING ***` / `FYI` narrative. Keep the volume proportional to operational value. Ordinarily separate a completed `Debug.WriteLine(...)` call from a following statement with one physical blank source line when that separation improves readability. However, never place a blank physical source line between a completed `Debug.WriteLine(...)` call and an immediately following closing brace (`}`), and do not manufacture a blank line merely because the diagnostic call has completed. Example:
 
 ```csharp
-DebugUtils.WriteLine(
-    DebugLevel.Info,
-    "ClassName.MethodName: *** INFO *** Checking whether the method parameter, 'data', has a null reference for a value..."
+Debug.WriteLine(
+    "ClassName.MethodName: Checking whether the method parameter, 'data', has a null reference for a value..."
 );
 
-// Check whether the method parameter, 'data', is set to a null reference.
-// If this is the case, then write an error message to the log file, and
-// then terminate the execution of this method, returning the default return value.
+// Check whether the method parameter, 'data', is set to a null reference. If this is the case, then write an error message to the Debug output and terminate the method.
 if (data == null)
 {
-    // The method parameter, 'data', is set to a null reference. This is not desirable.
-    DebugUtils.WriteLine(
-        DebugLevel.Error,
+    Debug.WriteLine(
         "ClassName.MethodName: *** ERROR *** A null reference was passed for the method parameter, 'data'. Stopping..."
     );
 
-    DebugUtils.WriteLine(
-        DebugLevel.Debug,
-        $"*** ClassName.MethodName: Result = {result}"
-    );
-
-    // stop.
     return result;
 }
 
-DebugUtils.WriteLine(
-    DebugLevel.Info,
+Debug.WriteLine(
     "ClassName.MethodName: *** SUCCESS *** We have been passed a valid object reference for the method parameter, 'data'. Proceeding..."
 );
 ```
@@ -248,15 +236,14 @@ Prefer methods that return default/failure values over methods that throw, while
 - Initialize `result` to the semantic failure/default value unless there are no gates and assignment is guaranteed before return.
 - Logic gates return `result`, never literal `true`, `false`, or `null`.
 - In `catch`, log the exception and reset `result` to the default failure value.
-- Put `using xyLOGIX.Core.Debug;` at the top of files that use `DebugUtils`.
-- Put this exact comment immediately before every `DebugUtils.LogException(ex);` call:
+- Put `using System.Diagnostics;` at the top of files that use `Debug.WriteLine(...)` or `[DebuggerStepThrough]`.
+- Do not introduce `xyLOGIX.Core.Debug.DebugUtils` calls into new or revised `xyLOGIX.DesignTime.Wizard.Dark` code.
+- Put this exact comment immediately before writing a caught exception to the Debug output:
 
 ```csharp
-// dump all the exception info to the log
-DebugUtils.LogException(ex);
+// dump all the exception info to the Debug output.
+Debug.WriteLine(ex);
 ```
-
-Do not explicitly pass the second parameter to `DebugUtils.LogException`.
 
 ### 7.2) Default return values
 
@@ -374,7 +361,7 @@ Use fully-qualified XML documentation references whenever semantically valid:
 | Field, constant, enum member | `<see cref="F:Namespace.TypeName.FieldName" />` |
 
 - Use `<see cref="F:System.String.Empty" />` and `<see cref="F:System.Guid.Empty" />` for those values.
-- When referencing `DebugUtils.LogException`, use `<see cref="M:xyLOGIX.Core.Debug.DebugUtils.LogException(System.Exception,System.Boolean)" />`.
+- Do not introduce XML documentation references to `xyLOGIX.Core.Debug.DebugUtils` in new or revised `xyLOGIX.DesignTime.Wizard.Dark` code; this solution uses `System.Diagnostics.Debug.WriteLine(...)` for diagnostics.
 - Prefer generic backtick-plus-arity notation, such as `System.Collections.Generic.IList`1`, over curly-brace generic notation.
 - If a term looks like code but cannot or should not be cross-referenced, wrap it in `<c>...</c>`. Examples: file names, `AssemblyInfo`, `AssemblyTitle`, source comments, and source-level attributes.
 - Inline reproduced code or comments must be wrapped in `<c>...</c>`.
@@ -425,7 +412,7 @@ public int Count
 
 1. Follow classic Microsoft desktop UI conventions, especially the Windows User Interface Guidelines for Software Design and classic Windows 3.x/95 style where applicable.
 2. Forms use Segoe UI 9pt, not MS Sans Serif 8.25pt.
-3. Push buttons are sized `(87, 27)` unless existing UI or user direction requires otherwise.
+3. Standard push buttons are sized `(87, 27)` on Windows 10 and `(87, 26)` on Windows 11 or higher, unless an existing product-specific layout or explicit user direction requires otherwise.
 4. If `xyLOGIX.UI.Dark` libraries are present, forms and dialogs should derive from `xyLOGIX.UI.Dark.Forms.DarkForm`; otherwise use `System.Windows.Forms.Form`.
 5. If dark forms are used, form interfaces should inherit `xyLOGIX.UI.Dark.Forms.IDarkForm`. Otherwise they can inherit `xyLOGIX.Core.Extensions.IForm`.
 6. Use `DarkXxx` controls when the dark controls library provides an equivalent; otherwise use the standard Windows Forms control.
