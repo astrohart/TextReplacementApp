@@ -1,6 +1,8 @@
 # Repository instructions for GitHub Copilot
 
-These instructions apply to all Copilot Chat responses, agent-mode changes, code snippets, issue text, pull request text, commit-message assistance, documentation, and generated source files in this repository.
+These instructions are a portable xyLOGIX baseline intended to be installed across many software-system repositories. They apply to all Copilot Chat responses, agent-mode changes, code snippets, issue text, pull request text, commit-message assistance, documentation, and generated source files in the repository in which this file is installed.
+
+Repository-specific instructions, the maintainer's current prompt, and established local source conventions remain authoritative over generic examples in this file. In particular, this portable baseline must never be interpreted as selecting one diagnostic/logging framework for every repository.
 
 > NOTE: This file is intentionally ASCII-only and uses valid Markdown.
 
@@ -201,7 +203,11 @@ Use a shift-left, fault-tolerant style. Do not assume values, indexes, propertie
 11. Validate parameters before async work begins.
 12. Log before checks, log failures, log successes, and log `result` before every early return when surrounding code uses detailed logging.
 
-When logging a validation gate in this solution, use `System.Diagnostics.Debug.WriteLine(...)` and the established `Checking...` / `*** SUCCESS ***` / `*** ERROR ***` / `*** WARNING ***` / `FYI` narrative. Keep the volume proportional to operational value. Ordinarily separate a completed `Debug.WriteLine(...)` call from a following statement with one physical blank source line when that separation improves readability. However, never place a blank physical source line between a completed `Debug.WriteLine(...)` call and an immediately following closing brace (`}`), and do not manufacture a blank line merely because the diagnostic call has completed. Example:
+Diagnostic framework selection is repository-specific. Before adding or revising diagnostics, inspect the current repository's `CONTRIBUTING.md`, other repository-specific instructions, existing source, and project-reference/dependency conventions. Do not migrate a repository from `xyLOGIX.Core.Debug.DebugUtils` to `System.Diagnostics.Debug.WriteLine(...)`, or in the opposite direction, merely because a generic example in this portable file uses one mechanism.
+
+When the current repository uses `xyLOGIX.Core.Debug.DebugUtils`, preserve that convention and use `using xyLOGIX.Core.Debug;` when required. When the current repository instead standardizes on `System.Diagnostics.Debug.WriteLine(...)`, preserve that convention and use `using System.Diagnostics;` when required. If repository-specific guidance expressly requires one mechanism or prohibits the other, that local rule controls.
+
+For repositories that use `System.Diagnostics.Debug.WriteLine(...)`, the established `Checking...` / `*** SUCCESS ***` / `*** ERROR ***` / `*** WARNING ***` / `FYI` narrative may be used when it matches surrounding code. Keep the volume proportional to operational value. Ordinarily separate a completed `Debug.WriteLine(...)` call from a following statement with one physical blank source line when that separation improves readability. However, never place a blank physical source line between a completed `Debug.WriteLine(...)` call and an immediately following closing brace (`}`), and do not manufacture a blank line merely because the diagnostic call has completed. The following example is illustrative only; it does not select `System.Diagnostics.Debug` for repositories that use another diagnostic mechanism:
 
 ```csharp
 Debug.WriteLine(
@@ -236,13 +242,21 @@ Prefer methods that return default/failure values over methods that throw, while
 - Initialize `result` to the semantic failure/default value unless there are no gates and assignment is guaranteed before return.
 - Logic gates return `result`, never literal `true`, `false`, or `null`.
 - In `catch`, log the exception and reset `result` to the default failure value.
+- Use the diagnostic mechanism established by the current repository. Do not replace `xyLOGIX.Core.Debug.DebugUtils` with `System.Diagnostics.Debug.WriteLine(...)`, or vice versa, unless repository-specific guidance or the maintainer explicitly requires that migration.
 - Put `using System.Diagnostics;` at the top of files that use `Debug.WriteLine(...)` or `[DebuggerStepThrough]`.
-- Do not introduce `xyLOGIX.Core.Debug.DebugUtils` calls into new or revised `xyLOGIX.DesignTime.Wizard.Dark` code.
-- Put this exact comment immediately before writing a caught exception to the Debug output:
+- Put `using xyLOGIX.Core.Debug;` at the top of files that use `DebugUtils` when that namespace is required.
+- In a repository that uses `System.Diagnostics.Debug.WriteLine(...)` for caught exceptions, use the repository's established exception comment; when the established wording is the xyLOGIX Debug-output form, use:
 
 ```csharp
 // dump all the exception info to the Debug output.
 Debug.WriteLine(ex);
+```
+
+- In a repository that uses `xyLOGIX.Core.Debug.DebugUtils.LogException(...)` for caught exceptions, use the repository's established exception comment; when the established wording is the xyLOGIX log form, use:
+
+```csharp
+// dump all the exception info to the log
+DebugUtils.LogException(ex);
 ```
 
 ### 7.2) Default return values
@@ -361,7 +375,7 @@ Use fully-qualified XML documentation references whenever semantically valid:
 | Field, constant, enum member | `<see cref="F:Namespace.TypeName.FieldName" />` |
 
 - Use `<see cref="F:System.String.Empty" />` and `<see cref="F:System.Guid.Empty" />` for those values.
-- Do not introduce XML documentation references to `xyLOGIX.Core.Debug.DebugUtils` in new or revised `xyLOGIX.DesignTime.Wizard.Dark` code; this solution uses `System.Diagnostics.Debug.WriteLine(...)` for diagnostics.
+- Diagnostic XML documentation follows the current repository's actual diagnostic dependency. If the repository uses `xyLOGIX.Core.Debug` and a cross-reference to `DebugUtils.LogException(System.Exception,System.Boolean)` is appropriate, use the fully-qualified method reference `M:xyLOGIX.Core.Debug.DebugUtils.LogException(System.Exception,System.Boolean)`. If the repository does not use `xyLOGIX.Core.Debug`, do not introduce that dependency or a `DebugUtils` cross-reference merely because this portable baseline discusses it.
 - Prefer generic backtick-plus-arity notation, such as `System.Collections.Generic.IList`1`, over curly-brace generic notation.
 - If a term looks like code but cannot or should not be cross-referenced, wrap it in `<c>...</c>`. Examples: file names, `AssemblyInfo`, `AssemblyTitle`, source comments, and source-level attributes.
 - Inline reproduced code or comments must be wrapped in `<c>...</c>`.
@@ -546,6 +560,8 @@ Before every phase, check for circular dependencies.
 
 ## 15) ProjectCloner-specific reminders
 
+Apply this section only when the current repository is ProjectCloner or one of its directly related modules.
+
 - Preserve current architecture unless explicitly asked to redesign it.
 - For source generation, check `CONTRIBUTING.md` for required headers.
 - Do not replace existing custom GUIDs without explicit instruction.
@@ -554,6 +570,8 @@ Before every phase, check for circular dependencies.
 - If working with text-editor configuration, build-event XML documentation fixes, or error reporting, inspect current implementations first because migration work may be partially complete.
 
 ## 16) Documentation file path generator architecture
+
+Apply this section only when the current repository contains or directly works on the `PC.Generators.Paths.*` family.
 
 For `PC.Generators.Paths.*`, generate `DocumentationFile` values according to Visual Studio convention:
 
