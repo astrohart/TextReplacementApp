@@ -1,11 +1,13 @@
 # Robust Visual Studio Package Manager Console Automation Script Guidelines
 
-Revision: S
-Last Updated: 18 September 2026
+Revision: T
+Last Updated: 23 September 2026
 
 ## Changelog
 
-Revision S is the current controlling revision and supersedes Revision R where this document differs. Revision S removes the adaptive post-capture IDE/Git fixed-point wait that previously ran after transaction-owned implementation commits. Commit creation is now deliberately fast and sequential: do not sleep, fingerprint, pump, or run a post-capture quiet-period barrier after each commit. Complete the entire ordered Git-capture pass first. Only after all commits in that pass have been created and individually proven by their `HEAD` transitions, execute exactly one `Start-Sleep -ms 50`, then perform a direct fresh Git-status check of the transaction-owned paths. If late transaction-owned dirt is present, recapture it directly from fresh status within the bounded recapture budget, without VCmd reruns or adaptive content-stability waiting; after a complete recapture pass that creates additional commits, the same single 50-millisecond yield may occur once again after that whole pass, never after an individual commit. Revision S does not weaken the mandatory post-VCmd startup/drain + quiescence barrier, which still protects Git capture from delayed CodeMaid/ReSharper writes, and it does not alter the separate terminal handoff delays around `Window.CloseAllDocuments`/`buildTwiceThenCommit.ps1`.
+Revision T is the current controlling revision and supersedes Revision S where this document differs. Revision T hardens destructive Visual Studio project-system topology removals after a live Change Transaction Script defect deleted a Windows Forms source family from disk while leaving the parent source item registered in its owning project. When a transaction intends to remove a project item or an explicitly named reference, it must resolve that relationship through the loaded owning project, issue the DTE/project-system removal, explicitly persist the owning project with `Project.Save()` when that operation is available, run `File.SaveAll`, pump/settle the IDE, and then re-resolve the relationship through DTE. When physical file deletion follows a project-item removal, the filesystem deletion is prohibited until DTE proves that the parent project item is no longer registered. If that proof fails, preserve the physical source family and stop that destructive sub-operation with an actionable diagnostic rather than creating a missing-file/red-X project item in Solution Explorer. For nested WinForms source families, remove the parent `MyForm.cs` project item rather than independently removing its dependent `*.Designer.cs`/`.resx` children unless the loaded project system demonstrates that a different operation is required. Explicit reference removals use the same persist-and-prove discipline before the transaction treats the topology mutation as settled. This is a narrow mechanical-safety exception to the general progress-first rule that successful positive DTE calls may otherwise be trusted without semantic rereads: the DTE absence proof is required only because the next destructive action would be unsafe or nonsensical while project membership still exists.
+
+- **Revision S.** Removed the adaptive post-capture IDE/Git fixed-point wait that previously ran after transaction-owned implementation commits. Commit creation became deliberately fast and sequential: do not sleep, fingerprint, pump, or run a post-capture quiet-period barrier after each commit. Complete the entire ordered Git-capture pass first. Only after all commits in that pass have been created and individually proven by their `HEAD` transitions, execute exactly one `Start-Sleep -ms 50`, then perform a direct fresh Git-status check of the transaction-owned paths. If late transaction-owned dirt is present, recapture it directly from fresh status within the bounded recapture budget, without VCmd reruns or adaptive content-stability waiting; after a complete recapture pass that creates additional commits, the same single 50-millisecond yield may occur once again after that whole pass, never after an individual commit. Revision S did not weaken the mandatory post-VCmd startup/drain + quiescence barrier, which still protects Git capture from delayed CodeMaid/ReSharper writes, and it did not alter the separate terminal handoff delays around `Window.CloseAllDocuments`/`buildTwiceThenCommit.ps1`.
 
 - **Revision R.** Updated the Visual Commander automation contract to the supplied Strip Line Breaks from All Comments configuration schema version 3. Source-mutating Change Transaction Scripts that run the VCmd cleanup pass must explicitly set `SuppressPrompts = true`, `EnableGitAwareness = false`, `EnableCodeMaidAndReSharperCleanup = true`, and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed = false`. This keeps the invocation noninteractive, enables the intended CodeMaid/ReSharper cleanup phase, and leaves all Git ownership with the Change Transaction Script. Revision R also recorded the command's new post-cleanup source-format verification pass: after cleanup, VCmd re-verifies/reapplies comment line-break formatting before it returns. This internal second formatting pass does not replace the transaction's existing adaptive post-VCmd startup/drain and content-quiescence barrier, because delayed IDE/ReSharper/project-system writes can still occur after the DTE command returns.
 - **Revision Q.** Hardened the Windows PowerShell 5.1 transaction contract after a live PMC binder failure, including binder-safe intentional empty collections/strings, actual delivered-script identity across child scope, concurrent bounded native stdout/stderr draining, corrected terminal handoff behavior, and the current `Debug.WriteLine(...)` diagnostic-spacing rule.
@@ -41,6 +43,7 @@ Typical use cases include:
 - adding required project/assembly/package references without policing unrelated existing references;
 - creating complete repository-standard project/module scaffolds and adding them to the loaded Solution through DTE;
 - performing project/Solution topology operations such as renames when the task genuinely requires them;
+- removing obsolete project items/source families or explicitly named references through DTE with the Revision T persist-and-prove barrier before any dependent physical file deletion;
 - retrying a prior partially completed transaction without treating harmless source divergence, formatting changes, or an orphaned empty transaction boundary as a reason to fail;
 - recovering already-completed, already-settled source/project changes from a prior transaction whose Git capture did not occur or did not finish, by staging/committing/pushing the live dirty files without re-running source mutation, ReSharper suspension, VCmd cleanup, or artificial content-stability waits;
 - deriving the narrow VCmd-eligible C# processing set from the complete transaction-created changed-path set, supplying the one-run noninteractive/Git-disabled/cleanup-enabled configuration for `VCmd.CCommandStripLineBreaksFromAllComments`, running that cleanup pass without modal prompts or VCmd-owned Git activity, and saving the IDE state before the script's own Git capture; and
@@ -130,6 +133,7 @@ Accordingly:
 
 - **Design the script to keep moving and to avoid dying unless execution truly cannot continue mechanically. Do not manufacture failure opportunities through defensive source-shape validation.**
 - **Assume positive source-code and project-file modification actions completed correctly once issued successfully.**
+- **Revision T exception for destructive topology sequencing:** when a project-item/reference removal is a prerequisite for a later destructive filesystem action, a normal return from the DTE removal call is not enough. Persist the owning project, flush/pump the IDE, and prove the relationship is absent through DTE before deleting physical files. This is a mechanical next-action safety gate, not source-semantic validation.
 - **Once an authorized source/project target is identified, overwrite/clobber it with the transaction's intended state without requiring its current bytes, hash, formatting, layout, comments, method shape, markers, or semantics to match an earlier snapshot or generated payload.**
 - **When a complete desired file can be generated ahead of time, prefer that exact full-file payload over runtime structural searching or method-body replacement.**
 - **Linting, formatting/style diagnostics, static analysis, and similar advisory checks are warning-only. They must never throw, abort, restore files, remove commits, reset history, or otherwise block forward progress.**
@@ -158,7 +162,7 @@ For positive source/project modification actions, use this model:
 
 1. **Establish enough mechanical context to target the intended Solution/repository/path.**
 2. **Impose the pre-audited desired state, normally by clobbering the authorized file with its complete exact payload.**
-3. **Assume the mutation succeeded once the underlying operation returned normally.**
+3. **Assume the mutation succeeded once the underlying operation returned normally, except for a destructive topology-removal sequence whose next step would physically delete a still-registered project item; that sequence must satisfy the Revision T DTE persist-and-prove barrier first.**
 4. **Record that meaningful positive mutation has occurred and continue the transaction.**
 5. **Let the maintainer identify any remaining problem and address it with the next Change Transaction Script.**
 
@@ -524,6 +528,12 @@ When Visual Studio exposes a project-system operation, use it instead of writing
 
 Do not hand-edit `.sln` project entries or `<ProjectReference>` XML merely because they are text. The IDE is the authority for those relationships and is responsible for writing the correct relative path representation. Exact-payload clobbering remains the default for authored source/project content, but topology operations are not ordinary text-payload mutations.
 
+For **destructive topology removal**, use the loaded owning project's project-system surface rather than relying only on a Solution-global lookup. When the owning project is known, resolve the target item from that project (recursively through its `ProjectItems` hierarchy when necessary), log the exact project/item identity, call `ProjectItem.Remove()` or the equivalent non-destructive membership-removal operation, explicitly call the owning project's `Save()` operation when available, then call `File.SaveAll`, pump `Application.DoEvents()`, and allow a short bounded project-system settle. Re-resolve the target through the owning project afterward. If it is still registered, do not delete the physical file or source family.
+
+`ProjectItem.Remove()` and `ProjectItem.Delete()` are not interchangeable. Use `Remove()` when the intent is to sever project membership while retaining control over physical-file deletion. Use `Delete()` only when the current task explicitly intends both project-system and physical deletion and the loaded project system's behavior is understood; for Change Transaction Scripts, the preferred destructive sequence is membership removal + persistence proof + explicit filesystem deletion so failure cannot strand a missing file in the project.
+
+For a nested Windows Forms family, the normal destructive unit is the **parent** `MyForm.cs` project item. Remove that parent through DTE and let the project system remove its dependent `MyForm.Designer.cs`/`MyForm.resx` membership as one family. Do not independently remove dependent children first unless the actual loaded topology makes the parent operation insufficient.
+
 Do not infer transaction ownership merely from Solution membership. In particular, the Solution-level SEM, `CONTRIBUTING.md`, and `README.md` remain manual maintainer deliverables even when exposed as **Solution Items**. A Change Transaction Script must not add/remove/update those documents through DTE.
 
 When adding a file already located under a project directory, construct the file pathname from the directory spelling exposed by that loaded project's project file. This reduces junction-spelling mismatches that can cause legacy project systems to persist an absolute `Compile Include` path.
@@ -577,6 +587,9 @@ For consequential operations, log both a concise human-oriented PMC message and 
 - `Solution.AddFromFile(...)`: full project path, full Solution path, and explicit `Exclusive` value;
 - `References.AddProject(...)`: consuming project and target project names/full paths;
 - `ProjectItems.AddFromFile(...)`: project name and full source-item path;
+- `ProjectItem.Remove()`/other project-item membership removal: owning project identity, parent/child item identity, and full source path;
+- explicit reference removal: consuming project identity plus the exact project/assembly reference identity;
+- `Project.Save()` used by a destructive-topology persistence barrier: owning project name/full path and the fact that the save returned;
 - Solution/project removal or close/open operations: exact project/Solution identity;
 - `ProjectItem.Open(...)`/`ItemOperations.OpenFile(...)`: full source path and requested view kind;
 - `ReSharper_Suspend`/`ReSharper_Resume`: command name and inferred preexisting state;
@@ -631,6 +644,8 @@ If direct status unexpectedly shows a recovery-owned path dirty again, recapture
 ### Required checkpoint B: after all source/project/Solution mutations
 
 After **all** transaction source, source-item membership, project-reference, project-add, Solution-item, and other topology mutations are complete, run `File.SaveAll` so Visual Studio/project-system state is flushed before the one-time editor-cleanup pass begins.
+
+Revision T adds one important sequencing rule: a destructive project-item/reference removal that gates a later physical file deletion must perform its own immediate persist-and-prove barrier **before** that filesystem deletion. Do not defer that proof to checkpoint B. Checkpoint B remains the transaction-wide flush after all mutations; it is not a substitute for proving that an item has left the owning project before its file is removed from disk.
 
 There is no phase-local VCmd checkpoint. Creating a scaffold is **not** followed by a scaffold-only VCmd pass; all VCmd-eligible affected files are accumulated into one transaction-wide registry and processed together at the final cleanup point.
 
@@ -1306,6 +1321,7 @@ Examples:
 - Overwrite/clobber an authorized source payload regardless of whether a prior run reformatted, partially changed, or otherwise reshaped it; do not rediscover old method bodies or markers first.
 - Skip a work-item commit if its path is no longer dirty.
 - Add a project/assembly reference only if the current implementation needs it.
+- For an authorized project-item/source-family deletion retry, first re-resolve the parent item through the loaded owning project. If membership is already absent, the persist-and-prove topology postcondition is already satisfied and the authorized physical deletion may proceed idempotently. If the physical file is already missing but the project item still exists, remove/persist/prove the project membership before doing anything else; do not leave or recreate a missing-file project item.
 - Re-derive the current transaction's VCmd-eligible changed C# set and open those eligible files in the source-code editor before VCmd even when some are already open from an earlier attempt; opening an already-open eligible document is a harmless retry condition.
 - Skip VCmd when no VCmd-eligible changed C# files can be opened.
 - Preserve partial forward progress after advisory/runtime correctness concerns and fix those concerns in the next transaction rather than automatically erasing the work.
@@ -1384,7 +1400,16 @@ Unless the current prompt explicitly identifies a specific reference for removal
 
 Reference handling is therefore one-directional: **ensure the transaction issues/adds the references it requires; do not police harmless extras or turn post-add source/project-file inspection into a fatal gate.**
 
-If the current task explicitly requires removal of a named reference, then that removal becomes part of the transaction's authorized mutation set and may be verified normally. Such explicit removal is the exception, not the default.
+If the current task explicitly requires removal of a named reference, then that removal becomes part of the transaction's authorized mutation set and must use the Revision T topology-removal discipline:
+
+1. Resolve the exact reference through the loaded consuming project's DTE/VSProject reference collection.
+2. Log the consuming project and target reference immediately before the removal call and log the return immediately afterward.
+3. Issue the DTE/project-system removal; do not hand-edit `<ProjectReference>`/assembly-reference XML.
+4. Explicitly call the consuming project's `Save()` operation when available, then call `File.SaveAll`, pump the IDE message loop, and allow a short bounded project-system settle.
+5. Re-enumerate the consuming project's reference collection through DTE and require the explicitly targeted reference to be absent before treating the removal as settled.
+6. If the reference remains registered, preserve all other forward progress, report the topology-removal failure, and do not claim that the reference-removal work item succeeded.
+
+This DTE re-query is a mechanical topology postcondition for an explicitly requested destructive relationship change. It is not permission to parse `.csproj` XML, police unrelated references, or turn ordinary positive reference addition into a persistence gate.
 
 ### 20.2 Creating projects: impose the complete repository-standard scaffold
 
@@ -1607,6 +1632,8 @@ Treat this XML as the expected **project-system outcome**, not as the preferred 
 
 If a child file is already present as an incorrectly independent root project item, remove only that item's **project membership** first (prefer `ProjectItem.Remove()` or the equivalent non-destructive project-system operation when supported), preserve the physical file, and then add it beneath the main Form item. Never use `ProjectItem.Delete()` merely to repair nesting, because deleting the physical source/resource file is not part of the topology correction.
 
+When the current task instead deletes an **obsolete entire Form family**, apply Section 20.7 rather than deleting the three files first. Resolve and remove the parent `MyForm.cs` project item through the loaded owning project, persist and prove that the parent/dependent membership is gone, and only then delete the authorized physical `MyForm.cs`, `MyForm.Designer.cs`, `MyForm.resx`, and any explicitly authorized sidecar/backup files.
+
 #### VCmd and Git treatment of a Form source family
 
 The Form family is one logical artifact but has mixed cleanup eligibility:
@@ -1620,6 +1647,47 @@ During ordered Git capture, keep the directly coupled Form family atomic. `MyFor
 
 A transaction that is migrating multiple monolithic dialogs repeats this family operation for each Form independently; do not batch all Forms into one commit merely because they are being repaired by the same transaction.
 
+### 20.7 Destructive project-item/source-family removal: persist and prove before physical deletion
+
+Revision T establishes a mandatory **membership-first, persistence-second, proof-third, filesystem-delete-last** sequence whenever a Change Transaction Script removes a project-owned source item and then intends to delete the corresponding physical file(s).
+
+This rule exists because a DTE call can return without the intended project-file topology having become the settled persisted state. Deleting the physical source first can therefore leave Visual Studio with a registered `Compile`/`EmbeddedResource` item whose file no longer exists, producing the missing-file/red-X state in Solution Explorer. The project system must be proven clean of the item before the transaction removes the bytes from disk.
+
+#### Generation-time removal model
+
+For each authorized source-family deletion, predeclare:
+
+- the loaded owning project;
+- the parent project item that semantically owns the family;
+- all dependent/nested physical files expected to disappear with that family;
+- any non-project sidecar/backup files that are separately authorized for deletion; and
+- the owning project file as a transaction-owned topology path when DTE persistence changes it.
+
+For a normal Windows Forms family, the parent is `MyForm.cs`; `MyForm.Designer.cs` and `MyForm.resx` are dependent members. Prefer one parent-item removal rather than three independent membership removals.
+
+#### Runtime sequence
+
+1. Locate the actual loaded owning project through DTE and derive the target paths from that project's real project-file directory spelling.
+2. Resolve the **parent** `ProjectItem` through that owning project's `ProjectItems` hierarchy. A Solution-global lookup may be used only as a diagnostic/fallback aid; it is not the preferred ownership proof when the project is already known.
+3. If the parent project item is already absent, treat project membership as an idempotent no-op and continue to Step 7 for the authorized filesystem state.
+4. Log the exact project/item/path boundary, then call `ProjectItem.Remove()` (or the loaded project system's equivalent non-destructive membership-removal operation). Do not call `ProjectItem.Delete()` merely to combine topology and filesystem deletion.
+5. Persist immediately: call the owning project's `Save()` operation when available, then call `$dte.ExecuteCommand('File.SaveAll')`, pump `[System.Windows.Forms.Application]::DoEvents()`, and use a short bounded settle interval.
+6. Re-resolve the parent project item through the same owning project. Also confirm that the known dependent members are no longer registered when the project system exposes them separately. If any authorized family member remains registered, emit an actionable `*** ERROR ***`, preserve the physical source files, preserve prior transaction progress, and stop the destructive deletion path. This postcondition is mandatory because physical deletion is unsafe while membership remains.
+7. Only after Step 6 proves project-system absence may the script delete the authorized physical family with filesystem APIs. A non-project backup/sidecar file such as `MyForm.Designer.cs.BAK` may be deleted in the same physical phase when the current task authorized it.
+8. Treat an already-absent physical file as an idempotent no-op. Do not recreate a file merely to delete it again.
+9. Record the project file plus deleted family paths in the transaction-owned Git/path registry as applicable, then continue to the normal checkpoint B/VCmd/Git flow.
+
+#### Failure/retry behavior
+
+- **Membership remains, files still exist:** do not delete the files; report the DTE persistence defect and preserve progress.
+- **Membership remains, file is already missing from an earlier/manual attempt:** remove/persist/prove the project membership first; once absent, the filesystem deletion step is already a no-op.
+- **Membership is absent, files still exist:** the topology precondition is already satisfied; delete only the explicitly authorized physical files.
+- **Membership and files are already absent:** report the source-family removal as an idempotent no-op and continue.
+
+Do not parse the `.csproj` as the primary persistence proof. DTE/project-system re-resolution is the controlling runtime proof because the transaction is operating inside the loaded Visual Studio instance. Git diff/status may later show the `.csproj` deletion of `Compile`/`EmbeddedResource` entries, but Git is capture evidence, not the project-system sequencing gate.
+
+The same principle applies to any topology operation whose next action would become destructive if the IDE relationship did not actually settle. The proof must be no broader than needed to answer the next mechanical-safety question.
+
 ---
 ## 21. Source Correctness Is a Generation-Time Responsibility
 
@@ -1631,7 +1699,7 @@ Therefore:
 
 - source-shape reasoning belongs to generation-time audit, not runtime rediscovery;
 - exact desired-state full-file payloads are the default mutation mechanism whenever feasible;
-- positive source/project mutations are presumed correct once their underlying operations return normally;
+- positive source/project mutations are presumed correct once their underlying operations return normally, except for the narrow Revision T destructive-topology barrier where a DTE absence proof is required before a dependent physical deletion;
 - source hashes, regexes, marker checks, declaration checks, method-body locators, old-block searches, AST/source-shape checks, reference checks, API checks, and similar semantic inspections are not fatal runtime gates;
 - the VCmd-eligible editor-opening pass is a mechanical preparation step over a deliberately filtered C# subset, not a source-validation step and not a proxy for the complete Git changed-path set;
 - VCmd is invoked only after the exact one-run noninteractive/Git-disabled sidecar has been written successfully, and VCmd cleanup is trusted completely once invoked successfully;
@@ -1987,6 +2055,9 @@ Bad examples:
 - Requiring an exact XML documentation layout when ReSharper is allowed to reflow it.
 - Rejecting a project because it contains additional references that the transaction did not add or does not currently use.
 - Removing a preexisting reference merely because the script believes it is unnecessary.
+- Deleting `MyForm.cs`/`MyForm.Designer.cs`/`MyForm.resx` from disk immediately after calling `ProjectItem.Remove()` without explicitly saving the owning project and proving through that project's DTE hierarchy that the parent item is gone.
+- Removing nested WinForms family members independently when the parent `MyForm.cs` project item is the project-system ownership boundary, then assuming the project topology settled because no exception was thrown.
+- Relying only on `$dte.Solution.FindProjectItem(...)` for a known owning-project removal and proceeding with physical deletion even though the owning project's own `ProjectItems` hierarchy still registers the item.
 - Opening `.csproj`, `.sln`, `.resx`, `.config`, `.json`, `.xml`, `.props`, `.targets`, `.md`, `.txt`, `.snk`, resource, or other non-C# artifacts merely because Visual Studio can open some of them as text.
 - Treating the Solution-level SEM, Solution-level `CONTRIBUTING.md`, or Solution-level `README.md` as transaction-owned merely because the file is present in the repository or under **Solution Items**.
 - Opening `Global*.cs`, `*.Designer.cs`, `*.g.cs`, `*.i.cs`, `*.generated.cs`, or another known generated/fixed-format C# artifact merely because its extension is `.cs`.
@@ -2027,12 +2098,16 @@ Good examples:
 - Explicitly requesting the source-code/text editor so an eligible WinForms primary `.cs` file cannot default to the Designer.
 - Verifying the actual staged diff contains only authorized logical paths before commit.
 - Confirming that the required DTE reference-add operation returned normally and then flushing with `File.SaveAll`, without making a `.csproj` reread a fatal gate.
+- Resolving an obsolete WinForms family's parent `MyForm.cs` from the loaded owning project, calling `ProjectItem.Remove()`, explicitly saving the owning project, calling `File.SaveAll`, pumping/settling the IDE, re-resolving through the owning project to prove the family is no longer registered, and only then deleting the physical family.
+- When explicitly removing a named project/assembly reference, removing it through the consuming project's DTE reference collection, saving/flushing, and re-enumerating that same DTE collection to prove the targeted relationship is absent without parsing `.csproj` XML or policing unrelated references.
 - Re-resolving authorized target paths after `git pull` when repository topology may have changed.
 - Generating updated Solution-level SEM/`CONTRIBUTING.md`/`README.md` artifacts separately for manual application while keeping those paths out of the Change Transaction payload/staging maps.
 
 The question to ask before every gate is:
 
 > Does failure of this condition actually make the next action unsafe or nonsensical?
+
+Revision T's project-membership absence proof is the canonical example of a condition whose failure **does** make the next action unsafe: deleting the physical file while the owning project still registers it creates a broken project item.
 
 If not, do not make it a hard gate.
 
@@ -2070,9 +2145,10 @@ When Section 1.1 applies:
 1. Create complete new-project scaffold(s) first when required, generating fresh current-attempt identity GUIDs rather than copying/reusing prior values.
 2. Before each new-project `AddFromFile`, wait boundedly for the actual full `.csproj` path to be readable/stable, log the exact project/Solution boundary, call `Solution.AddFromFile($fullProjectPath, $false)`, capture/log the returned `EnvDTE.Project`, then continue.
 3. Add other source items/references through DTE/project-system operations with semantic before/after call-boundary logging.
-4. Apply exact audited source payloads in dependency order, excluding Solution-level manual governance deliverables.
-5. Record each VCmd-eligible affected path into the transaction-wide registry and mark meaningful mutation after the first successful positive operation.
-6. Run `File.SaveAll` after all mutations.
+4. For every authorized destructive project-item/source-family or named-reference removal, execute the Revision T DTE removal + owning-project `Save()` + `File.SaveAll` + pump/settle + DTE absence-proof sequence. Do not delete any corresponding physical file until that proof succeeds.
+5. Apply exact audited source payloads in dependency order, excluding Solution-level manual governance deliverables.
+6. Record each VCmd-eligible affected path into the transaction-wide registry and mark meaningful mutation after the first successful positive operation.
+7. Run `File.SaveAll` after all mutations.
 
 ### Phase 3 ??? isolate VCmd scope and visibly open the intended tabs
 
@@ -2142,6 +2218,9 @@ When Section 1.1 applies:
 | Create project scaffold | correct repo + analogous scaffold | complete scaffold exists with fresh generated GUIDs | known partial scaffold can be completed; ownership ambiguity stops |
 | ReSharper state transition | source-mutating transaction + DTE available | transaction records successful owned transition | unavailable toggle is info/warn and nonfatal |
 | Add project to Solution | scaffold written + `.csproj` readable/stable | explicit `Solution.AddFromFile($fullProjectPath, $false)` returns/logs project | already loaded correctly: skip |
+| Remove project item/source family membership | loaded owning project + authorized parent project item | `ProjectItem.Remove()` returns; owning project `Save()` + `File.SaveAll` complete; owning-project DTE re-resolution proves parent/dependents absent | already absent in DTE: topology no-op; if still registered, preserve physical files and stop destructive deletion |
+| Delete physical project-owned source family | Revision T membership-removal proof succeeded + authorized physical path set | authorized files deleted/no-op if already absent; no missing-file project item remains | membership absent + file absent is success; membership present prohibits deletion |
+| Remove explicitly named project/assembly reference | loaded consuming project + exact authorized reference | DTE removal + consuming-project `Save()` + `File.SaveAll`; consuming-project DTE reference re-enumeration proves target absent | already absent: no-op; unrelated references untouched |
 | VCmd cleanup | isolated intended visible C# scope + sidecar prepared | one argumentless VCmd attempt + convergence/SaveAll | unavailable/failure warning-only |
 | Post-VCmd convergence | VCmd ran against opened eligible paths | transaction-owned opened paths content-stable through final sample | timeout stops Git capture but preserves source progress |
 | Select implementation work item | fresh transaction-owned status | next authorized work item chosen | no transaction-owned changes: capture phase complete |
@@ -2180,6 +2259,7 @@ When Section 1.1 applies:
 - [ ] The detailed `%TEMP%` execution log is initialized before mutation and uses the GUID script basename plus execution-start timestamp.
 - [ ] Detailed logging covers function entry/exit, inputs/outcomes, important variables/collections/counts, DTE/Git/VCmd activity, warnings/errors/exceptions, without dumping giant Base64/source payload bodies.
 - [ ] Every potentially blocking DTE/COM operation has a semantic pre-call log record containing exact identities/arguments and an immediate returned/outcome record; `Solution.AddFromFile` includes full project path, full Solution path, and `Exclusive = false`.
+- [ ] Destructive `ProjectItem.Remove()`/reference-removal and owning-project `Save()` calls have explicit before/after log records, and the post-save DTE absence proof is logged before any filesystem deletion.
 - [ ] Success and failure finalization perform cleanup/editor restoration first, then append complete raw `git status` for every affected repository as the last substantive file-log content.
 
 ### Project creation
@@ -2235,6 +2315,12 @@ When Section 1.1 applies:
 - [ ] If termination occurs after a transaction-owned empty boundary but before meaningful positive mutation, the script removes that boundary back to the pre-boundary anchor when doing so will not discard unrelated work.
 - [ ] Solution identity comes from `$dte.Solution.FullName`.
 - [ ] Loaded project paths come from DTE when available.
+- [ ] Every destructive project-item/source-family removal is resolved through the loaded **owning project** rather than relying only on Solution-global lookup.
+- [ ] A nested WinForms family deletion removes the parent `MyForm.cs` project item as the normal ownership boundary; dependent `.Designer.cs`/`.resx` membership is not independently torn down first unless the loaded project system requires it.
+- [ ] After `ProjectItem.Remove()` or an explicitly authorized reference removal, the owning/consuming project is explicitly `Save()`d when supported, then `File.SaveAll` runs, the IDE is pumped/settled, and the relationship is re-resolved through DTE.
+- [ ] No physical project-owned source file is deleted until DTE proves the corresponding parent project item is no longer registered; failure of that proof preserves the physical files and blocks only the destructive deletion path.
+- [ ] The script distinguishes `ProjectItem.Remove()` (membership operation) from `ProjectItem.Delete()` (potential physical deletion) and does not use `Delete()` merely to collapse the Revision T sequencing barrier.
+- [ ] Explicit named-reference removals are re-proven against the consuming project's DTE reference collection after save/flush; ordinary reference additions still use the positive-operation rule and do not gain an unnecessary persistence gate.
 - [ ] Junction/symlink path spelling is not used as identity equality.
 - [ ] Every target is mapped to the correct repository.
 - [ ] Git mutation is sequential per repository.
