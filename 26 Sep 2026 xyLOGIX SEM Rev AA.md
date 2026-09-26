@@ -1,12 +1,20 @@
 # The xyLOGIX Software Engineering Manifesto
-Revision: Z
-Last Updated: 22 September 2026
+Revision: AA
+Last Updated: 26 September 2026
 
 This document outlines the software-development hills we'll die on, here at xyLOGIX.
 
 By Brian C. Hart, Ph.D.
 
 Copyright ?? 2026 by xyLOGIX, LLC.  All rights reserved.
+
+## Revision AA Scope
+
+Revision AA preserves all architectural, documentation, source-control, validation, logging, concurrency, implementation, user-interface, result-variable, exception-inheritance, maintainer-source-authority, Windows Forms source-family, dialog-contract, fluent-construction, and engineering-judgment guidance consolidated through Revision Z and adds maintainer-wide rules for **implicit interface implementation**, **documented no-op setters for defaults-only/read-only objects**, and **exception avoidance at harmless policy boundaries**.
+
+- Every interface member implemented by xyLOGIX code is exposed through an ordinary public member. Explicit interface implementation syntax such as `string IFoo.Name { ... }` or `void IFoo.DoWork()` is prohibited. If two interface contracts collide such that C# would ordinarily require explicit implementation, redesign, split, or rename the interfaces or implementations instead of hiding members behind interface qualification.
+- A defaults-only/read-only implementation that must satisfy an existing get/set interface property may expose a normal public setter whose body intentionally does nothing. The setter must be documented as a no-op, assignments are silently discarded, and the getter continues to return the canonical default/read-only value. Do not throw `NotImplementedException`, `NotSupportedException`, or another exception merely to reject such harmless assignment.
+- Exceptions remain appropriate for genuinely exceptional or unrecoverable conditions. Do not use exceptions merely to enforce a benign object-policy boundary when a documented no-op preserves the intended semantics. If silently ignoring a write would conceal a meaningful failure or violate the caller's contract, redesign the abstraction, such as by introducing a narrower read-only interface, rather than using either a no-op or a surprise exception.
 
 ## Revision Z Scope
 
@@ -786,6 +794,8 @@ In *Clean Code*, Uncle Bob stresses that a subclass must act like its parent. If
 
 **The xyLOGIX Way:** We hate surprises in our code. If an object implements an interface or inherits from an abstract base class, it must fulfill the *entire* contract. If it cannot fulfill the contract, it has no business inheriting from it. We achieve strict adherence to LSP by keeping our interfaces exceptionally small (which naturally leads us directly to ISP). We would rather build a new interface than force an object to lie about its capabilities.
 
+A deliberately defaults-only/read-only implementation is a narrow, documented exception to the ordinary expectation that every setter mutates state. When such a type must satisfy an existing get/set interface property, its ordinary public setter may intentionally be a no-op so long as assignments are harmless to ignore and the property documentation states that the assignment is discarded. Do not throw `NotImplementedException`, `NotSupportedException`, or another exception merely to advertise this intentional no-op policy.
+
 ---
 
 ### 4. The "Fat Interface" vs. ISP (Interface Segregation Principle)
@@ -1427,6 +1437,14 @@ One of the most critical hills we will die on at xyLOGIX is this: **Always code 
 Why is this so important? When a class depends directly on another concrete class, they become tightly coupled. They are welded together. If you need to change how the dependency works, or if you need to swap it out for testing (like using a mock object), you are forced to rip the weld apart and change the consuming code. This makes the system brittle.
 
 When you code to an interface, you are establishing a "contract." The consuming class says, "I don't care *how* you do this job, I only care that you *can* do it." This allows us to plug in any class that signs the contract, completely shielding the consumer from implementation details.
+
+### Implement Interface Members as Ordinary Public Members
+
+xyLOGIX never uses C# explicit interface implementation. Do not write members such as `string IFoo.Name`, `void IFoo.DoWork()`, or another interface-qualified implementation. A class fulfills an interface through ordinary public methods, properties, and events whose signatures satisfy the contract.
+
+If two interfaces create a naming or signature collision that C# would ordinarily resolve with explicit interface implementation, treat that collision as an architectural signal. Redesign, split, or rename the interfaces or the implementing types so that the implementation can remain an ordinary public API. Do not hide competing behaviors behind interface-qualified members.
+
+This prohibition is independent of whether C# permits explicit interface implementation. The language feature exists, but it is not part of the xyLOGIX coding style. Interface and implementation documentation should describe the same public semantic contract without requiring a caller to cast to a particular interface merely to reach a hidden implementation member.
 
 **The Bad: Tightly Coupled Concrete Types**
 
@@ -2506,6 +2524,8 @@ An enum belongs in the appropriate `.Constants` project.  A file name, attribute
 
 Use the highest-level interface or abstract base class that still exposes the functionality required by the member.  This applies to fields, properties, method parameters, and return types.  Do not expose or depend on a concrete collection type when `IList<T>`, `ICollection<T>`, `IEnumerable<T>`, `IDictionary<TKey, TValue>`, or another narrower abstraction is sufficient.
 
+Implement interface members as ordinary public members of the concrete class. Explicit interface implementation is prohibited throughout xyLOGIX code, including properties, methods, events, and indexers. If an interface collision would otherwise force explicit implementation, change the abstraction boundary instead of qualifying a member with the interface name.
+
 Do not pass a large context, form, model, or workflow object to a policy that only needs a few values.  Gather the required facts at the orchestration boundary and pass the narrowest possible contract.  This reduces ripple effects, improves testability, and keeps business rules independent from UI and infrastructure.
 
 Avoid constructor injection as a universal default.  xyLOGIX usually expresses Dependency Inversion through singleton services:
@@ -2541,6 +2561,13 @@ Once `result` exists, it owns the method's answer. Every ordinary `return` state
 Iterator blocks are the deliberate exception. A method implemented as an iterator uses `yield return` and `yield break` and should remain lazy when iterator semantics improve robustness, fault tolerance, resource use, or performance. Do not materialize an otherwise-natural iterator merely to manufacture a `result` collection. Abstract/interface declarations, extern/P/Invoke declarations, property accessors, constructors, and `void` methods likewise do not invent an artificial result variable.  A trivial expression-bodied `FromScratch()` member whose sole operation is a parameterless .NET Framework construction, or construction of a straightforward builder around that framework object, is also an explicit exception.
 
 Wrap method bodies in `try`/`catch` blocks when called code has a plausible recoverable failure mode and the method is an appropriate recovery boundary. Catch `Exception` at the appropriate service boundary, log it, restore `result` to its documented default, and return that value through `return result;`. Avoid throwing from ordinary validation paths. Throw only when the contract specifically requires an exception or when continuing would hide a programming error that the selected strategy explicitly promises to reject.  Do not add `try`/`catch` solely for ceremony around a deterministic parameterless framework/builder constructor.  In that narrow case, use the direct expression-bodied `FromScratch()` form and allow genuinely exceptional constructor failures, if any, to surface naturally rather than pretending that `null` is an expected alternate outcome.
+
+
+### Harmless no-op policy boundaries
+
+Do not throw an exception merely to enforce an intentional defaults-only/read-only policy when ignoring the attempted operation is harmless and is itself the documented contract. In particular, a defaults-only/read-only implementation that must satisfy an existing get/set interface property may implement the setter as an ordinary public no-op. Document that assignments are silently discarded and that the getter continues to expose the canonical default/read-only value.
+
+Do not use `NotImplementedException` or `NotSupportedException` as a substitute for this intentional no-op behavior. Those exception types communicate that an operation is unavailable or unsupported; they are not the preferred xyLOGIX mechanism for a benign setter whose deliberate contract is to ignore assignment. Conversely, do not silently discard an operation when the caller must be told that requested state could not be changed. In that case, redesign the contract or use the method/property shape that communicates failure explicitly.
 
 ### Trivial `FromScratch()` construction boundary
 
@@ -2837,6 +2864,8 @@ Prefer auto-properties.  Introduce a backing field only when:
 Place a backing field before the property it supports.  Prefix private fields with an underscore when that is the repository convention.  Windows Forms control fields are the deliberate exception: control fields never use a leading underscore and instead use lower camel case with a meaningful control-type suffix.
 
 Decorate every getter and setter at accessor level with `[DebuggerStepThrough]`.  Add `using System.Diagnostics;` when required.  Do not add `[return: NotLogged]` to property getters; PostSharp global aspects already suppress accessor logging.
+
+When a class implements an interface property, implement it as an ordinary public property; never use interface-qualified explicit implementation syntax. For a defaults-only/read-only implementation that must satisfy a get/set interface property, a documented public no-op setter is permitted. The getter exposes the canonical default/read-only value, the setter silently discards assignments, and both accessors continue to follow the normal `[DebuggerStepThrough]` convention.
 
 Do not alias a simple property value into a local variable merely for convenience.  Access the property directly so that the code clearly expresses the source of the value.  A local snapshot is appropriate when the property is volatile, computationally expensive, stateful, intentionally read once, or must remain stable throughout an operation.
 
@@ -3394,6 +3423,17 @@ Before considering a source change complete, verify the following:
 57. Dialog close validation is centralized at the close boundary, validation failures use owner-parented stop-error feedback and focus recovery, and initial/control focus is never forced from `InitializeComponent()`.
 58. Static UI-lifecycle subscriptions such as `Application.Idle` are detached deterministically, an `Any()` emptiness gate may precede later enumeration of a repeatable `IEnumerable<T>` when that shift-left gate is useful, and dialog control state remains UI-thread-owned.
 59. Every standard dialog-box `Button` is `87 x 26` pixels unless a documented product-specific constraint requires otherwise, and normalization preserves deliberate maintainer-authored alignment.
+60. Interface members are implemented through ordinary public members; no explicit interface implementation such as `IInterface.Member` is introduced.
+61. Defaults-only/read-only implementations that intentionally ignore harmless assignments use documented public no-op setters rather than throwing `NotImplementedException`, `NotSupportedException`, or another exception merely to enforce that policy.
+62. A no-op setter is used only when silently discarding the assignment is the documented, harmless contract; when the caller must observe a failed state change, the abstraction communicates that failure explicitly instead.
+
+## Revision AA Consolidation Summary
+
+Revision AA preserves the engineering rules consolidated through Revision Z and adds three interface/fault-tolerance preferences:
+
+- Interface contracts are implemented through ordinary public members; explicit interface implementation is prohibited.
+- Defaults-only/read-only objects may satisfy required setters with documented no-op public setters when assignments are harmless to ignore.
+- Exceptions are reserved for genuine failure boundaries; do not throw merely to enforce a benign no-op policy, and redesign the contract when silently ignoring an operation would hide a meaningful failure.
 
 ## Revision Y Consolidation Summary
 
