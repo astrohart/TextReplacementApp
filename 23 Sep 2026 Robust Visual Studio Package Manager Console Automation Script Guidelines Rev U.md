@@ -1,13 +1,15 @@
 # Robust Visual Studio Package Manager Console Automation Script Guidelines
 
-Revision: T
+Revision: U
 Last Updated: 23 September 2026
 
 ## Changelog
 
-Revision T is the current controlling revision and supersedes Revision S where this document differs. Revision T hardens destructive Visual Studio project-system topology removals after a live Change Transaction Script defect deleted a Windows Forms source family from disk while leaving the parent source item registered in its owning project. When a transaction intends to remove a project item or an explicitly named reference, it must resolve that relationship through the loaded owning project, issue the DTE/project-system removal, explicitly persist the owning project with `Project.Save()` when that operation is available, run `File.SaveAll`, pump/settle the IDE, and then re-resolve the relationship through DTE. When physical file deletion follows a project-item removal, the filesystem deletion is prohibited until DTE proves that the parent project item is no longer registered. If that proof fails, preserve the physical source family and stop that destructive sub-operation with an actionable diagnostic rather than creating a missing-file/red-X project item in Solution Explorer. For nested WinForms source families, remove the parent `MyForm.cs` project item rather than independently removing its dependent `*.Designer.cs`/`.resx` children unless the loaded project system demonstrates that a different operation is required. Explicit reference removals use the same persist-and-prove discipline before the transaction treats the topology mutation as settled. This is a narrow mechanical-safety exception to the general progress-first rule that successful positive DTE calls may otherwise be trusted without semantic rereads: the DTE absence proof is required only because the next destructive action would be unsafe or nonsensical while project membership still exists.
+Revision U is the current controlling revision and supersedes Revision T where this document differs. Revision U standardizes every Change Transaction Script document-open operation on Visual Studio's `File.OpenFile` command through the host-provided DTE object. Future CTSes open a source document only by calling `$dte.ExecuteCommand('File.OpenFile', '"C:\path\to\file.cs"')` (or the equivalent variable-based quoted-path form), never by calling `ProjectItem.Open(...)`, `$dte.ItemOperations.OpenFile(...)`, or by selecting a Designer view. The script does not test whether the target file is already open before issuing `File.OpenFile`; Visual Studio owns that state and will open the document or reactivate its existing tab. When a source item has an associated Designer, the CTS always opens the code-behind/source file rather than the Designer surface???for example `MyForm.cs`, a changed WinForms `MyForm.Designer.cs`, or `MyView.xaml.cs`, never the WinForms Designer or `MyView.xaml` Designer surface. Revision U also records the maintainer correction that a changed WinForms `MyForm.Designer.cs` file is part of the VCmd opening/cleanup set so CodeMaid can process it even though ReSharper may not; generated resource designers such as `Properties\Resources.Designer.cs` and other generated/fixed-format C# artifacts remain excluded unless the current task expressly says otherwise.
 
-- **Revision S.** Removed the adaptive post-capture IDE/Git fixed-point wait that previously ran after transaction-owned implementation commits. Commit creation became deliberately fast and sequential: do not sleep, fingerprint, pump, or run a post-capture quiet-period barrier after each commit. Complete the entire ordered Git-capture pass first. Only after all commits in that pass have been created and individually proven by their `HEAD` transitions, execute exactly one `Start-Sleep -ms 50`, then perform a direct fresh Git-status check of the transaction-owned paths. If late transaction-owned dirt is present, recapture it directly from fresh status within the bounded recapture budget, without VCmd reruns or adaptive content-stability waiting; after a complete recapture pass that creates additional commits, the same single 50-millisecond yield may occur once again after that whole pass, never after an individual commit. Revision S did not weaken the mandatory post-VCmd startup/drain + quiescence barrier, which still protects Git capture from delayed CodeMaid/ReSharper writes, and it did not alter the separate terminal handoff delays around `Window.CloseAllDocuments`/`buildTwiceThenCommit.ps1`.
+- **Revision T.** Hardened destructive Visual Studio project-system topology removals after a live Change Transaction Script defect deleted a Windows Forms source family from disk while leaving the parent source item registered in its owning project. When a transaction intends to remove a project item or an explicitly named reference, it must resolve that relationship through the loaded owning project, issue the DTE/project-system removal, explicitly persist the owning project with `Project.Save()` when that operation is available, run `File.SaveAll`, pump/settle the IDE, and then re-resolve the relationship through DTE. When physical file deletion follows a project-item removal, the filesystem deletion is prohibited until DTE proves that the parent project item is no longer registered. If that proof fails, preserve the physical source family and stop that destructive sub-operation with an actionable diagnostic rather than creating a missing-file/red-X project item in Solution Explorer. For nested WinForms source families, remove the parent `MyForm.cs` project item rather than independently removing its dependent `*.Designer.cs`/`.resx` children unless the loaded project system demonstrates that a different operation is required. Explicit reference removals use the same persist-and-prove discipline before the transaction treats the topology mutation as settled. This is a narrow mechanical-safety exception to the general progress-first rule that successful positive DTE calls may otherwise be trusted without semantic rereads: the DTE absence proof is required only because the next destructive action would be unsafe or nonsensical while project membership still exists.
+
+- **Revision S.** Removed the adaptive post-capture IDE/Git fixed-point wait that previously ran after transaction-owned implementation commits. Commit creation became deliberately fast and sequential: do not sleep, fingerprint, pump, or run a post-capture quiet-period barrier after each commit. Complete the entire ordered Git-capture pass first. Only after all commits in that pass have been created and individually proven by their `HEAD` transitions, execute exactly one `Start-Sleep -m 50`, then perform a direct fresh Git-status check of the transaction-owned paths. If late transaction-owned dirt is present, recapture it directly from fresh status within the bounded recapture budget, without VCmd reruns or adaptive content-stability waiting; after a complete recapture pass that creates additional commits, the same single 50-millisecond yield may occur once again after that whole pass, never after an individual commit. Revision S did not weaken the mandatory post-VCmd startup/drain + quiescence barrier, which still protects Git capture from delayed CodeMaid/ReSharper writes, and it did not alter the separate terminal handoff delays around `Window.CloseAllDocuments`/`buildTwiceThenCommit.ps1`.
 
 - **Revision R.** Updated the Visual Commander automation contract to the supplied Strip Line Breaks from All Comments configuration schema version 3. Source-mutating Change Transaction Scripts that run the VCmd cleanup pass must explicitly set `SuppressPrompts = true`, `EnableGitAwareness = false`, `EnableCodeMaidAndReSharperCleanup = true`, and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed = false`. This keeps the invocation noninteractive, enables the intended CodeMaid/ReSharper cleanup phase, and leaves all Git ownership with the Change Transaction Script. Revision R also recorded the command's new post-cleanup source-format verification pass: after cleanup, VCmd re-verifies/reapplies comment line-break formatting before it returns. This internal second formatting pass does not replace the transaction's existing adaptive post-VCmd startup/drain and content-quiescence barrier, because delayed IDE/ReSharper/project-system writes can still occur after the DTE command returns.
 - **Revision Q.** Hardened the Windows PowerShell 5.1 transaction contract after a live PMC binder failure, including binder-safe intentional empty collections/strings, actual delivered-script identity across child scope, concurrent bounded native stdout/stderr draining, corrected terminal handoff behavior, and the current `Debug.WriteLine(...)` diagnostic-spacing rule.
@@ -38,7 +40,7 @@ Typical use cases include:
 
 - clobbering one or more existing source/project files with audited desired-state replacements for a bug fix, behavioral correction, refactor, logging change, documentation change, UI adjustment, or configuration change;
 - applying a coordinated multi-file change while keeping ordinary implementation commits file-by-file unless an explicit source-family, rename, scaffold, or topology exception applies;
-- updating WinForms source and `*.Designer.cs` files while ensuring that only VCmd-eligible C# source is opened for cleanup, with `*.Designer.cs` remaining a mutation/Git artifact rather than a VCmd processing target;
+- updating WinForms source and Designer-owned source while opening the intended C# cleanup set exclusively through DTE `File.OpenFile`; changed WinForms `MyForm.Designer.cs` files are included so CodeMaid can process them even though ReSharper may not, while generated resource designers and other fixed-format generated source remain excluded;
 - creating or repairing a Windows Forms `Form`/dialog as the complete `MyForm.cs` + `MyForm.Designer.cs` + `MyForm.resx` source family, preserving normal Designer ownership/nesting and the standard `newxylogix.ICO` Form icon;
 - adding required project/assembly/package references without policing unrelated existing references;
 - creating complete repository-standard project/module scaffolds and adding them to the loaded Solution through DTE;
@@ -591,7 +593,7 @@ For consequential operations, log both a concise human-oriented PMC message and 
 - explicit reference removal: consuming project identity plus the exact project/assembly reference identity;
 - `Project.Save()` used by a destructive-topology persistence barrier: owning project name/full path and the fact that the save returned;
 - Solution/project removal or close/open operations: exact project/Solution identity;
-- `ProjectItem.Open(...)`/`ItemOperations.OpenFile(...)`: full source path and requested view kind;
+- `$dte.ExecuteCommand('File.OpenFile', '<quoted full source path>')`: exact full source/code-behind path passed to the Visual Studio command;
 - `ReSharper_Suspend`/`ReSharper_Resume`: command name and inferred preexisting state;
 - `VCmd.CCommandStripLineBreaksFromAllComments`: exact command name and intended visible-document count; and
 - other DTE calls known to load projects, mutate topology, switch editor windows, or synchronously invoke large IDE extensions.
@@ -605,6 +607,34 @@ Preferred wording is explicit, for example:
 When the call returns, log the returned DTE object identity/outcome immediately before beginning unrelated work. If Visual Studio is forcibly terminated (for example `devenv.exe` is killed externally), the script cannot execute its normal finalizer or terminal `git status` logger; in that case the last pre-call boundary record is expected to be the final forensic evidence in the log.
 
 Do not move DTE/project-system operations to arbitrary background PowerShell threads merely to manufacture a timeout. DTE is COM/UI-thread-sensitive; keep topology/editor calls on the PMC/DTE execution path and make them observable instead.
+
+### 6.8 Standard document-opening command
+
+Every Change Transaction Script that opens or reactivates a document in Visual Studio must use the host-provided DTE object's `File.OpenFile` command and no other document-opening API.
+
+For a literal pathname, the standing PMC form is:
+
+```powershell
+$dte.ExecuteCommand("File.OpenFile", '"C:\path\to\my\file.cs"')
+```
+
+For a pathname stored in a variable, construct the same quoted command argument and call the same DTE command, for example:
+
+```powershell
+$fileOpenArgument = '"' + $fullSourcePath + '"'
+$dte.ExecuteCommand('File.OpenFile', $fileOpenArgument)
+```
+
+Standing rules:
+
+1. Do not call `ProjectItem.Open(...)`, `$dte.ItemOperations.OpenFile(...)`, `Window.Activate()`, or another alternate opening API as a primary path or fallback. `File.OpenFile` is the only CTS document-opening mechanism.
+2. Do not query whether the target file is already open before issuing the command. Call `File.OpenFile` unconditionally for every intended opening attempt. Visual Studio is responsible for recognizing an already-open document and reactivating its existing tab.
+3. Log the exact full path immediately before the `File.OpenFile` DTE call and log that the command returned immediately afterward. An individual source-open failure remains warning-only when the transaction can otherwise continue.
+4. After each call, pump `[System.Windows.Forms.Application]::DoEvents()` and use the normal short bounded per-file settling delay when the surrounding VCmd workflow calls for pacing. Do not add a returned-window/`Document.Windows.Count` verification gate merely to prove that Visual Studio did what `File.OpenFile` was asked to do.
+5. When an item has an associated Designer, open the source/code-behind file, never the Designer surface. For Windows Forms, open `MyForm.cs` and, when changed and VCmd-eligible, `MyForm.Designer.cs` as source text. For WPF, open `MyView.xaml.cs`, not `MyView.xaml`, when the intended cleanup target is the code-behind. Apply the same code-behind rule to other Designer-associated technologies.
+6. Editor-state restoration uses this same command. Reopening or reactivating a previously visible source document is another unconditional `File.OpenFile` call against its recorded pathname.
+
+This rule is intentionally simple. The CTS tells Visual Studio which source pathname to open; Visual Studio owns document-window reuse, tab reactivation, and the distinction between an unopened and already-open document.
 
 ## 7. `File.SaveAll`: Required Flush Boundaries
 
@@ -659,21 +689,21 @@ For a source-mutating transaction, the final cleanup boundary is:
 4. union that status with the transaction-wide affected-path registry and derive the final VCmd-eligible C# set using Section 9;
 5. using the editor-state snapshot from checkpoint A, temporarily close **only** preexisting user-visible C# documents that are outside the intended VCmd set, after saving them; do not use `Window.CloseAllDocuments`;
 6. if that unrelated-C# isolation cannot be established safely, restore anything already closed, warn, skip VCmd, restore/transition ReSharper only according to the idempotent state model in Section 6.6, save, and continue with script-owned Git capture rather than processing unrelated source;
-7. open the complete intended VCmd set exactly once using the visible/activated source-tab procedure in Section 9, recording only files that become observably user-visible document windows as successfully opened;
-8. perform a final bounded message-pump/settling interval after the last open;
+7. open or reactivate every path in the complete intended VCmd set exactly once through the Section 6.8 `$dte.ExecuteCommand('File.OpenFile', <quoted-path>)` mechanism, without testing whether any target is already open; record each path whose command call returned normally in the transaction's VCmd-opened path set;
+8. perform a final bounded message-pump/settling interval after the last `File.OpenFile` call;
 9. transition ReSharper into the cleanup-capable state using Section 6.6: resume when the transaction suspended it, or temporarily resume a preexisting suspended state when cleanup requires that and the command is available; keep unavailability nonfatal and perform a bounded ReSharper/project-system settling interval after any successful transition;
 10. rewrite the exact one-run VCmd sidecar **immediately before** the invocation, because the VCmd command loads the configuration once and resets the canonical file to defaults at the end of every invocation;
-11. invoke argumentless `VCmd.CCommandStripLineBreaksFromAllComments` once when at least one intended C# document is observably user-visible and sidecar preparation succeeded;
-12. enter the mandatory adaptive post-VCmd cleanup-convergence barrier over the exact successfully opened path set; that path set remains authoritative even if VCmd itself closes an `AssemblyInfo.cs` document during cleanup;
+11. invoke argumentless `VCmd.CCommandStripLineBreaksFromAllComments` once when at least one intended C# `File.OpenFile` call returned normally and sidecar preparation succeeded;
+12. enter the mandatory adaptive post-VCmd cleanup-convergence barrier over the exact `File.OpenFile`-returned path set; that path set remains authoritative even if VCmd itself closes an `AssemblyInfo.cs` document during cleanup;
 13. pump `Application.DoEvents()`, wait in bounded intervals, periodically invoke `File.SaveAll`, and repeatedly fingerprint those paths until the complete set is continuously content-stable for the adaptive quiet interval and remains stable through the final save/pump/resample;
-14. restore the preexisting editor state before Git capture: reopen every preexisting user-visible document that the transaction temporarily closed or that VCmd closed, including a preexisting `AssemblyInfo.cs` tab when applicable, and best-effort reactivate the document that was active before the cleanup pass; if ReSharper was preexisting-suspended and temporarily resumed for cleanup, best-effort re-suspend it now;
+14. restore the preexisting editor state before Git capture by reopening/reactivating recorded source documents through the same Section 6.8 `File.OpenFile` command, including a preexisting `AssemblyInfo.cs` tab when applicable; best-effort reactivate the document that was active before the cleanup pass with another `File.OpenFile` call against its recorded path; if ReSharper was preexisting-suspended and temporarily resumed for cleanup, best-effort re-suspend it now;
 15. run one final `File.SaveAll`, pump the IDE, refresh Git status/dirty scope, and only then begin ordered Git capture.
 
 The transaction-opened VCmd tabs may remain open after cleanup; restoring the user's prior active document does not require closing those newly opened tabs. Restoration is about preserving the user's preexisting editor state, not erasing the transaction's visible tab-opening behavior.
 
 Do **not** semantically verify, reparse, regex-check, marker-check, or compare source against expected payloads after VCmd cleanup. Content fingerprints in the convergence barrier are temporal change detectors only and must never be compared with generation-time payload hashes.
 
-If VCmd is skipped before invocation because isolation, sidecar preparation, or visible opening cannot be established, there is no VCmd-specific processing set to observe. Restore/transition ReSharper only according to Section 6.6, perform the normal unconditional save/short IDE settling, restore user editor state, and continue; VCmd remains best-effort cleanup and must not erase forward source/project progress.
+If VCmd is skipped before invocation because isolation, sidecar preparation, or every intended `File.OpenFile` attempt failed, there is no VCmd-specific processing set to observe. Restore/transition ReSharper only according to Section 6.6, perform the normal unconditional save/short IDE settling, restore user editor state, and continue; VCmd remains best-effort cleanup and must not erase forward source/project progress.
 
 ## 8. Closing and Restoring Visual Studio Documents Safely
 
@@ -690,14 +720,14 @@ Immediately before the one-time VCmd opening pass, after saving:
 1. identify preexisting user-visible **C#** documents that are not members of the intended VCmd path set;
 2. close only those specific unrelated C# documents, preserving a restoration list;
 3. leave unrelated non-C# tabs alone, because VCmd's open-document source resolver filters to open C# source;
-4. never close an intended transaction VCmd document merely because it was already open before the transaction; reuse it and preserve the fact that it was preexisting; and
+4. never close an intended transaction VCmd document merely because it was already open before the transaction; later issue the normal unconditional `File.OpenFile` call for that path and let Visual Studio reactivate the existing tab; and
 5. if any unrelated preexisting C# document cannot be closed/isolate safely, warn and skip VCmd instead of knowingly broadening VCmd's source scope.
 
 This targeted close is a narrow scope-isolation operation, not a general editor-cleanup policy.
 
 ### Restoration after VCmd and on failure
 
-After VCmd convergence and before Git capture, restore every preexisting user-visible document that is no longer open because the transaction temporarily closed it or because VCmd's `AssemblyInfo.cs` cleanup closed it. Best-effort restore the previously active document after reopening the preexisting set.
+After VCmd convergence and before Git capture, restore every preexisting user-visible source document that is no longer open because the transaction temporarily closed it or because VCmd's `AssemblyInfo.cs` cleanup closed it. Reopen each recorded source pathname only through the Section 6.8 `File.OpenFile` command, then best-effort reactivate the previously active source document by issuing the same command for its recorded pathname.
 
 Failure cleanup must perform the same restoration before the transaction log writes its final raw Git-status block. A restoration failure is diagnostic information, but it does not authorize a blanket close/open cycle or rollback of successful source/project work.
 
@@ -722,7 +752,7 @@ The important observed contracts are:
 - For remaining open documents, VCmd runs `CodeMaid.CleanupOpenCode`, then `ReSharper.ReSharper_SilentCleanupOpenFiles` when available, followed by `File.SaveAll`.
 - VCmd itself pumps Windows messages during synchronization/cleanup. The transaction still needs its own post-command convergence barrier because editor/ReSharper/project-system work can continue changing files after the command call returns.
 
-These contracts explain both the visible-tab requirement and the unrelated-open-C# isolation rule.
+These contracts explain the unrelated-open-C# isolation rule. Revision U deliberately delegates the actual opening/reactivation behavior to Visual Studio's `File.OpenFile` command rather than duplicating that behavior with `ProjectItem.Open(...)`, window activation, or post-open visibility probes.
 
 ### Maintain a transaction-wide affected-file registry
 
@@ -734,43 +764,43 @@ The complete Git path set and the VCmd set remain different concepts. Git captur
 
 Include:
 
-- ordinary changed/affected hand-authored `.cs` source; and
+- ordinary changed/affected hand-authored `.cs` source;
+- changed WinForms Form/UserControl designer source such as `MyForm.Designer.cs`, because CodeMaid processes that source even though ReSharper may not; and
 - `AssemblyInfo.cs`, which is an explicit supported exception because the VCmd command has special processing rules for it.
 
 Exclude:
 
 - `Global*.cs`, including `GlobalAspects.cs`;
-- `*.Designer.cs`, including resource and WinForms designer files;
+- generated resource/settings designer source that is not a changed WinForms Form/UserControl designer source, including `Properties\Resources.Designer.cs` and analogous fixed-format generated designer files;
 - `*.g.cs`, `*.i.cs`, `*.generated.cs`, and other known generated/derived/fixed-format C# artifacts;
 - `bin`/`obj` or other build-output/intermediate source;
 - `.csproj`, `.sln`, `.props`, `.targets`;
-- `.resx`, `.config`, `.json`, `.xml`;
+- `.resx`, `.config`, `.json`, `.xml`, `.xaml`;
 - `.md`, `.txt`;
 - `.snk`, `.ico`, images, compiled outputs, or any other binary/resource/signing/scaffold artifacts; and
 - any additional transaction-known generated/fixed-format artifact outside VCmd's intended cleanup domain.
 
-The `AssemblyInfo.cs` inclusion rule takes precedence over the generic infrastructure classification. Eligibility is pathname/classification based; do not parse source contents at runtime to decide eligibility.
+The `AssemblyInfo.cs` and changed WinForms `MyForm.Designer.cs` inclusion rules take precedence over the generic infrastructure/generated-source classification. Eligibility is pathname/classification based; do not parse source contents at runtime to decide eligibility.
 
-### Exactly one visible source-tab opening round per transaction
+### Exactly one `File.OpenFile` source-tab opening round per transaction
 
 Do not run VCmd during scaffold creation. Do not perform a second implementation opening pass.
 
 After **all** mutations are complete, `File.SaveAll` has run, and unrelated preexisting C# documents have been isolated:
 
 1. derive the final eligible set in deterministic order;
-2. for each file, verify it exists and remains an authorized/registered path;
-3. resolve a real loaded `ProjectItem` when possible and call `ProjectItem.Open(...)` with the explicit text/source view kind `{7651a700-06e5-11d1-8ebd-00a0c90f26ea}`;
-4. capture the returned `EnvDTE.Window`; do not discard it;
-5. set the returned window's `Visible` property to `true` when necessary and call `Activate()`;
-6. pump `[System.Windows.Forms.Application]::DoEvents()`, wait a short bounded per-file interval (normally about 150-250 ms), then pump again;
-7. verify observable editor state before counting/reporting success: the window/document must correspond to the intended pathname and the document must own at least one window (`Document.Windows.Count > 0`); when accessible, also verify the window is visible/active as expected;
-8. only after that observation emit the concise PMC diagnostic that the file was opened and activated, and add its pathname to the exact successfully opened VCmd set;
-9. use `$dte.ItemOperations.OpenFile(...)` only when the project-item path genuinely cannot be used, and apply the same capture/visibility/activation/message-pump/verification requirements to the fallback window; and
-10. after the final successful/attempted open, perform one additional bounded settling/message-pump interval before ReSharper is resumed.
+2. for each file, verify it exists and remains an authorized path;
+3. identify the full source/code-behind pathname to open. When a Designer is associated with the logical item, choose the code source path rather than the Designer surface???for example `MyForm.cs`, a changed `MyForm.Designer.cs`, or `MyView.xaml.cs`, never a WinForms Designer or `.xaml` Designer surface;
+4. emit/log the exact full pathname immediately before the DTE call;
+5. call only `$dte.ExecuteCommand('File.OpenFile', <quoted-full-path>)`, using the Section 6.8 quoting form;
+6. do not test whether the document is already open and do not branch on existing tab/window state. Visual Studio is expected to open the document or reactivate its existing tab;
+7. when the command returns normally, emit the concise PMC diagnostic that `File.OpenFile` returned for the source path and add that pathname to the exact VCmd-opened set;
+8. pump `[System.Windows.Forms.Application]::DoEvents()`, wait a short bounded per-file interval (normally about 150-250 ms), then pump again; and
+9. after the final attempted open, perform one additional bounded settling/message-pump interval before ReSharper is resumed.
 
-`ProjectItem.Open(...)` returning normally is not enough. The entire purpose of this pass is to create **genuinely user-visible editor tabs** so VCmd's `IsUserVisibleDocument` predicate sees them and so the maintainer can watch the transaction's opening sequence.
+Do not call `ProjectItem.Open(...)`, `$dte.ItemOperations.OpenFile(...)`, `Window.Activate()`, a view-kind-specific opening API, or a Designer-opening command as either the primary path or a fallback. Do not add a `Document.Windows.Count` proof gate. Revision U intentionally keeps the opening operation simple and lets Visual Studio own document reuse and tab reactivation.
 
-An individual eligible-file open failure remains warning-only; continue opening the rest. If zero intended eligible files become observably user-visible, skip VCmd. If exact VCmd scope isolation cannot be proven because an unrelated preexisting C# document remains visible, skip VCmd rather than process unrelated source.
+An individual eligible-file `File.OpenFile` failure remains warning-only; continue opening the rest. If zero intended eligible files have a `File.OpenFile` call return normally, skip VCmd. If exact VCmd scope isolation cannot be proven because an unrelated preexisting C# document remains visible, skip VCmd rather than process unrelated source.
 
 ### Transition ReSharper for cleanup, then rewrite the sidecar and invoke VCmd once
 
@@ -802,11 +832,11 @@ Because the sidecar enables CodeMaid/ReSharper cleanup while disabling both pre-
 
 VCmd performs its schema-version-3 post-cleanup source-format verification pass before returning, but the return of `$dte.ExecuteCommand('VCmd.CCommandStripLineBreaksFromAllComments')` is **not** proof that every CodeMaid/ReSharper/project-system write has finished. VCmd itself invokes `ReSharper.ReSharper_SilentCleanupCode` for `AssemblyInfo.cs` and `ReSharper.ReSharper_SilentCleanupOpenFiles` for remaining open documents, and downstream IDE work can continue rewriting one or more paths after the VCmd command call returns.
 
-Retain the exact pathnames that became observably user-visible in the opening round and use those paths as the cleanup-observation set even when VCmd closes an `AssemblyInfo.cs` document during its own processing.
+Retain the exact pathnames whose Section 6.8 `File.OpenFile` calls returned normally in the opening round and use those paths as the cleanup-observation set even when VCmd closes an `AssemblyInfo.cs` document during its own processing.
 
 ### Adaptive timing rule
 
-Let `N` be the count of paths in the exact successfully opened VCmd-processing set. The barrier has **three separate timing concepts**: a mandatory startup/drain window during which quiet time is not allowed to accrue, a continuous quiet interval that begins only after that startup/drain window, and a finite overall maximum duration. For the default policy, compute these bounded values:
+Let `N` be the count of paths in the exact VCmd-processing set whose `File.OpenFile` calls returned normally. The barrier has **three separate timing concepts**: a mandatory startup/drain window during which quiet time is not allowed to accrue, a continuous quiet interval that begins only after that startup/drain window, and a finite overall maximum duration. For the default policy, compute these bounded values:
 
 ```powershell
 $observedFileCount = [Math]::Max(1, $openedVcmdPaths.Count)
@@ -1521,7 +1551,7 @@ After staging, inspect the actual rename/copy-aware staged diff to prove scope i
 
 Temporary rename-detection staging is reserved, if ever necessary, for genuinely generic/unknown dirty-state recovery where the generator did not already know the move relationship. It is not part of the normal deterministic source-mutating Change Transaction workflow.
 
-### 20.5 WinForms `*.Designer.cs` partial-class accessibility and VCmd exclusion
+### 20.5 WinForms `*.Designer.cs` partial-class accessibility and VCmd inclusion
 
 When a Change Transaction Script creates or modifies a WinForms `*.Designer.cs` file for a public `Form`, `UserControl`, or other public partial WinForms type, explicitly declare the designer-side type part with `public` before `partial`.
 
@@ -1550,10 +1580,11 @@ At runtime:
 
 5. Clobber the authorized designer source file with the pre-audited payload without rechecking the old declaration shape.
 6. Preserve and capture the changed `*.Designer.cs` path through the normal Git workflow.
-7. Exclude the `*.Designer.cs` path from the VCmd processing set. Do **not** open it merely so `VCmd.CCommandStripLineBreaksFromAllComments` can process it.
-8. If some other explicit transaction operation genuinely requires opening the designer source file, force the source-code/text editor and never activate the WinForms Designer.
+7. When the file is a changed WinForms Form/UserControl designer source such as `MyForm.Designer.cs`, include it in the VCmd processing/opening set so CodeMaid can process it even though ReSharper may not.
+8. Open that designer source only as source code through the Section 6.8 `File.OpenFile` command. Do not activate the WinForms Designer surface, and do not use `ProjectItem.Open(...)`, `ItemOperations.OpenFile(...)`, or a view-kind fallback.
+9. Continue excluding generated resource/settings designer files such as `Properties\Resources.Designer.cs` and analogous fixed-format generated source unless the current task expressly makes them cleanup targets.
 
-A changed `*.Designer.cs` file remains an authorized source/Git artifact, but it is **not** a VCmd cleanup target. The complete Git changed-path set and the VCmd processing set must remain distinct.
+A changed WinForms Form/UserControl `*.Designer.cs` file is both an authorized source/Git artifact and a VCmd cleanup target under Revision U. The complete Git changed-path set and the VCmd processing set remain distinct because other generated/fixed-format designer source and all non-C# artifacts can still be transaction-owned without being opened for VCmd.
 
 ### 20.6 WinForms Form source-family triplets and the standard xyLOGIX icon
 
@@ -1639,7 +1670,7 @@ When the current task instead deletes an **obsolete entire Form family**, apply 
 The Form family is one logical artifact but has mixed cleanup eligibility:
 
 - `MyForm.cs` and any other changed, ordinary hand-authored C# partial files are eligible for the final VCmd pass under Section 9.
-- `MyForm.Designer.cs` is never a VCmd target.
+- A changed `MyForm.Designer.cs` is also a VCmd target under Revision U so CodeMaid can process it even though ReSharper may not; open it only as source through `File.OpenFile`.
 - `MyForm.resx` is never a VCmd target.
 - The project file is never a VCmd target even when project-item nesting/membership changes cause it to become transaction-owned.
 
@@ -1840,13 +1871,13 @@ For a source-mutating transaction:
 2. Only after all commits in that capture pass have been created, execute exactly:
 
 ```powershell
-Start-Sleep -ms 50
+Start-Sleep -m 50
 ```
 
 3. After that one 50-millisecond yield, refresh Git status directly for the complete transaction-owned path set. Do not start a startup/drain timer, quiet-period timer, content-fingerprint loop, adaptive wait, or "post-capture fixed-point" observation.
 4. If no transaction-owned path is dirty, proceed immediately to Section 23.
 5. If transaction-owned dirt is present, re-enter the normal Section 22 selector/work-item capture logic directly from that fresh status. Do not rerun VCmd and do not wait for a content-stability interval before recapturing.
-6. Bound direct-status recapture to a finite round count, normally no more than three recapture rounds unless the current prompt expressly authorizes more. A recapture round may create multiple commits; it receives no per-commit sleep. If that complete recapture pass creates one or more additional commits, perform the same single `Start-Sleep -ms 50` only after the whole pass is finished, then check status directly again.
+6. Bound direct-status recapture to a finite round count, normally no more than three recapture rounds unless the current prompt expressly authorizes more. A recapture round may create multiple commits; it receives no per-commit sleep. If that complete recapture pass creates one or more additional commits, perform the same single `Start-Sleep -m 50` only after the whole pass is finished, then check status directly again.
 7. If transaction-owned dirt still reappears after the bounded direct recapture budget, preserve all source/commit progress, report the condition, and do not claim full transaction success.
 
 The rule is intentionally simple: **commit everything first; sleep 50 ms once; check transaction-owned Git status directly.** There is no adaptive post-capture wait and no per-commit delay.
@@ -2030,7 +2061,7 @@ Bad examples:
 - Temporarily staging a generation-time-known old/new path pair merely to make Git decide whether to label the change as a rename.
 - Reusing a project/AssemblyInfo identity GUID from an analogous project or a prior failed transaction when generating a new project attempt.
 - Failing a work item because the number of staged status records is lower than the number of nominal input paths when Git represented an old/new pair as one rename/copy record.
-- Calling `ProjectItem.Open(...)` and assuming the file is a VCmd-visible tab without retaining the returned `Window`, making it visible, activating it, pumping the IDE, and verifying `Document.Windows.Count > 0`.
+- Opening CTS source documents through `ProjectItem.Open(...)`, `$dte.ItemOperations.OpenFile(...)`, `Window.Activate()`, or view-kind-specific APIs instead of using the single Revision U `$dte.ExecuteCommand('File.OpenFile', <quoted-path>)` mechanism.
 - Invoking VCmd while an unrelated preexisting user-visible C# document remains open, even though VCmd gives open C# documents precedence and would broaden its processing scope.
 - Assuming the VCmd automation sidecar remains in the transaction-supplied state after an invocation even though the command resets it to defaults during final cleanup.
 - Treating a successful zero-output `git status --porcelain` as `$null` and passing that value into `[string]::Join(...)` or another string/collection operation.
@@ -2040,7 +2071,7 @@ Bad examples:
 - Using one fixed quiet interval/maximum wait for every transaction regardless of whether VCmd opened one source file or dozens; the barrier must scale adaptively with workload.
 - Treating an internal `CreatedTransactionCommitCount` (or similar variable) as proof that Git commits actually exist.
 - Printing `*** SUCCESS ***` after `git push` without a final `File.SaveAll`/adaptive settle/Git-status proof, thereby allowing delayed IDE writes to leave transaction-owned files dirty after the script claims completion.
-- Running an adaptive post-capture content-fingerprint/fixed-point wait after transaction commits instead of finishing all commits first, executing one `Start-Sleep -ms 50`, and checking transaction-owned Git status directly. Likewise, do not apply VCmd/post-push content-fingerprint waits to a Git-recovery-only transaction whose files are already sitting unchanged and whose script performs no source/IDE cleanup mutation.
+- Running an adaptive post-capture content-fingerprint/fixed-point wait after transaction commits instead of finishing all commits first, executing one `Start-Sleep -m 50`, and checking transaction-owned Git status directly. Likewise, do not apply VCmd/post-push content-fingerprint waits to a Git-recovery-only transaction whose files are already sitting unchanged and whose script performs no source/IDE cleanup mutation.
 - Adding `xyLOGIX.Core.Debug` or `xyLOGIX.Core.Extensions*` to every `.Constants` or `.Interfaces` project merely as boilerplate.
 - Reading/parsing an authorized source file at runtime solely to prove that a method still has the generation-time signature/body before replacing it.
 - Using a regex/marker/old-code search helper that throws when harmless source formatting or method shape differs, when an exact desired-state file could simply be clobbered into place.
@@ -2060,7 +2091,7 @@ Bad examples:
 - Relying only on `$dte.Solution.FindProjectItem(...)` for a known owning-project removal and proceeding with physical deletion even though the owning project's own `ProjectItems` hierarchy still registers the item.
 - Opening `.csproj`, `.sln`, `.resx`, `.config`, `.json`, `.xml`, `.props`, `.targets`, `.md`, `.txt`, `.snk`, resource, or other non-C# artifacts merely because Visual Studio can open some of them as text.
 - Treating the Solution-level SEM, Solution-level `CONTRIBUTING.md`, or Solution-level `README.md` as transaction-owned merely because the file is present in the repository or under **Solution Items**.
-- Opening `Global*.cs`, `*.Designer.cs`, `*.g.cs`, `*.i.cs`, `*.generated.cs`, or another known generated/fixed-format C# artifact merely because its extension is `.cs`.
+- Excluding a changed WinForms `MyForm.Designer.cs` from the VCmd opening set merely because it is Designer-owned, or conversely opening resource/settings designers such as `Properties\Resources.Designer.cs`, `Global*.cs`, `*.g.cs`, `*.i.cs`, `*.generated.cs`, or another generated/fixed-format C# artifact merely because its extension is `.cs`.
 - Excluding a changed `AssemblyInfo.cs` from VCmd merely because it is infrastructure/fixed-format source; `AssemblyInfo.cs` is the explicit supported exception.
 
 Good examples:
@@ -2070,7 +2101,7 @@ Good examples:
 - Generating fresh current-attempt project/AssemblyInfo GUID identities instead of copying analogous/prior values, while retaining externally defined fixed API GUID constants unchanged.
 - Predeclaring a known old/new rename pair at generation time, staging those authorized pathspecs directly, and allowing Git to display `R` or `D+A` according to its heuristics.
 - Defining exact staging as "no unauthorized staged logical paths," inspecting rename-aware staged status/diff, and generating the commit message from the actual staged diff without asserting record-count equality.
-- Capturing the `EnvDTE.Window` returned by `ProjectItem.Open(vsViewKindTextView)`, setting it visible, activating it, pumping/waiting briefly, and counting it only after observable user-visible document-window state exists.
+- Calling `$dte.ExecuteCommand('File.OpenFile', <quoted-full-source-path>)` for every intended source-opening attempt, without first checking whether the document is already open; letting Visual Studio open it or reactivate its existing tab.
 - Snapshotting preexisting user-visible C# tabs, temporarily closing only unrelated ones before VCmd, and restoring that user editor state after convergence or failure.
 - Rewriting the exact noninteractive/Git-disabled sidecar immediately before every VCmd invocation because the command resets the canonical file afterward.
 - Normalizing empty native stdout/stderr to non-null strings and treating clean zero-output Git status as an empty collection.
@@ -2079,23 +2110,23 @@ Good examples:
 - Waiting after VCmd until repeated content fingerprints of every successfully VCmd-opened source file remain unchanged for a continuous quiet interval while pumping the IDE and periodically saving.
 - Computing the quiet interval and maximum observation window from the number of successfully VCmd-opened files using the bounded square-root policy, and reporting the selected timings before waiting.
 - Resolving `HEAD` before and after every commit, requiring it to advance, and reporting the actual abbreviated commit SHA/subject from Git.
-- Creating all commits in an ordered capture pass without per-commit sleeps, then executing exactly one `Start-Sleep -ms 50` after the pass and using a direct fresh transaction-owned Git-status check rather than an adaptive post-capture fixed-point wait.
+- Creating all commits in an ordered capture pass without per-commit sleeps, then executing exactly one `Start-Sleep -m 50` after the pass and using a direct fresh transaction-owned Git-status check rather than an adaptive post-capture fixed-point wait.
 - Re-entering ordered Git capture when delayed IDE writes make transaction-owned paths dirty after an earlier commit/push, then proving the final local/upstream state before printing success.
 - For Git-recovery-only work, performing `File.SaveAll`, then immediately staging/committing the authorized dirty paths and using direct fresh Git-status checks after capture/push instead of artificial content-change waits.
 - Evaluating `.Interfaces` dependencies from actual base-interface/member-type closure, adding `xyLOGIX.Core.Extensions` only when a contract such as `IForm`/`IControl` genuinely requires it.
 - Resolving the authorized target pathname and then clobbering it with the pre-audited exact desired-state payload without inspecting old source contents.
 - Transporting large/complex audited payloads as exact Base64-encoded bytes and writing them with `WriteAllBytes` to avoid PowerShell text-encoding/quoting hazards.
 - Tracking whether the first meaningful positive mutation has succeeded so a pre-mutation failure can clean up only the transaction-owned empty boundary.
-- Resolving the complete transaction-created changed-path set for Git, then deriving a separate VCmd set containing only ordinary hand-authored changed `.cs` files plus changed `AssemblyInfo.cs`.
-- Excluding `Global*.cs`, `*.Designer.cs`, generated C# source, project/scaffold metadata, resources, configuration, documentation, signing material, and binary artifacts from VCmd preparation.
+- Resolving the complete transaction-created changed-path set for Git, then deriving a separate VCmd set containing ordinary changed `.cs` source, changed WinForms `MyForm.Designer.cs` files, and changed `AssemblyInfo.cs`, while still excluding other generated/fixed-format source.
+- Excluding `Global*.cs`, resource/settings designer source such as `Properties\Resources.Designer.cs`, other generated/fixed-format C# source, project/scaffold metadata, resources, configuration, documentation, signing material, and binary artifacts from VCmd preparation while retaining the explicit WinForms `MyForm.Designer.cs` inclusion.
 - Warning and continuing when one VCmd-eligible source file cannot be opened, while running cleanup against the eligible files that did open.
 - Writing the exact schema-version-3 noninteractive/Git-disabled/cleanup-enabled VCmd sidecar immediately before invocation so the command cannot display its confirmation message box(es) or perform Git work.
 - Warning and skipping VCmd when its sidecar cannot be prepared, rather than invoking the command with default interactive/Git-aware behavior.
 - Warning and continuing when VCmd itself is unavailable, followed by the unconditional final `File.SaveAll`.
 - Checking document count before a close-all operation that is actually required.
-- Verifying that a VCmd-eligible changed path exists before trying to open it as source text.
+- Verifying that a VCmd-eligible changed path exists before passing its full pathname to `File.OpenFile`.
 - Applying simple pathname/classification eligibility rules before asking Visual Studio to open a changed file for VCmd, without inspecting source contents.
-- Explicitly requesting the source-code/text editor so an eligible WinForms primary `.cs` file cannot default to the Designer.
+- Passing the code-behind/source pathname to `File.OpenFile` for Designer-associated items???for example `MyForm.cs`, changed `MyForm.Designer.cs`, or `MyView.xaml.cs`???and never opening the Designer surface or `.xaml` Designer document.
 - Verifying the actual staged diff contains only authorized logical paths before commit.
 - Confirming that the required DTE reference-add operation returned normally and then flushing with `File.SaveAll`, without making a `.csproj` reread a fatal gate.
 - Resolving an obsolete WinForms family's parent `MyForm.cs` from the loaded owning project, calling `ProjectItem.Remove()`, explicitly saving the owning project, calling `File.SaveAll`, pumping/settling the IDE, re-resolving through the owning project to prove the family is no longer registered, and only then deleting the physical family.
@@ -2150,13 +2181,13 @@ When Section 1.1 applies:
 6. Record each VCmd-eligible affected path into the transaction-wide registry and mark meaningful mutation after the first successful positive operation.
 7. Run `File.SaveAll` after all mutations.
 
-### Phase 3 ??? isolate VCmd scope and visibly open the intended tabs
+### Phase 3 ??? isolate VCmd scope and open/reactivate the intended source tabs
 
-1. Resolve the complete transaction-owned changed-path set and derive the final VCmd-eligible C# set.
+1. Resolve the complete transaction-owned changed-path set and derive the final VCmd-eligible C# set, including changed WinForms `MyForm.Designer.cs` source while excluding other generated/fixed-format designer source.
 2. Save and temporarily close only unrelated preexisting user-visible C# documents outside that set; never use `Window.CloseAllDocuments`.
 3. If exact isolation cannot be established, restore already-closed tabs, warn/skip VCmd, and continue.
-4. Open each intended eligible path through `ProjectItem.Open(vsViewKindTextView)` when possible, retain/make-visible/activate the returned window, pump/wait, and verify `Document.Windows.Count > 0` before reporting success.
-5. Use `ItemOperations.OpenFile(...)` only as a genuine fallback and perform a final bounded opening-pass settle.
+4. For every intended eligible path, issue the Section 6.8 `$dte.ExecuteCommand('File.OpenFile', <quoted-full-source-path>)` call unconditionally; do not test whether the document is already open and do not use `ProjectItem.Open(...)`/`ItemOperations.OpenFile(...)` fallbacks.
+5. For Designer-associated logical items, pass the code-behind/source pathname rather than the Designer surface, then perform the normal bounded message-pump/opening-pass settle.
 
 ### Phase 4 ??? resume ReSharper, run one VCmd pass, converge, and restore editor state
 
@@ -2174,7 +2205,7 @@ When Section 1.1 applies:
 4. Require no unauthorized logical path in that private diff; never require the maintainer's real index to be clean and never assert staged-record count equality.
 5. Generate the commit message from the actual private staged diff, commit through that private index, prove the `HEAD` transition/SHA/subject, and normalize only transaction-owned entries in the real index when needed.
 6. Dispose the private index and continue from fresh transaction-owned status, creating all remaining commits without per-commit sleeps.
-7. After the complete capture pass has created all commits, execute one `Start-Sleep -ms 50`, refresh transaction-owned Git status directly, and use bounded direct recapture when needed. Do not run an adaptive post-capture fixed-point/content-fingerprint wait and do not rerun VCmd.
+7. After the complete capture pass has created all commits, execute one `Start-Sleep -m 50`, refresh transaction-owned Git status directly, and use bounded direct recapture when needed. Do not run an adaptive post-capture fixed-point/content-fingerprint wait and do not rerun VCmd.
 
 ### Phase 6 ??? optional remote synchronization and transaction-owned end-state proof
 
@@ -2226,7 +2257,7 @@ When Section 1.1 applies:
 | Select implementation work item | fresh transaction-owned status | next authorized work item chosen | no transaction-owned changes: capture phase complete |
 | Stage work item | private index seeded from `HEAD` | private staged diff contains only authorized logical paths; no count-equality rule | empty private diff: no-op; recreate private index on scope defect |
 | Git commit | authorized private staged diff + valid message + pre-commit `HEAD` | post-commit `HEAD` advances; actual SHA/subject observed | unrelated real-index staging is irrelevant |
-| Post-capture direct status | complete ordered capture pass finished | one `Start-Sleep -ms 50`, then fresh transaction-owned status; bounded direct recapture if needed | no per-commit sleep or adaptive post-capture wait; unrelated working-tree/index dirt may remain |
+| Post-capture direct status | complete ordered capture pass finished | one `Start-Sleep -m 50`, then fresh transaction-owned status; bounded direct recapture if needed | no per-commit sleep or adaptive post-capture wait; unrelated working-tree/index dirt may remain |
 | Final synchronization | configured upstream + synchronization can be non-disruptive | push/sync proof when performed | if reconciliation would disturb unrelated local state, report local completion and defer sync |
 | Final Git proof | transaction-owned capture complete | transaction-owned paths committed; final `HEAD` resolved; `0/0` only when sync occurred | whole repository/default index need not be clean |
 | Finalize detailed log | cleanup/restoration complete | raw `git status` for every affected repo is final substantive log content | status failure recorded inside final block |
@@ -2296,7 +2327,7 @@ When Section 1.1 applies:
 - [ ] Generation-time-known rename/move pairs are predeclared and staged directly as atomic authorized work items; no temporary speculative staging/reset cycle is used merely to make Git discover the rename.
 - [ ] Every commit captures pre-commit `HEAD`, resolves post-commit `HEAD`, requires it to advance, and reports the actual abbreviated SHA/subject from Git.
 - [ ] Internal commit counters are treated as informational only and are never used as proof that Git history changed.
-- [ ] No individual commit is followed by a sleep, fingerprint loop, quiet-period timer, or adaptive post-capture stabilization. After the complete ordered capture pass finishes, the script executes exactly one `Start-Sleep -ms 50`, checks transaction-owned Git status directly, and performs only bounded direct recapture if needed, without rerunning VCmd.
+- [ ] No individual commit is followed by a sleep, fingerprint loop, quiet-period timer, or adaptive post-capture stabilization. After the complete ordered capture pass finishes, the script executes exactly one `Start-Sleep -m 50`, checks transaction-owned Git status directly, and performs only bounded direct recapture if needed, without rerunning VCmd.
 - [ ] If the artifact is Git-recovery-only, it does not create a new boundary, mutate source/topology/references, suspend/resume ReSharper, invoke VCmd, or run adaptive content-fingerprint waits merely to check in already-existing files.
 - [ ] If the artifact is Git-recovery-only, authorized recovery dirt is captured directly and unrelated working-tree/default-index state is left untouched; no clean-index/work-tree requirement exists.
 - [ ] If the artifact is Git-recovery-only, post-capture and post-push checks use direct `File.SaveAll` + fresh Git status with bounded direct recapture rounds; the source-mutating transaction's 50-millisecond post-capture yield is not added by convention and content-stability waits appear only if actual active IDE rewriting is observed.
@@ -2344,20 +2375,21 @@ When Section 1.1 applies:
 - [ ] After mutations and `File.SaveAll`, the script resolves the complete transaction-created changed-path set for Git/scope accounting.
 - [ ] The script maintains one transaction-wide registry of VCmd-eligible affected files across scaffold/topology/implementation phases.
 - [ ] There is exactly one VCmd-eligible source-file opening pass per transaction run; no scaffold-local opening/VCmd cycle exists.
-- [ ] Eligible files are opened with bounded pacing and `Application.DoEvents()` pumping so project association can settle.
+- [ ] Eligible files are opened/reactivated with bounded pacing and `Application.DoEvents()` pumping after each `File.OpenFile` call so the IDE can settle.
 - [ ] ReSharper is transitioned for VCmd cleanup only after the full opening pass, using the idempotent Section 6.6 state model; successful transitions are followed by bounded wait/message pumping and any preexisting suspended state temporarily resumed for cleanup is restored afterward.
 - [ ] The script derives a separate VCmd processing set rather than equating "changed" or "text/source-editable" with VCmd eligibility.
-- [ ] The VCmd processing set contains ordinary changed hand-authored `.cs` files and explicitly includes changed `AssemblyInfo.cs`.
-- [ ] The VCmd processing set excludes `Global*.cs`, `*.Designer.cs`, `*.g.cs`, `*.i.cs`, `*.generated.cs`, other known generated/fixed-format C# artifacts, and build-output/intermediate source.
+- [ ] The VCmd processing set contains ordinary changed hand-authored `.cs` files, explicitly includes changed WinForms `MyForm.Designer.cs` source for CodeMaid processing, and explicitly includes changed `AssemblyInfo.cs`.
+- [ ] The VCmd processing set excludes `Global*.cs`, resource/settings designer source such as `Properties\Resources.Designer.cs`, `*.g.cs`, `*.i.cs`, `*.generated.cs`, other known generated/fixed-format C# artifacts, and build-output/intermediate source; the explicit changed WinForms `MyForm.Designer.cs` inclusion is not filtered out.
 - [ ] The VCmd processing set excludes all non-C# artifacts, including project/Solution/build metadata, resources, configuration/data files, documentation/text files, signing keys, icons, and other binary/scaffold artifacts.
-- [ ] Every VCmd-eligible changed C# file is **attempted** before VCmd in the Visual Studio source-code/text editor.
-- [ ] Project-owned VCmd-eligible files are preferentially opened through their actual DTE `ProjectItem.Open(...)` relationship; `$dte.ItemOperations.OpenFile(...)` is not used as the default for project-owned source.
-- [ ] The `EnvDTE.Window` returned by `ProjectItem.Open(...)` is retained, made visible, activated, followed by `Application.DoEvents()` + a short bounded wait + another pump, and success is not reported until the intended document owns at least one window.
+- [ ] Every VCmd-eligible changed C# file receives an unconditional `$dte.ExecuteCommand('File.OpenFile', <quoted-full-source-path>)` attempt before VCmd.
+- [ ] `File.OpenFile` is the only CTS document-opening mechanism; the artifact contains no `ProjectItem.Open(...)`, `$dte.ItemOperations.OpenFile(...)`, returned-window activation, or view-kind fallback for source opening/restoration.
+- [ ] The artifact does not test whether an intended target is already open before `File.OpenFile` and does not add a post-open `Document.Windows.Count`/visibility proof gate; a normal command return is enough to include the path in the VCmd-opened set.
 - [ ] Preexisting user-visible documents and the prior active document are snapshotted before the cleanup pass; unrelated preexisting visible C# tabs are temporarily closed for VCmd scope isolation and restored afterward/failure, while unrelated non-C# tabs are left alone.
 - [ ] If unrelated visible C# scope cannot be isolated safely, VCmd is skipped rather than knowingly processing unrelated source.
-- [ ] The paced opening loop allows bounded project-association settling so files are not unnecessarily relegated to **Miscellaneous Files**.
+- [ ] The paced opening loop logs each exact full source path before `File.OpenFile`, logs the return immediately afterward, and allows a short bounded IDE settling interval without rediscovering project-item/window state.
 - [ ] Individual eligible source-editor open failures are warning-only and do not roll back successful source/project mutations.
-- [ ] Excluded changed paths remain part of the transaction/Git changed set and are not opened merely for VCmd.
+- [ ] Designer-associated targets are opened by source/code-behind pathname only (`MyForm.cs`, changed `MyForm.Designer.cs`, `MyView.xaml.cs`, etc.); Designer surfaces and `.xaml` documents are never substituted for code-behind cleanup targets.
+- [ ] Excluded changed paths remain part of the transaction/Git changed set and are not opened merely for VCmd; changed WinForms `MyForm.Designer.cs` files are not treated as excluded under Revision U.
 - [ ] Eligible WinForms primary `.cs` files are explicitly opened as source text; the transaction never activates the WinForms Designer for cleanup.
 - [ ] VCmd eligibility is determined mechanically from path/classification rules established during generation-time audit; runtime source contents are not parsed to decide eligibility.
 - [ ] Immediately before the single VCmd invocation, the script writes `%LOCALAPPDATA%\xyLOGIX, LLC\Visual Commander\Commands\Strip Line Breaks from All Comments\Config\.config.json` using schema `3` with `SuppressPrompts = true`, `EnableGitAwareness = false`, `EnableCodeMaidAndReSharperCleanup = true`, and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed = false`.
@@ -2375,7 +2407,7 @@ When Section 1.1 applies:
 - [ ] `startupSeconds`, `quietSeconds`, and `maximumSeconds` are all computed adaptively from the exact successfully opened file count using the current bounded square-root policy and are reported through `Write-Host`.
 - [ ] After the quiet interval, the script performs the required final drain proof (`File.SaveAll`, pump, 1500-ms wait/sample, another pump/sample) and begins Git capture only if those final samples remain unchanged.
 - [ ] If post-VCmd convergence cannot be established within the finite maximum wait, the script stops before Git staging/commit while preserving source/project progress.
-- [ ] After ordered Git capture, a source-mutating transaction performs no adaptive fixed-point stabilization: all commits are created first, then exactly one `Start-Sleep -ms 50` occurs before a direct transaction-owned status check and bounded direct recapture if needed. A Git-recovery-only transaction uses direct `File.SaveAll` + fresh status without adding that sleep by convention.
+- [ ] After ordered Git capture, a source-mutating transaction performs no adaptive fixed-point stabilization: all commits are created first, then exactly one `Start-Sleep -m 50` occurs before a direct transaction-owned status check and bounded direct recapture if needed. A Git-recovery-only transaction uses direct `File.SaveAll` + fresh status without adding that sleep by convention.
 - [ ] After push, a source-mutating transaction performs adaptive save/pump/status stabilization; a Git-recovery-only transaction instead performs direct `File.SaveAll` + fresh status and bounded direct recapture/re-push without artificial quiet waits.
 - [ ] Final `*** SUCCESS ***` is impossible until Git proves transaction-owned paths are fully captured/stable and final `HEAD` resolves; synchronized repositories require `0/0` ahead/behind, but unrelated work-tree/default-index dirt may remain.
 - [ ] `*** INFO *** Synchronizing completed transaction commits...` cannot be emitted before actual commit SHA(s) have been resolved from Git.
@@ -2419,12 +2451,12 @@ Audit the planned transaction against the current authoritative workspace and cu
 - arbitrary preexisting working-tree/default-index dirt is tolerated in every transaction mode; no unrelated preservation commit, stash, reset, clean, or clean-baseline step is generated;
 - `.Constants`/`.Interfaces` dependency exceptions are honored while actual interface inheritance/member-type dependency closure is still satisfied;
 - the post-VCmd convergence barrier prevents Git capture until repeated content fingerprints of the exact VCmd-opened file set prove that downstream background `ReSharper_SilentCleanupCode`/IDE rewriting has remained quiet for the **adaptive current interval derived from the actual opened-file count** and through the final save/resample cycle;
-- the Git design proves each commit by observing the `HEAD` transition/SHA from Git, contains no per-commit or adaptive post-capture wait, performs one `Start-Sleep -ms 50` only after the full ordered capture pass, then uses direct status/bounded recapture; post-push stabilization remains separately bounded and success is impossible while transaction-owned dirt remains;
+- the Git design proves each commit by observing the `HEAD` transition/SHA from Git, contains no per-commit or adaptive post-capture wait, performs one `Start-Sleep -m 50` only after the full ordered capture pass, then uses direct status/bounded recapture; post-push stabilization remains separately bounded and success is impossible while transaction-owned dirt remains;
 - if the requested artifact is Git-recovery-only, the design explicitly bypasses source payload mutation, new boundary creation, ReSharper suspension/resumption, VCmd, adaptive content-fingerprint waits, and initial pull/rebase while the authorized recovery work tree is dirty; it uses direct status recapture after `File.SaveAll`, capture, and push instead;
-- the complete changed-path set and narrower VCmd-eligible C# set are distinguished correctly; VCmd eligibility includes `AssemblyInfo.cs`, excludes generated/fixed-format/non-C# artifacts, and editor-opening/VCmd cleanup remains best-effort and unable to erase source progress, while the single VCmd invocation is preceded by the exact schema-version-3 noninteractive/Git-disabled/cleanup-enabled one-run sidecar so CodeMaid/ReSharper cleanup runs without modal prompts and no VCmd-owned Git workflow can occur;
+- the complete changed-path set and narrower VCmd-eligible C# set are distinguished correctly; VCmd eligibility includes `AssemblyInfo.cs` and changed WinForms `MyForm.Designer.cs` source, excludes other generated/fixed-format/non-C# artifacts, and every source opening/restoration uses only `File.OpenFile` with code-behind paths for Designer-associated items, while the single VCmd invocation is preceded by the exact schema-version-3 noninteractive/Git-disabled/cleanup-enabled one-run sidecar so CodeMaid/ReSharper cleanup runs without modal prompts and no VCmd-owned Git workflow can occur;
 - Git synchronization respects actual upstream state; and
 - unrelated dirty/staged paths, regardless of when they appeared, cannot hitchhike or be reset/committed by the transaction;
-- visible editor-tab behavior and VCmd scope isolation match the supplied VCmd source: only documents with `Document.Windows.Count > 0` are considered user-visible, open C# documents take scope precedence, and unrelated preexisting visible C# documents are temporarily isolated/restored;
+- VCmd scope isolation matches the supplied VCmd source: open C# documents take scope precedence, unrelated preexisting visible C# documents are temporarily isolated/restored, and Revision U relies on Visual Studio's `File.OpenFile` command rather than CTS-side window-state verification for target opening/reactivation;
 - exact staging is rename/copy-aware and never depends on staged-record count equality; generation-time-known rename/move pairs are predeclared and staged directly without temporary Git rename-discovery staging;
 - native zero-output paths are modeled explicitly so a clean Git status is an empty result rather than `$null`; and
 - the detailed `%TEMP%` execution log and terminal raw-Git-status finalization requirements are designed into both success and failure flows;
@@ -2449,14 +2481,14 @@ After writing the final GUID-named `.ps1` file, reopen **that exact file** and a
 12. verify successful no-op boundary cleanup is present when a boundary is used;
 13. verify ReSharper is suspended before any mutation, the suspension state is tracked, and early-failure cleanup can resume it;
 14. verify new projects/references/source memberships use DTE/project-system operations rather than hand-authored `.sln`/`ProjectReference` topology, and no junction-canonicalized absolute path is persisted;
-15. verify the script maintains a transaction-wide eligible-path registry and performs exactly one paced source-file opening pass after all mutations; verify `AssemblyInfo.cs` is included and `Global*.cs`, `*.Designer.cs`, generated/derived C# source, and all non-C# artifacts are excluded;
+15. verify the script maintains a transaction-wide eligible-path registry and performs exactly one paced `File.OpenFile` source-opening pass after all mutations; verify `AssemblyInfo.cs` and changed WinForms `MyForm.Designer.cs` source are included while `Global*.cs`, resource/settings designer source, other generated/derived C# source, and all non-C# artifacts are excluded;
 16. verify the idempotent ReSharper state transition required for cleanup occurs after that opening pass and before VCmd, with bounded wait/message pumping after successful transitions and restoration of a preexisting suspended state afterward when applicable;
 17. verify the single VCmd invocation is immediately preceded by a write to the canonical `.config.json` path with **exactly** schema `3`, `SuppressPrompts: true`, `EnableGitAwareness: false`, `EnableCodeMaidAndReSharperCleanup: true`, and `AutomaticallyCheckInChangesToGitWhenGitAwarenessIsSuppressed: false`;
 18. verify the script skips VCmd rather than invoking it when sidecar preparation fails, and verify the VCmd call is argumentless (no `NoPrompt` or other command argument);
 19. verify VCmd cannot perform Git synchronization/check-in/push and therefore cannot compete with the script's own custom commit-message/staging workflow;
 20. verify eligible-file editor-open failure, sidecar-preparation failure, and VCmd failure are warning-only, excluded files are never opened merely for VCmd, and the final `File.SaveAll` is unconditional;
 21. verify the artifact contains no `Assert-CleanIndex` definition/call/equivalent cleanliness gate and no automatic preservation commit/stash/reset/clean step for unrelated Git dirt; verify arbitrary working-tree/default-index dirt is tolerated;
-22. verify the post-VCmd convergence barrier explicitly accounts for delayed/queued `CodeMaid.CleanupOpenCode`, `ReSharper.ReSharper_SilentCleanupOpenFiles`, `ReSharper_SilentCleanupCode`, and the command's schema-version-3 post-cleanup source-format verification pass; retains the exact successfully opened VCmd file set; computes/reports workload-scaled `startupSeconds`, `quietSeconds`, and `maximumSeconds`; forbids quiet-time accrual during the startup/drain interval; establishes a fresh baseline only after startup/drain completes; resets the full quiet interval on every later rewrite; performs the required final drain samples after apparent quiescence; and prevents Git capture on convergence timeout;
+22. verify the post-VCmd convergence barrier explicitly accounts for delayed/queued `CodeMaid.CleanupOpenCode`, `ReSharper.ReSharper_SilentCleanupOpenFiles`, `ReSharper_SilentCleanupCode`, and the command's schema-version-3 post-cleanup source-format verification pass; retains the exact VCmd path set whose `File.OpenFile` calls returned normally; computes/reports workload-scaled `startupSeconds`, `quietSeconds`, and `maximumSeconds`; forbids quiet-time accrual during the startup/drain interval; establishes a fresh baseline only after startup/drain completes; resets the full quiet interval on every later rewrite; performs the required final drain samples after apparent quiescence; and prevents Git capture on convergence timeout;
 23. verify `.Constants`/`.Interfaces` projects are exempt from blanket `xyLOGIX.Core.Debug`/`xyLOGIX.Core.Extensions*` additions while genuine interface dependency closure is still satisfied;
 24. verify no post-VCmd semantic source verification or fatal lint/style/static-analysis/build/compile/test gate exists;
 25. verify reference handling is positive-only unless the current prompt explicitly authorizes removal;
@@ -2467,7 +2499,7 @@ After writing the final GUID-named `.ps1` file, reopen **that exact file** and a
 30. verify the PowerShell source contains no nested `try`/`catch`/`finally` blocks and that any operation requiring its own exception boundary was extracted into a named helper function; also verify generated C# payloads follow the current xyLOGIX Software Engineering Manifesto rule against nested exception blocks.
 31. verify every changed C# payload passed the current symbol-to-namespace closure audit, including `PostSharp.Patterns.Diagnostics` for `[Log]`/`[NotLogged]`/related aspects, `System.Diagnostics` for `[DebuggerStepThrough]`, and `xyLOGIX.Core.Debug` for `DebugUtils` when those symbols are unqualified;
 32. verify each Git commit path captures the pre-commit `HEAD`, requires a different post-commit `HEAD`, resolves/reports the actual abbreviated SHA and subject from Git, and never treats an internal counter as commit proof;
-33. for a source-mutating artifact, verify there is no per-commit sleep and no adaptive post-capture fixed-point/content-fingerprint wait; verify all commits in the ordered capture pass are created first, followed by exactly one `Start-Sleep -ms 50` and a direct fresh transaction-owned Git-status check, with bounded direct recapture and no VCmd rerun; for a Git-recovery-only artifact, verify the direct-status exception is used without adding the 50-millisecond sleep by convention;
+33. for a source-mutating artifact, verify there is no per-commit sleep and no adaptive post-capture fixed-point/content-fingerprint wait; verify all commits in the ordered capture pass are created first, followed by exactly one `Start-Sleep -m 50` and a direct fresh transaction-owned Git-status check, with bounded direct recapture and no VCmd rerun; for a Git-recovery-only artifact, verify the direct-status exception is used without adding the 50-millisecond sleep by convention;
 34. for a source-mutating artifact, verify the post-push finalization loop performs adaptive `File.SaveAll`/message-pump/status stabilization and bounded recapture/re-push; for a Git-recovery-only artifact, verify post-push finalization uses direct `File.SaveAll` + fresh status and bounded direct recapture without artificial quiet waits; and
 35. verify the final success path obtains fresh Git evidence that all transaction-owned paths are fully captured/stable and final `HEAD` resolves; require `0/0` local/upstream ahead-behind only when synchronization actually occurred, and never require the whole default index/work tree to be clean.
 36. if the artifact is Git-recovery-only, verify it performs no source/project/Solution payload mutation, no new empty boundary, no ReSharper suspend/resume, no VCmd opening/sidecar/invocation, and no adaptive content-fingerprint/quiet-period wait merely because the recovery paths are dirty.
@@ -2478,7 +2510,7 @@ After writing the final GUID-named `.ps1` file, reopen **that exact file** and a
 41. verify the transaction initializes a `%TEMP%` log named from the actual GUID script basename plus execution-start `yyyyMMdd_HHmmss_fff` timestamp before the first mutation.
 42. verify detailed logging records function entry/exit, inputs/outcomes, important variables/collections/counts, DTE/Git/VCmd operations, warnings/errors/exceptions, while omitting giant Base64/source payload bodies and redacting genuine secrets.
 43. verify both success and failure flows perform repository/editor-affecting cleanup/restoration before appending complete raw `git status` output for every affected repository, and verify no substantive file-log content is written after the final status block.
-44. verify `ProjectItem.Open(...)` calls use the explicit text/source view kind, retain the returned `EnvDTE.Window`, make it visible, activate it, pump/wait/pump, and count/report success only after the intended document owns at least one window; `ItemOperations.OpenFile(...)` is fallback-only.
+44. verify every CTS document opening/reactivation/restoration uses only `$dte.ExecuteCommand('File.OpenFile', <quoted-full-source-path>)`, with no pre-check for already-open documents, no `ProjectItem.Open(...)`/`ItemOperations.OpenFile(...)` fallback, no returned-window activation logic, and no `Document.Windows.Count` proof gate; verify Designer-associated targets use code-behind/source paths only.
 45. verify preexisting user-visible C# documents are snapshotted and unrelated ones are temporarily isolated before VCmd; if exact isolation cannot be established, the artifact skips VCmd and later restores the user's editor state instead of processing unrelated source.
 46. verify staged-scope validation is rename/copy-aware, allows one staged rename/copy record to cover old/new authorized paths, treats empty actual staged diff as a no-op, and contains **no fatal expected-count-versus-actual-count assertion**.
 47. verify every VCmd invocation is immediately preceded by rewriting the exact automation sidecar, and the artifact assumes the command resets that file to defaults; verify post-VCmd observation is pathname-based so a VCmd-closed `AssemblyInfo.cs` remains in the convergence set.
