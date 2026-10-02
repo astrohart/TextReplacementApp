@@ -28,7 +28,7 @@ The third line onward is the commit body, written as an outline of bullet points
 5. The topline must use sentence case.
 6. The topline must not contain backticks.
 7. The topline must describe the change directly and specifically.
-8. If multiple file(s) are changed, then the topline can be more descriptive of the changes more broadly across the whole difference set.  If only one file is changed, then the topline must follow the single-file rules.
+8. If multiple file(s) are changed, then the topline can be more descriptive of the changes more broadly across the whole difference set.  If only one file is changed, then the topline must follow the single-file rules, including the narrow overlength exception for a single-file modification whose required `Update <file name>` topline would otherwise exceed 72 characters.
 
 ## Single-file commit toplines
 
@@ -61,6 +61,16 @@ Example:
 ```text
 Update xyLOGIX.Net.Framework.Models.sln
 ```
+
+#### Overlength exception
+
+The exact `Update <file name>` pattern remains mandatory whenever it is 72 characters or fewer.
+
+If, and only if, the literal `Update <file name>` topline would exceed the 72-character limit because the file name is too long, replace it with a shorter descriptive topline that summarizes the actual modification.
+
+The replacement topline must still satisfy every general topline rule: it must be a single line, no more than 72 characters, start with a present-tense verb, use sentence case, contain no backticks, and describe the change directly and specifically.
+
+Do not use this exception merely because a descriptive topline sounds better. Do not abbreviate or truncate the file name to force the `Update <file name>` pattern under the limit. When `Update <file name>` fits within 72 characters, use it exactly.
 
 ## Body rules
 
@@ -216,14 +226,15 @@ Before returning a generated commit message, verify all of the following:
 2. The topline starts with a present-tense verb.
 3. The topline uses sentence case and contains no backticks.
 4. Single-file additions use exactly `Create <file name>`.
-5. Single-file modifications use exactly `Update <file name>`.
-6. The second line is blank.
-7. The body begins on the third line.
-8. The body contains at least three top-level bullets.
-9. Every top-level body bullet is written in the past tense.
-10. Every body bullet remains scoped to the diff.
-11. Technical identifiers in the body are wrapped in backticks.
-12. Real lists of distinct items are expanded into indented sub-bullets.
-13. Sub-bullets are not counted toward the minimum three top-level bullets.
-14. Additional meaningful changes receive additional top-level bullets instead of being omitted merely to keep the body short.
-15. No bullet was added solely as padding.
+5. Single-file modifications use exactly `Update <file name>` whenever that topline is 72 characters or fewer; only when that exact topline would exceed 72 characters may a shorter descriptive topline be used instead.
+6. If the overlength single-file-modification exception was used, the replacement topline still satisfies every general topline rule and was used only because `Update <file name>` would otherwise violate the 72-character limit.
+7. The second line is blank.
+8. The body begins on the third line.
+9. The body contains at least three top-level bullets.
+10. Every top-level body bullet is written in the past tense.
+11. Every body bullet remains scoped to the diff.
+12. Technical identifiers in the body are wrapped in backticks.
+13. Real lists of distinct items are expanded into indented sub-bullets.
+14. Sub-bullets are not counted toward the minimum three top-level bullets.
+15. Additional meaningful changes receive additional top-level bullets instead of being omitted merely to keep the body short.
+16. No bullet was added solely as padding.
